@@ -207,7 +207,7 @@ export const gaps = sqliteTable('gaps', {
   gapStatusIdx: index('gaps_status_idx').on(table.status),
 }));
 
-// ۳-۱-الف. ستون‌های بازنگی دستی کاربر روی گپ
+// ۳-۱-الف. ستون‌های بازنگری دستی کاربر روی گپ
 // (review_status: confirmed_gap = گپ تأیید شد | not_gap = گپ نیست | adjusted = اصلاح دستی)
 
 // ۳-۲. آیتم‌های پژوهشی
@@ -251,7 +251,7 @@ export const gapAnalysisRuns = sqliteTable('gap_analysis_runs', {
   createdAt: text('created_at').notNull(),
 });
 
-// ۳-۴. بازنگی‌های دستی کاربر روی گپ‌ها (سابقه کامل حفظ می‌شود)
+// ۳-۴. بازنگری‌های دستی کاربر روی گپ‌ها (سابقه کامل حفظ می‌شود)
 export const gapReviews = sqliteTable('gap_reviews', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   gapId: integer('gap_id'),

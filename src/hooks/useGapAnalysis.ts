@@ -163,7 +163,7 @@ export function useGapAnalysis() {
   }, []);
 
   // ============================================
-  // 🟢 بازنگی دستی کاربر روی گپ (گپ نیست / گپ است / اصلاح وضعیت)
+  // 🟢 بازنگری دستی کاربر روی گپ (گپ نیست / گپ است / اصلاح وضعیت)
   // ============================================
 
   const reviewGap = useCallback(async (gapId: number, verdict: 'confirmed_gap' | 'not_gap' | 'adjusted', newStatus?: string, note?: string) => {

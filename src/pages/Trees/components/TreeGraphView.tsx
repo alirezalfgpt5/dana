@@ -134,11 +134,20 @@ export function TreeGraphView({
       ? d3.linkVertical<any, any>().x((d: any) => d.x).y((d: any) => layoutDirection === 'TB' ? d.y : -d.y)
       : d3.linkHorizontal<any, any>().x((d: any) => layoutDirection === 'RL' ? -d.y : d.y).y((d: any) => d.x);
 
-    innerG.append('g').attr('fill', 'none').attr('stroke', '#94a3b8').attr('stroke-width', 2)
+    // 🟢 یال‌ها: گره‌های دارای گپ باز با خط نقطه‌چین قرمز، گپ جزئی نقطه‌چین زرد، بقیه توپر خاکستری
+    innerG.append('g').attr('fill', 'none').attr('stroke-width', 2)
       .selectAll('path').data(treeRoot.links()).join('path')
       .attr('d', (d: any) => linkPath(d))
-      .attr('stroke-dasharray', (d: any) => d.target.data.isGap ? '6,4' : 'none')
-      .attr('stroke', (d: any) => d.target.data.isGap ? '#ef4444' : '#94a3b8');
+      .attr('stroke-dasharray', (d: any) => {
+        const st = d.target.data.gapStatus;
+        return d.target.data.isGap && (st === 'open' || st === 'partially_filled') ? '6,4' : 'none';
+      })
+      .attr('stroke', (d: any) => {
+        const st = d.target.data.gapStatus;
+        if (d.target.data.isGap && st === 'open') return '#ef4444';
+        if (d.target.data.isGap && st === 'partially_filled') return '#f59e0b';
+        return '#94a3b8';
+      });
 
     // Nodes
     const nodeGroup = innerG.append('g').selectAll('g').data(treeRoot.descendants()).join('g')
@@ -152,6 +161,11 @@ export function TreeGraphView({
 
     const rectWidth = 140, rectHeight = 40;
 
+    // 🟢 قاب گره‌ها:
+    // - گپ باز: خط نقطه‌چین قرمز (۴,۴)
+    // - پوشش جزئی: خط نقطه‌چین زرد (۴,۴)
+    // - پوشش کامل: خط توپر سبز
+    // - بدون گپ: قاب معمولی سطح
     nodeGroup.append('rect').attr('width', rectWidth).attr('height', rectHeight)
       .attr('x', -rectWidth / 2).attr('y', -rectHeight / 2).attr('rx', 8)
       .attr('fill', (d: any) => d.data.level === 'ROOT' ? '#1e293b' : d.data.color)
@@ -162,7 +176,12 @@ export function TreeGraphView({
         return '#ef4444';
       })
       .attr('stroke-width', (d: any) => d.data.isGap ? 2.5 : 1.5)
-      .attr('stroke-dasharray', (d: any) => (d.data.isGap && d.data.gapStatus !== 'filled') ? '4,4' : 'none');
+      .attr('stroke-dasharray', (d: any) => {
+        if (!d.data.isGap) return 'none';
+        if (d.data.gapStatus === 'open') return '4,4';
+        if (d.data.gapStatus === 'partially_filled') return '4,4';
+        return 'none'; // filled → توپر سبز
+      });
 
     if (showLabels) {
         const textElement = nodeGroup.append('text').attr('dy', '-5').attr('text-anchor', 'middle')
