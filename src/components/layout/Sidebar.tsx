@@ -481,8 +481,8 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* منو */}
-      <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden p-4">
+      {/* منو — اسکرول ظریف فقط هنگام hover */}
+      <div className="flex-1 overflow-y-auto sidebar-hover-scroll p-4">
         {isSearching ? (
           <div className="space-y-1">
             <div className="px-3 py-1.5">

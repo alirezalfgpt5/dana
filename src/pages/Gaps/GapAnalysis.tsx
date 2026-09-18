@@ -162,12 +162,29 @@ export function GapAnalysis() {
   };
 
   const handleConvertToResearch = (gap: any, nodeFallback?: any) => {
+    // انتقال کامل اطلاعات گره به فرم مسئله
+    const nodeData = nodeFallback || gap?.requiredNode;
     navigate('/issues', {
       state: {
         createFromGap: gap?.issue ? undefined : gap,
         createFromResearch: gap?.issue ? true : undefined,
         initialData: gap?.issue,
-        nodeFallback
+        nodeFallback: nodeData,
+        // اطلاعات تکمیلی از تحلیل شکاف
+        gapContext: {
+          gapId: gap?.id,
+          requiredNodeId: gap?.requiredNodeId,
+          producedNodeId: gap?.producedNodeId,
+          gapStatus: gap?.status,
+          gapType: gap?.gapType,
+          matchScore: gap?.matchScore,
+          gapDescription: gap?.description,
+          nodeTitle: nodeData?.title,
+          nodeLevel: nodeData?.level,
+          nodeLevelLabel: LEVEL_LABELS[nodeData?.level] || nodeData?.level,
+          requiredTreeName: requiredTreeData?.name,
+          producedTreeName: producedTreeData?.name,
+        }
       }
     });
   };

@@ -409,6 +409,35 @@
 }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 
+/* اسکرول ظریف سایدبار — فقط هنگام hover ماوس */
+.sidebar-hover-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.3s ease;
+}
+.sidebar-hover-scroll:hover {
+  scrollbar-color: var(--brand-300) transparent;
+}
+.sidebar-hover-scroll::-webkit-scrollbar {
+  width: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.sidebar-hover-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+.sidebar-hover-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-hover-scroll:hover::-webkit-scrollbar-thumb {
+  background: var(--brand-300);
+}
+.dark .sidebar-hover-scroll:hover::-webkit-scrollbar-thumb {
+  background: #3b4658;
+}
+
 /* Fullscreen Simulation for UI Components */
 .simulated-fullscreen {
   position: fixed !important;
