@@ -6,13 +6,35 @@ import {
   Save, Settings as SettingsIcon, Shield,
   Image, RefreshCw, CheckCircle,
   Plus, Trash2, Edit, X,
-  Layers, Tag, Building2, Download, Palette
+  Layers, Tag, Building2, Download, Palette, Target
 } from 'lucide-react';
 import { useSecurityStore, useUIStore, useAuthStore, THEMES, ThemeId } from '../store';
 import { DynamicMetadataManager } from '../components/DynamicMetadataManager';
-import toast from 'react-hot-toast';
+import toast from 'react-hot-toast';  type TabType = 'general' | 'appearance' | 'gapConfig' | 'security';
 
-type TabType = 'general' | 'appearance' | 'security';
+  // تنظیمات تحلیل شکاف (ذخیره در localStorage)
+  const GAP_CONFIG_KEY = 'dana_gap_config';
+  const [gapConfig, setGapConfig] = useState({
+    fuzzyThreshold: 45,
+    structuralWeight: 20,
+    defaultPriority: 'زیاد',
+    autoResearch: false,
+    showMethodology: true,
+    maxResults: 100,
+    description: ''
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(GAP_CONFIG_KEY);
+      if (saved) setGapConfig({ ...gapConfig, ...JSON.parse(saved) });
+    } catch {}
+  }, []);
+
+  const saveGapConfig = () => {
+    localStorage.setItem(GAP_CONFIG_KEY, JSON.stringify(gapConfig));
+    toast.success('تنظیمات تحلیل شکاف ذخیره شد');
+  };
 
 export function Settings() {
   const { 
@@ -455,12 +477,162 @@ export function Settings() {
         return renderGeneralTab();
       case 'appearance':
         return renderAppearanceTab();
+      case 'gapConfig':
+        return renderGapConfigTab();
       case 'security':
         return renderSecurityTab();
       default:
         return null;
     }
   };
+
+  // ============================================
+  // تب تنظیمات تحلیل شکاف
+  // ============================================
+
+  const renderGapConfigTab = () => (
+    <div className="space-y-6 max-w-3xl">
+      <div className="theme-card p-5">
+        <h3 className="font-bold text-strong mb-2 flex items-center gap-2">
+          <Target size={18} style={{ color: 'var(--brand-600)' }} />
+          پارامترهای موتور تحلیل شکاف
+        </h3>
+        <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+          این مقادیر نحوه محاسبه تطبیق بین درختواره‌ها را کنترل می‌کنند. تمامی مقادیر پس از ذخیره در کلاینت اعمال می‌شوند.
+        </p>
+
+        {/* آستانه تطابق فازی */}
+        <div className="space-y-4">
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="text-sm font-medium text-strong">
+                حداقل آستانه تطابق فازی
+              </label>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>
+                {gapConfig.fuzzyThreshold}٪
+              </span>
+            </div>
+            <input
+              type="range" min={10} max={80} step={5}
+              value={gapConfig.fuzzyThreshold}
+              onChange={e => setGapConfig({...gapConfig, fuzzyThreshold: +e.target.value})}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer"
+              style={{ background: `linear-gradient(to left, var(--brand-500) ${gapConfig.fuzzyThreshold}%, var(--border-soft) ${gapConfig.fuzzyThreshold}%)` }}
+            />
+            <p className="text-[10px] mt-1" style={{ color: 'var(--text-faint)' }}>
+              گره‌هایی که شباهت کمتر از این مقدار باشند، به‌عنوان «گپ باز» شناسایی می‌شوند. مقدار پیش‌فرض: ۴۵٪. افزایش این مقدار، حساسیت تحلیل را بیشتر می‌کند.
+            </p>
+          </div>
+
+          {/* وزن تطبیق ساختاری */}
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="text-sm font-medium text-strong">
+                وزن تطبیق ساختاری (درختی)
+              </label>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>
+                {gapConfig.structuralWeight}٪
+              </span>
+            </div>
+            <input
+              type="range" min={0} max={50} step={5}
+              value={gapConfig.structuralWeight}
+              onChange={e => setGapConfig({...gapConfig, structuralWeight: +e.target.value})}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer"
+              style={{ background: `linear-gradient(to left, var(--brand-500) ${(gapConfig.structuralWeight / 50) * 100}%, var(--border-soft) ${(gapConfig.structuralWeight / 50) * 100}%)` }}
+            />
+            <p className="text-[10px] mt-1" style={{ color: 'var(--text-faint)' }}>
+              گره‌هایی که در شاخه هم‌نام در درختواره تولیدشده باشند، امتیاز اضافی دریافت می‌کنند. این وزن مشخص می‌کند چقدر ساختار درختی در محاسبه مؤثر باشد.
+            </p>
+          </div>
+
+          {/* اولویت پیش‌فرض */}
+          <div>
+            <label className="block text-sm font-medium text-strong mb-1.5">
+              اولویت پیش‌فرض گپ‌های جدید
+            </label>
+            <select
+              value={gapConfig.defaultPriority}
+              onChange={e => setGapConfig({...gapConfig, defaultPriority: e.target.value})}
+              className="input-theme w-full px-3 py-2.5 text-sm"
+            >
+              <option value="خیلی زیاد">خیلی زیاد</option>
+              <option value="زیاد">زیاد</option>
+              <option value="متوسط">متوسط</option>
+              <option value="پایین">پایین</option>
+            </select>
+            <p className="text-[10px] mt-1" style={{ color: 'var(--text-faint)' }}>
+              اولویت پیش‌فرض برای گپ‌هایی که هنوز اولویت‌بندی نشده‌اند.
+            </p>
+          </div>
+
+          {/* حداکثر نتایج */}
+          <div>
+            <label className="block text-sm font-medium text-strong mb-1.5">
+              حداکثر تعداد نتایج تحلیل
+            </label>
+            <input
+              type="number" min={10} max={500}
+              value={gapConfig.maxResults}
+              onChange={e => setGapConfig({...gapConfig, maxResults: +e.target.value})}
+              className="input-theme w-32 px-3 py-2.5 text-sm text-center"
+            />
+            <p className="text-[10px] mt-1" style={{ color: 'var(--text-faint)' }}>
+              حداکثر تعداد گپ‌هایی که در هر بار تحلیل نمایش داده می‌شوند.
+            </p>
+          </div>
+
+          {/* نمایش خودکار شرح روش */}
+          <div className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: 'var(--surface-soft)' }}>
+            <div>
+              <label className="text-sm font-medium text-strong">نمایش خودکار شرح روش تحلیل</label>
+              <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-faint)' }}>پس از اجرای تحلیل، بخش شرح گام‌به‌گام روش به‌صورت خودکار باز شود</p>
+            </div>
+            <button
+              onClick={() => setGapConfig({...gapConfig, showMethodology: !gapConfig.showMethodology})}
+              className={`relative w-12 h-7 rounded-full transition-colors duration-300`}
+              style={{ backgroundColor: gapConfig.showMethodology ? 'var(--brand-600)' : 'var(--border-main)' }}
+            >
+              <span className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-all duration-300 ${gapConfig.showMethodology ? 'right-0.5' : 'right-5.5'}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t divider-main mt-4">
+          <button onClick={saveGapConfig} className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2">
+            <Save size={16} /> ذخیره تنظیمات
+          </button>
+        </div>
+      </div>
+
+      {/* توضیحات کامل روش تحلیل */}
+      <div className="theme-card p-5">
+        <h3 className="font-bold text-strong mb-3">توضیحات کامل روش تحلیل شکاف</h3>
+        <div className="space-y-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+          <div className="flex gap-3">
+            <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۱</span>
+            <p><strong className="text-strong">جمع‌آوری گره‌ها:</strong> تمامی برگ‌های درختواره مورد نیاز و درختواره تولیدشده استخراج می‌شوند.</p>
+          </div>
+          <div className="flex gap-3">
+            <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۲</span>
+            <p><strong className="text-strong">نرمال‌سازی متن:</strong> عنوان گره‌ها با حذف اعراب، یکسان‌سازی یا/ک عربی و نیم‌فاصله‌ها، برای مقایسه آماده می‌شوند.</p>
+          </div>
+          <div className="flex gap-3">
+            <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۳</span>
+            <p><strong className="text-strong">تطابق چندلایه:</strong> برای هر گره مورد نیاز، شباهت با تمام گره‌های تولیدشده با ۵ روش (لوانشتاین، بای‌گرام، توکن فازی، اشتراک واژگان و امتیاز ساختاری) محاسبه و میانگین وزن‌دار گرفته می‌شود.</p>
+          </div>
+          <div className="flex gap-3">
+            <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۴</span>
+            <p><strong className="text-strong">طبقه‌بندی وضعیت:</strong> شباهت بالای ۸۰٪ = پر شده | بین ۴۵-۸۰٪ = نیمه‌پر | کمتر از آستانه = باز (گپ).</p>
+          </div>
+          <div className="flex gap-3">
+            <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۵</span>
+            <p><strong className="text-strong">تولید گزارش:</strong> خلاصه فارسی، پوشش وزن‌دار کلی و به تفکیک سطح، و لیست گپ‌ها با شرح توضیحی تولید می‌شود.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   // ============================================
   // تب ظاهر: انتخاب تم + پیش‌نمایش زنده
@@ -802,6 +974,9 @@ export function Settings() {
           <div className="flex flex-wrap">
             <button onClick={() => setActiveTab('general')} className={`px-5 py-3 text-sm font-medium transition-all duration-200 border-b-2 flex items-center gap-2 ${activeTab === 'general' ? 'text-brand bg-brand-soft/50' : 'border-transparent hover:text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:border-[#2d2d44]'}`} style={activeTab === 'general' ? { color: 'var(--brand-600)', borderColor: 'var(--brand-600)' } : undefined}>
               <SettingsIcon size={16} /> عمومی
+            </button>
+            <button onClick={() => setActiveTab('gapConfig')} className={`px-5 py-3 text-sm font-medium transition-all duration-200 border-b-2 flex items-center gap-2 ${activeTab === 'gapConfig' ? 'text-brand bg-brand-soft/50' : 'border-transparent hover:text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:border-[#2d2d44]'}`} style={activeTab === 'gapConfig' ? { color: 'var(--brand-600)', borderColor: 'var(--brand-600)' } : undefined}>
+              <Target size={16} /> تحلیل شکاف
             </button>
             <button onClick={() => setActiveTab('appearance')} className={`px-5 py-3 text-sm font-medium transition-all duration-200 border-b-2 flex items-center gap-2 ${activeTab === 'appearance' ? 'text-brand bg-brand-soft/50' : 'border-transparent hover:text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:border-[#2d2d44]'}`} style={activeTab === 'appearance' ? { color: 'var(--brand-600)', borderColor: 'var(--brand-600)' } : undefined}>
               <Palette size={16} /> ظاهر و تم
