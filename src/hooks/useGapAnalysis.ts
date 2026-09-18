@@ -189,7 +189,7 @@ export function useGapAnalysis() {
   // پر کردن گپ
   // ============================================
 
-  const fillGap = useCallback(async (gapId: number, producedNodeId: number, description?: string) => {
+  const fillGap = useCallback(async (gapId: number, producedNodeId: number, statusChoice: 'filled' | 'partially_filled' = 'filled', description?: string) => {
     setLoading(true);
 
     try {
@@ -198,11 +198,12 @@ export function useGapAnalysis() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           producedNodeId,
+          status: statusChoice,
           description: description || '',
         }),
       });
 
-      toast.success('گپ با موفقیت پر شد');
+      toast.success(statusChoice === 'partially_filled' ? 'گپ با تطابق جزئی ثبت شد' : 'گپ با موفقیت پر شد');
       await fetchGaps({ page: pagination.page, limit: pagination.limit });
       return data;
     } catch (err: any) {
