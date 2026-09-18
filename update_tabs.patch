@@ -1,0 +1,19 @@
+--- src/components/issues/IssueFormTabs.tsx
++++ src/components/issues/IssueFormTabs.tsx
+@@ -264,13 +264,14 @@
+   }, [initialData]);
+ 
+   const tabs = [
++    { id: 'need', label: ' بیانیه نیاز', icon: FileText },
+     { id: 'general', label: ' اطلاعات کلی', icon: Settings },
+     { id: 'projects', label: ' پروژه‌ها', icon: ClipboardList },
+     { id: 'collaboration', label: ' همکاری‌ها', icon: Users },
+     { id: 'budget', label: ' بودجه و زمان', icon: DollarSign },
+     { id: 'actions', label: ' اقدامات', icon: CheckCircle },
+     { id: 'team', label: ' کارگروه', icon: UserCog },
+-    { id: 'need', label: ' بیانیه نیاز', icon: FileText },
+     { id: 'contract', label: ' قرارداد', icon: File },
++    { id: 'executive_contract', label: ' قرارداد شورای اجرایی', icon: Users },
+     { id: 'stages', label: ' مراحل', icon: Clock },
+     { id: 'application', label: ' کاربست', icon: RefreshCw },
+   ];

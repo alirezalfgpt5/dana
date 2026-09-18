@@ -1,0 +1,301 @@
+@import url('https://unpkg.com/vazirmatn@33.0.0/Vazirmatn-font-face.css');
+/* src/index.css */
+/* استایل‌های اصلی برنامه - سیستم مدیریت دانش (DANA) */
+
+   
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Vazirmatn', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f3f4f6;
+    direction: rtl;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  /* ============================================
+     اسکرول بار سفارشی
+     ============================================ */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #c4b5fd;
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #a78bfa;
+  }
+
+  /* ============================================
+     انیمیشن‌ها
+     ============================================ */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+
+  .animate-slide-in {
+    animation: slideIn 0.3s ease-out forwards;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .animate-spin-custom {
+    animation: spin 1s linear infinite;
+  }
+
+  /* ============================================
+     استایل‌های کامپوننت‌ها
+     ============================================ */
+
+  /* کارت‌های آماری */
+  .stat-card {
+    transition: all 0.3s ease;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  }
+
+  .stat-card .stat-icon {
+    transition: transform 0.3s ease;
+  }
+
+  .stat-card:hover .stat-icon {
+    transform: scale(1.1);
+  }
+
+  /* مودال‌ها */
+  .modal-overlay {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .modal-content {
+    animation: slideIn 0.3s ease-out;
+  }
+
+  /* وضعیت‌ها */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.625rem;
+    font-weight: 500;
+    border: 1px solid transparent;
+  }
+
+  .status-badge.completed {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #bbf7d0;
+  }
+
+  .status-badge.in-progress {
+    background: #dbeafe;
+    color: #1e40af;
+    border-color: #bfdbfe;
+  }
+
+  .status-badge.pending {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #f59e0b;
+  }
+
+  /* ============================================
+     استایل‌های دیت‌پیکر
+     ============================================ */
+  .rmdp-wrapper {
+    font-family: 'Vazirmatn', sans-serif !important;
+  }
+
+  .rmdp-calendar {
+    direction: rtl !important;
+  }
+
+  .rmdp-day {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .rmdp-day span {
+    font-size: 13px !important;
+  }
+
+  .rmdp-header-values {
+    font-family: 'Vazirmatn', sans-serif !important;
+  }
+
+  .rmdp-week-day {
+    font-family: 'Vazirmatn', sans-serif !important;
+  }
+}
+
+/* ============================================
+   استایل‌های چاپ
+   ============================================ */
+
+@media print {
+  aside, header {
+    display: none !important;
+  }
+  
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ============================================
+   استایل‌های واکنش‌گرا
+   ============================================ */
+
+@media (max-width: 640px) {
+  .stat-card .stat-value {
+    font-size: 1.5rem;
+  }
+  
+  .modal-content {
+    margin: 0.5rem;
+    max-height: 95vh;
+  }
+
+  .hide-on-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .stat-card .stat-value {
+    font-size: 1.75rem;
+  }
+}  /* ============================================
+     مخفی کردن اسکرول‌بار اما حفظ قابلیت اسکرول
+     ============================================ */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+.dark ::-webkit-scrollbar-track {
+  background: #1e1e2f;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Fullscreen Simulation for UI Components */
+.simulated-fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 99999 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  background-color: white !important;
+  overflow: auto !important;
+}
+
+.dark .simulated-fullscreen {
+  background-color: #111827 !important; /* Tailwind gray-900 */
+}

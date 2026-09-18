@@ -1,0 +1,29 @@
+--- src/components/issues/IssueFormTabs.tsx
++++ src/components/issues/IssueFormTabs.tsx
+@@ -118,22 +118,28 @@
+     file: null as File | null,
+     defenseDate: '',
+     minutes: '',
++    minutesFile: null as File | null,
++    recordsFiles: [] as File[],
+     paidAmount: 0,
+     paymentDate: '',
+   });
+   const [stage50Data, setStage50Data] = useState<any>({
+     file: null as File | null,
+     defenseDate: '',
+     minutes: '',
++    minutesFile: null as File | null,
++    recordsFiles: [] as File[],
+     paidAmount: 0,
+     paymentDate: '',
+   });
+   const [stage100Data, setStage100Data] = useState<any>({
+     file: null as File | null,
+     defenseDate: '',
+     minutes: '',
++    minutesFile: null as File | null,
++    recordsFiles: [] as File[],
+     paidAmount: 0,
+     paymentDate: '',
+   });
