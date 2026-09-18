@@ -1,19 +1,34 @@
 // src/pages/Gaps/GapAnalysis.tsx
-// صفحه تحلیل شکاف دانشی - نسخه ۳.۰
+// صفحه تحلیل شکاف دانشی - نسخه ۴.۰ (ظاهر ارتقاء یافته + گزارش توضیحی تحلیل)
+// منطق کسب‌وکار و فراخوانی‌های API بدون تغییر؛ فقط نمایش و تجربه کاربری بهبود یافته است.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useGapAnalysis } from '../../hooks/useGapAnalysis';
 import { useTree } from '../../hooks/useTree';
-import { 
+import {
   Target, Search, X, Download, RefreshCw,
   CheckCircle, AlertCircle, Clock,
-  Filter, HelpCircle, Zap, Edit2, Upload
+  Filter, HelpCircle, Zap, Edit2, Upload,
+  FileText, Info, Layers, Sparkles, TrendingUp, ChevronDown, RotateCcw, ListChecks
 } from 'lucide-react';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import toast from 'react-hot-toast';
 import { TreeGraphView } from '../Trees/components/TreeGraphView';
 import { useNavigate } from 'react-router-dom';
 import ExcelIcon from '../../components/icon/ExcelIcon';
+
+/** برچسب فارسی سطوح درختواره */
+const LEVEL_LABELS: Record<string, string> = {
+  'R': 'ریشه', 'T': 'تنه', 'B': 'شاخه', 'SB': 'زیرشاخه', 'L': 'برگ', 'Q': 'پرسش',
+};
+
+const GAP_TYPE_LABELS: Record<string, string> = {
+  'fuzzy': 'تطابق فازی',
+  'partial': 'تطابق جزئی',
+  'complete': 'کامل',
+  'complete_missing': 'قالب‌ها یافت نشد',
+  'manual': 'تأیید دستی',
+};
 
 export function GapAnalysis() {
   const {
@@ -23,7 +38,6 @@ export function GapAnalysis() {
     pagination,
     fetchGaps,
     analyzeGaps,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     fillGap,
     deleteGap,
     getGapStats,
@@ -40,13 +54,7 @@ export function GapAnalysis() {
   const [selectedGap, setSelectedGap] = useState<any>(null);
   const [showFillModal, setShowFillModal] = useState(false);
   const [fillProducedNodeId, setFillProducedNodeId] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (producedTreeId) {
-      fetchProducedTree(producedTreeId);
-    }
-  }, [producedTreeId, fetchProducedTree]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [showMethodology, setShowMethodology] = useState(true);
   const [showStats, setShowStats] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -56,8 +64,15 @@ export function GapAnalysis() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (producedTreeId) {
+      fetchProducedTree(producedTreeId);
+    }
+  }, [producedTreeId, fetchProducedTree]);
+
+  useEffect(() => {
     fetchTrees();
     fetchGaps({ page: 1, limit: 20 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // اگر کاربر به صفحه برگشت و گپ‌هایی وجود داشت، درختواره مربوطه را بارگذاری می‌کنیم
@@ -65,22 +80,22 @@ export function GapAnalysis() {
     if (gaps.length > 0 && !requiredTreeData && !loading) {
       const firstGap = gaps[0];
       const treeIdFromGap = firstGap?.requiredNode?.treeId;
-      
+
       if (treeIdFromGap) {
         if (treeIdFromGap !== requiredTreeId) {
           setRequiredTreeId(treeIdFromGap);
         }
-        
-        // تنظیم درختواره تولید شده اگر وجود داشته باشد
+
         if (!producedTreeId && producedTreeId !== 0) {
-           const producedId = firstGap?.producedNode?.treeId;
-           setProducedTreeId(producedId || 0);
+          const producedId = firstGap?.producedNode?.treeId;
+          setProducedTreeId(producedId || 0);
         }
-        
+
         fetchRequiredTree(treeIdFromGap);
       }
     }
-  }, [gaps, requiredTreeData, loading, requiredTreeId, producedTreeId, fetchRequiredTree]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gaps, requiredTreeData, loading]);
 
   const requiredTrees = trees.filter(t => t.type === 'required');
   const producedTrees = trees.filter(t => t.type === 'produced');
@@ -103,7 +118,7 @@ export function GapAnalysis() {
       const result = await analyzeGaps(requiredTreeId, producedTreeId);
       if (result) {
         setShowStats(true);
-        // toast.success(`تحلیل شکاف با موفقیت انجام شد. ${result.totalGaps} گپ شناسایی شد.`); // Handled in hook
+        setShowMethodology(true);
         fetchRequiredTree(requiredTreeId); // Fetch the tree nodes for visualization
       }
     } catch (error: any) {
@@ -119,7 +134,7 @@ export function GapAnalysis() {
     if (!requiredTreeId) return;
     setGenerating(true);
     try {
-      const res = await(window.customFetch || window.fetch)('/api/gaps/generate-research', {
+      const res = await (window.customFetch || window.fetch)('/api/gaps/generate-research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requiredTreeId, producedTreeId: producedTreeId || 0 })
@@ -147,12 +162,14 @@ export function GapAnalysis() {
   };
 
   const handleConvertToResearch = (gap: any, nodeFallback?: any) => {
-    navigate('/issues', { state: { 
-      createFromGap: gap?.issue ? undefined : gap,
-      createFromResearch: gap?.issue ? true : undefined,
-      initialData: gap?.issue,
-      nodeFallback 
-    } });
+    navigate('/issues', {
+      state: {
+        createFromGap: gap?.issue ? undefined : gap,
+        createFromResearch: gap?.issue ? true : undefined,
+        initialData: gap?.issue,
+        nodeFallback
+      }
+    });
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -183,7 +200,7 @@ export function GapAnalysis() {
 
     const loadToast = toast.loading('در حال بروزرسانی گپ‌ها...');
     try {
-      const res = await(window.customFetch || window.fetch)(`/api/outputs/gaps/${requiredTreeId}/excel-import`, {
+      const res = await (window.customFetch || window.fetch)(`/api/outputs/gaps/${requiredTreeId}/excel-import`, {
         method: 'POST',
         body: formData,
       });
@@ -201,8 +218,8 @@ export function GapAnalysis() {
 
   // فیلتر کردن گپ‌ها
   const filteredGaps = gaps.filter(gap => {
-    const matchSearch = gap.description?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                        gap.requiredNode?.title?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchSearch = gap.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      gap.requiredNode?.title?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = filterStatus === 'all' || gap.status === filterStatus;
     const matchPriority = filterPriority === 'all' || gap.priority === filterPriority;
     return matchSearch && matchStatus && matchPriority;
@@ -214,146 +231,158 @@ export function GapAnalysis() {
   // تعداد گپ‌های باز
   const openGaps = gaps.filter(g => g.status === 'open').length;
 
+  /** تنظیمات حلقه پوشش کلی (donut) */
+  const coveragePercent = report?.weightedCoveragePercent ?? (stats.total > 0 ? Math.round((stats.filled / stats.total) * 100) : 0);
+  const ringStyle = useMemo(() => {
+    const circumference = 2 * Math.PI * 34;
+    return {
+      strokeDasharray: `${(coveragePercent / 100) * circumference} ${circumference}`,
+    };
+  }, [coveragePercent]);
+
+  const hasActiveFilters = searchTerm || filterStatus !== 'all' || filterPriority !== 'all';
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-red-500 to-rose-600 rounded-xl shadow-lg shadow-red-200/50">
-              <Target size={24} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">تحلیل شکاف دانشی</h1>
-              <div className="flex items-center gap-3 mt-0.5">
-                <p className="text-gray-500 text-sm">
-                  مقایسه درختواره مورد نیاز و تولیدشده - شناسایی گپ‌های دانشی
-                </p>
-                <button 
-                  onClick={() => setShowHelp(!showHelp)}
-                  className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1"
-                >
-                  <HelpCircle size={14} />
-                  راهنما
-                </button>
+      {/* ═══════════════ Header ═══════════════ */}
+      <div className="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5">
+        <div className="absolute inset-0 bg-gradient-to-l from-rose-50/60 via-transparent to-transparent pointer-events-none" />
+        <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-gradient-to-br from-rose-500 to-red-600 rounded-xl shadow-lg shadow-rose-200/60">
+                <Target size={24} className="text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">تحلیل شکاف دانشی</h1>
+                <div className="flex items-center gap-3 mt-0.5">
+                  <p className="text-gray-500 text-sm">
+                    مقایسه درختواره مورد نیاز و تولیدشده - شناسایی گپ‌های دانشی
+                  </p>
+                  <button
+                    onClick={() => setShowHelp(!showHelp)}
+                    className="text-xs text-rose-600 hover:text-rose-800 flex items-center gap-1"
+                  >
+                    <HelpCircle size={14} />
+                    راهنما
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={handleAnalyze}
-            disabled={!requiredTreeId || producedTreeId === null || loading}
-            className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              !requiredTreeId || producedTreeId === null || loading
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white shadow-lg shadow-red-200/50'
-            }`}
-          >
-            {loading ? (
-              <RefreshCw size={18} className="animate-spin" />
-            ) : (
-              <Zap size={18} />
-            )}
-            {loading ? 'در حال تحلیل...' : 'اجرای تحلیل شکاف'}
-          </button>
-          
-          <button
-            onClick={handleGenerateResearchTree}
-            disabled={!report || generating}
-            className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              !report || generating
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-200/50'
-            }`}
-          >
-            {generating ? (
-              <RefreshCw size={18} className="animate-spin" />
-            ) : (
-              <Target size={18} />
-            )}
-            تولید درختواره پژوهشی
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleAnalyze}
+              disabled={!requiredTreeId || producedTreeId === null || loading}
+              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                !requiredTreeId || producedTreeId === null || loading
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-l from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white shadow-lg shadow-rose-200/60 hover:shadow-rose-300/60 hover:-translate-y-0.5'
+              }`}
+            >
+              {loading ? (
+                <RefreshCw size={18} className="animate-spin" />
+              ) : (
+                <Zap size={18} />
+              )}
+              {loading ? 'در حال تحلیل...' : 'اجرای تحلیل شکاف'}
+            </button>
 
-          <button
-            onClick={() => window.print()}
-            disabled={gaps.length === 0}
-            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              gaps.length === 0
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200/50'
-            }`}
-          >
-            <Download size={18} />
-            PDF
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={gaps.length === 0}
-            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              gaps.length === 0
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-200/50'
-            }`}
-            title="خروجی اکسل"
-          >
-            <Download size={18} />
-            <ExcelIcon color="#ffff" />
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImport}
-            accept=".xlsx, .xls"
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={!requiredTreeId}
-            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              !requiredTreeId
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200/50'
-            }`}
-            title="ورود اطلاعات از اکسل"
-          >
-            <Upload size={18} />
-            <ExcelIcon color="#ffff" />
-          </button>
+            <button
+              onClick={handleGenerateResearchTree}
+              disabled={!report || generating}
+              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                !report || generating
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-200/60 hover:-translate-y-0.5'
+              }`}
+            >
+              {generating ? (
+                <RefreshCw size={18} className="animate-spin" />
+              ) : (
+                <Target size={18} />
+              )}
+              تولید درختواره پژوهشی
+            </button>
+
+            <button
+              onClick={() => window.print()}
+              disabled={gaps.length === 0}
+              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                gaps.length === 0
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm'
+              }`}
+            >
+              <Download size={18} />
+              PDF
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={gaps.length === 0}
+              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                gaps.length === 0
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 shadow-sm'
+              }`}
+              title="خروجی اکسل"
+            >
+              <Download size={18} />
+              <ExcelIcon color="#059669" />
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImport}
+              accept=".xlsx, .xls"
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!requiredTreeId}
+              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                !requiredTreeId
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-white border border-sky-200 text-sky-600 hover:bg-sky-50 hover:border-sky-300 shadow-sm'
+              }`}
+              title="ورود اطلاعات از اکسل"
+            >
+              <Upload size={18} />
+              <ExcelIcon color="#0284c7" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* راهنما */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
-        <button 
+      {/* ═══════════════ راهنما ═══════════════ */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 overflow-hidden">
+        <button
           onClick={() => setShowHelp(!showHelp)}
           className="w-full flex items-center justify-between p-4 bg-gray-50/50 hover:bg-gray-50 transition-colors"
         >
           <div className="flex items-center gap-2 text-gray-700 font-medium text-sm">
-            <HelpCircle size={18} className="text-blue-500" />
+            <HelpCircle size={18} className="text-sky-500" />
             راهنمای تحلیل شکاف و وضعیت‌ها
           </div>
-          <span className="text-gray-400 text-xs">
-            {showHelp ? 'بستن راهنما' : 'مشاهده راهنما'}
-          </span>
+          <ChevronDown size={16} className={`text-gray-400 transition-transform duration-300 ${showHelp ? 'rotate-180' : ''}`} />
         </button>
         {showHelp && (
-          <div className="p-5 border-t border-gray-100 bg-white">
+          <div className="p-5 border-t border-gray-100 bg-white animate-fade-in">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-red-100 border-2 border-red-300 flex items-center justify-center shrink-0 mt-1">
-                  <AlertCircle size={14} className="text-red-600" />
+                <div className="w-9 h-9 rounded-full bg-rose-100 border-2 border-rose-300 flex items-center justify-center shrink-0 mt-1">
+                  <AlertCircle size={15} className="text-rose-600" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-red-700 text-sm mb-1">گپ باز (بدون پوشش)</h4>
+                  <h4 className="font-bold text-rose-700 text-sm mb-1">گپ باز (بدون پوشش)</h4>
                   <p className="text-xs text-gray-600 leading-relaxed text-justify">
                     این وضعیت نشان می‌دهد که برای این نیاز دانشی، هنوز هیچ دارایی یا مستندی در سازمان تولید نشده است. این موارد نیازمند تعریف پروژه‌های پژوهشی جدید هستند.
                   </p>
                 </div>
               </div>
               <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-amber-100 border-2 border-amber-300 flex items-center justify-center shrink-0 mt-1">
-                  <Clock size={14} className="text-amber-600" />
+                <div className="w-9 h-9 rounded-full bg-amber-100 border-2 border-amber-300 flex items-center justify-center shrink-0 mt-1">
+                  <Clock size={15} className="text-amber-600" />
                 </div>
                 <div>
                   <h4 className="font-bold text-amber-700 text-sm mb-1">نیمه‌پر (تطابق جزئی)</h4>
@@ -363,11 +392,11 @@ export function GapAnalysis() {
                 </div>
               </div>
               <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-green-100 border-2 border-green-300 flex items-center justify-center shrink-0 mt-1">
-                  <CheckCircle size={14} className="text-green-600" />
+                <div className="w-9 h-9 rounded-full bg-emerald-100 border-2 border-emerald-300 flex items-center justify-center shrink-0 mt-1">
+                  <CheckCircle size={15} className="text-emerald-600" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-green-700 text-sm mb-1">پر شده (کامل)</h4>
+                  <h4 className="font-bold text-emerald-700 text-sm mb-1">پر شده (کامل)</h4>
                   <p className="text-xs text-gray-600 leading-relaxed text-justify">
                     این نیاز دانشی به طور کامل توسط دارایی‌های موجود پوشش داده شده است و در حال حاضر هیچ شکافی برای آن در سازمان وجود ندارد.
                   </p>
@@ -375,19 +404,25 @@ export function GapAnalysis() {
               </div>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-500">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
               <strong>پوشش (Coverage):</strong> درصد کلی نیازهای دانشی که به طور کامل یا جزئی توسط دارایی‌های موجود سازمان برآورده شده‌اند.
             </div>
           </div>
         )}
       </div>
 
-      {/* Tree Selectors */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4">
+      {/* ═══════════════ انتخاب درختواره‌ها ═══════════════ */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-1.5 bg-rose-50 rounded-lg text-rose-500">
+            <Layers size={16} />
+          </div>
+          <h2 className="text-sm font-bold text-gray-700">انتخاب درختواره‌ها برای تحلیل</h2>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              درختواره مورد نیاز <span className="text-red-500">*</span>
+              درختواره مورد نیاز <span className="text-rose-500">*</span>
               <span className="text-xs text-gray-400 mr-1">(مرجع تصویب)</span>
             </label>
             <SearchableSelect
@@ -402,7 +437,7 @@ export function GapAnalysis() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              درختواره تولیدشده <span className="text-red-500">*</span>
+              درختواره تولیدشده <span className="text-rose-500">*</span>
               <span className="text-xs text-gray-400 mr-1">(دارایی‌های موجود)</span>
             </label>
             <SearchableSelect
@@ -415,15 +450,122 @@ export function GapAnalysis() {
         </div>
       </div>
 
-      {/* Unified Stats Overview */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
+      {/* ═══════════════ شرح تحلیل (گزارش توضیحی موتور) ═══════════════ */}
+      {report && (
+        <div className="relative overflow-hidden bg-gradient-to-l from-slate-50 via-white to-white rounded-2xl shadow-sm border border-slate-200">
+          <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-l from-sky-400 via-indigo-400 to-rose-400" />
+          <button
+            onClick={() => setShowMethodology(!showMethodology)}
+            className="w-full flex items-center justify-between p-4 hover:bg-slate-50/60 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-indigo-500 to-sky-500 rounded-xl shadow-md shadow-indigo-200/60">
+                <Sparkles size={18} className="text-white" />
+              </div>
+              <div className="text-right">
+                <h3 className="font-bold text-gray-800 text-sm">شرح تحلیل انجام‌شده</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  موتور تحلیل نسخه ۲ — {report.requiredTree} {report.producedTree !== 'بدون درختواره تولیدشده' ? `× ${report.producedTree}` : '(بدون تولیدشده)'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[11px] font-medium border border-indigo-100">
+                <FileText size={12} />
+                {report.createdAt}
+              </span>
+              <ChevronDown size={18} className={`text-gray-400 transition-transform duration-300 ${showMethodology ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+
+          {showMethodology && (
+            <div className="border-t border-slate-100 p-5 animate-fade-in">
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+                {/* جمع‌بندی + حلقه پوشش */}
+                <div className="lg:col-span-2 flex flex-col items-center gap-4">
+                  <div className="relative w-36 h-36">
+                    <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                      <circle cx="40" cy="40" r="34" fill="none" stroke="#f1f5f9" strokeWidth="9" />
+                      <circle
+                        cx="40" cy="40" r="34" fill="none"
+                        stroke="url(#coverageGradient)"
+                        strokeWidth="9" strokeLinecap="round"
+                        style={{ ...ringStyle, transition: 'stroke-dasharray 1s ease-out' }}
+                      />
+                      <defs>
+                        <linearGradient id="coverageGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#6366f1" />
+                          <stop offset="100%" stopColor="#ec4899" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-2xl font-black text-gray-800">{coveragePercent}٪</span>
+                      <span className="text-[10px] text-gray-400">پوشش وزن‌دار</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 leading-relaxed text-justify bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    {report.summaryFa}
+                  </p>
+                </div>
+
+                {/* گام‌های روش تحلیل */}
+                <div className="lg:col-span-3">
+                  <h4 className="flex items-center gap-2 text-xs font-bold text-gray-500 mb-3 uppercase tracking-wide">
+                    <ListChecks size={14} className="text-indigo-400" />
+                    روش تحلیل (گام به گام)
+                  </h4>
+                  <ol className="space-y-2.5">
+                    {(report.methodologyFa || []).map((step, i) => (
+                      <li key={i} className="flex gap-3 items-start group">
+                        <span className="shrink-0 w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 text-[11px] font-bold flex items-center justify-center border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                          {i + 1}
+                        </span>
+                        <p className="text-xs text-gray-600 leading-relaxed text-justify pt-0.5">{step}</p>
+                      </li>
+                    ))}
+                  </ol>
+
+                  {/* پوشش بر اساس سطح */}
+                  {report.byLevel && Object.keys(report.byLevel).length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-slate-100">
+                      <h4 className="flex items-center gap-2 text-xs font-bold text-gray-500 mb-2">
+                        <TrendingUp size={13} className="text-rose-400" />
+                        پوشش بر اساس سطح ساختاری
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(report.byLevel).map(([lvl, s]) => (
+                          <div key={lvl} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+                            <span className="text-[11px] font-bold text-gray-600">{LEVEL_LABELS[lvl] || lvl}</span>
+                            <div className="w-14 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${s.coveragePercent >= 80 ? 'bg-emerald-500' : s.coveragePercent >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                style={{ width: `${s.coveragePercent}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-gray-400">{s.coveragePercent}٪ ({s.total} گره)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════ جستجو و فیلترها ═══════════════ */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 relative">
             <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder="جستجو در گپ‌ها..."
-              className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-red-500 transition-all bg-gray-50/50 focus:bg-white"
+              className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 transition-all bg-gray-50/50 focus:bg-white"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
@@ -439,7 +581,7 @@ export function GapAnalysis() {
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-red-500 min-w-[140px]"
+            className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 min-w-[140px]"
           >
             <option value="all">همه وضعیت‌ها</option>
             <option value="open">باز (گپ)</option>
@@ -449,7 +591,7 @@ export function GapAnalysis() {
           <select
             value={filterPriority}
             onChange={e => setFilterPriority(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-red-500 min-w-[140px]"
+            className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 min-w-[140px]"
           >
             <option value="all">همه اولویت‌ها</option>
             <option value="critical">بحرانی</option>
@@ -463,35 +605,39 @@ export function GapAnalysis() {
               setFilterStatus('all');
               setFilterPriority('all');
             }}
-            className="px-4 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 ${
+              hasActiveFilters
+                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-100'
+                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+            }`}
           >
-            <Filter size={16} />
+            {hasActiveFilters ? <RotateCcw size={15} /> : <Filter size={16} />}
             پاک کردن
           </button>
         </div>
-        {(searchTerm || filterStatus !== 'all' || filterPriority !== 'all') && (
+        {hasActiveFilters && (
           <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
             <span className="text-xs text-gray-400 ml-2">فیلترهای فعال:</span>
             {searchTerm && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-700 rounded-full text-[10px]">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 rounded-full text-[10px] border border-rose-100">
                 جستجو: {searchTerm}
-                <button onClick={() => setSearchTerm('')} className="hover:text-red-500">
+                <button onClick={() => setSearchTerm('')} className="hover:text-rose-500">
                   <X size={12} />
                 </button>
               </span>
             )}
             {filterStatus !== 'all' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-[10px]">
-                وضعیت: {filterStatus}
-                <button onClick={() => setFilterStatus('all')} className="hover:text-red-500">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-sky-50 text-sky-700 rounded-full text-[10px] border border-sky-100">
+                وضعیت: {filterStatus === 'open' ? 'باز' : filterStatus === 'filled' ? 'پر شده' : 'نیمه‌پر'}
+                <button onClick={() => setFilterStatus('all')} className="hover:text-sky-500">
                   <X size={12} />
                 </button>
               </span>
             )}
             {filterPriority !== 'all' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-[10px]">
-                اولویت: {filterPriority}
-                <button onClick={() => setFilterPriority('all')} className="hover:text-red-500">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-[10px] border border-amber-100">
+                اولویت: {filterPriority === 'critical' ? 'بحرانی' : filterPriority === 'high' ? 'بالا' : filterPriority === 'medium' ? 'متوسط' : 'پایین'}
+                <button onClick={() => setFilterPriority('all')} className="hover:text-amber-500">
                   <X size={12} />
                 </button>
               </span>
@@ -500,65 +646,73 @@ export function GapAnalysis() {
         )}
       </div>
 
-      {/* Unified Stats Overview - عین TreeStats */}
-{gaps.length > 0 && (
-  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-3">
-    {/* کل گپ‌ها */}
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-3 text-center">
-      <p className="text-xs text-gray-400">کل گپ‌ها</p>
-      <p className="text-xl font-bold text-gray-800">{stats.total}</p>
-    </div>
+      {/* ═══════════════ کارت‌های آماری ═══════════════ */}
+      {gaps.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          {/* کل گپ‌ها */}
+          <div className="stat-card bg-white rounded-2xl shadow-sm border border-gray-200/80 p-4 text-center">
+            <p className="text-[11px] text-gray-400 mb-1">کل گپ‌ها</p>
+            <p className="text-2xl font-black text-gray-800">{stats.total}</p>
+          </div>
 
-    {/* باز (نیاز به اقدام) */}
-    <div className="bg-red-50 rounded-xl border border-red-200 p-3 text-center">
-      <p className="text-xs text-red-600">باز</p>
-      <p className="text-xl font-bold text-red-600">{stats.open}</p>
-    </div>
+          {/* باز */}
+          <div className="stat-card bg-gradient-to-b from-rose-50 to-white rounded-2xl border border-rose-200/80 p-4 text-center">
+            <p className="text-[11px] text-rose-500 mb-1 flex items-center justify-center gap-1">
+              <AlertCircle size={12} /> باز
+            </p>
+            <p className="text-2xl font-black text-rose-600">{stats.open}</p>
+          </div>
 
-    {/* نیمه‌پر */}
-    <div className="bg-amber-50 rounded-xl border border-amber-200 p-3 text-center">
-      <p className="text-xs text-amber-600">نیمه‌پر</p>
-      <p className="text-xl font-bold text-amber-600">{stats.partial}</p>
-    </div>
+          {/* نیمه‌پر */}
+          <div className="stat-card bg-gradient-to-b from-amber-50 to-white rounded-2xl border border-amber-200/80 p-4 text-center">
+            <p className="text-[11px] text-amber-600 mb-1 flex items-center justify-center gap-1">
+              <Clock size={12} /> نیمه‌پر
+            </p>
+            <p className="text-2xl font-black text-amber-600">{stats.partial}</p>
+          </div>
 
-    {/* پر شده (کامل) */}
-    <div className="bg-green-50 rounded-xl border border-green-200 p-3 text-center">
-      <p className="text-xs text-green-600">پر شده</p>
-      <p className="text-xl font-bold text-green-600">{stats.filled}</p>
-    </div>
+          {/* پر شده */}
+          <div className="stat-card bg-gradient-to-b from-emerald-50 to-white rounded-2xl border border-emerald-200/80 p-4 text-center">
+            <p className="text-[11px] text-emerald-600 mb-1 flex items-center justify-center gap-1">
+              <CheckCircle size={12} /> پر شده
+            </p>
+            <p className="text-2xl font-black text-emerald-600">{stats.filled}</p>
+          </div>
 
-    {/* پوشش دانشی */}
-    <div className="bg-blue-50 rounded-xl border border-blue-200 p-3 text-center">
-      <p className="text-xs text-blue-600">پوشش دانشی</p>
-      <p className="text-xl font-bold text-blue-600">
-        {stats.total > 0 ? Math.round((stats.filled / stats.total) * 100) : 0}%
-      </p>
-    </div>
-  </div>
-)}
+          {/* پوشش دانشی */}
+          <div className="stat-card bg-gradient-to-b from-sky-50 to-white rounded-2xl border border-sky-200/80 p-4 text-center">
+            <p className="text-[11px] text-sky-600 mb-1 flex items-center justify-center gap-1">
+              <TrendingUp size={12} /> پوشش دانشی
+            </p>
+            <p className="text-2xl font-black text-sky-600">
+              {stats.total > 0 ? Math.round((stats.filled / stats.total) * 100) : 0}٪
+            </p>
+          </div>
+        </div>
+      )}
 
-      {/* Results */}
+      {/* ═══════════════ نتایج ═══════════════ */}
       {loading ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-12 text-center">
-          <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-12 text-center">
+          <div className="w-12 h-12 border-4 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-500 text-sm">در حال بارگذاری گپ‌ها...</p>
         </div>
       ) : filteredGaps.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-12 text-center">
-          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Target size={40} className="text-gray-300" />
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-12 text-center">
+          <div className="w-20 h-20 bg-gradient-to-br from-rose-50 to-amber-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-100">
+            <Target size={40} className="text-rose-300" />
           </div>
           <h3 className="text-xl font-bold text-gray-600 mb-2">هیچ گپی یافت نشد</h3>
           <p className="text-gray-400 text-sm max-w-md mx-auto">
-            {gaps.length === 0 
-              ? 'ابتدا تحلیل شکاف را با انتخاب درختواره‌ها و کلیک روی "اجرای تحلیل شکاف" انجام دهید.'
+            {gaps.length === 0
+              ? 'ابتدا تحلیل شکاف را با انتخاب درختواره‌ها و کلیک روی «اجرای تحلیل شکاف» انجام دهید.'
               : 'با فیلترهای موجود، گپی یافت نشد. فیلترها را تغییر دهید.'}
           </p>
           {gaps.length === 0 && (
             <button
               onClick={handleAnalyze}
-              disabled={!requiredTreeId || !producedTreeId}
-              className="mt-4 px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!requiredTreeId || producedTreeId === null}
+              className="mt-4 px-6 py-2.5 bg-gradient-to-l from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 mx-auto shadow-lg shadow-rose-200/60 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Zap size={16} />
               شروع تحلیل
@@ -567,17 +721,27 @@ export function GapAnalysis() {
         </div>
       ) : (
         <>
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2">
             <button
               onClick={() => setViewMode('tree')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'tree' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                viewMode === 'tree'
+                  ? 'bg-gradient-to-l from-rose-600 to-red-600 text-white shadow-md shadow-rose-200/60'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
             >
+              <Layers size={15} />
               نمای درختی
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'table' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                viewMode === 'table'
+                  ? 'bg-gradient-to-l from-rose-600 to-red-600 text-white shadow-md shadow-rose-200/60'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
             >
+              <ListChecks size={15} />
               نمای جدولی
             </button>
           </div>
@@ -585,188 +749,192 @@ export function GapAnalysis() {
           {viewMode === 'tree' ? (
             <div>
               {requiredTreeData && requiredTreeData.nodes ? (
-                <TreeGraphView 
+                <TreeGraphView
                   nodes={requiredTreeData.nodes.map((node: any) => {
                     const gap = gaps.find(g => g.requiredNodeId === node.id);
                     return {
                       ...node,
                       gapData: gap || null,
-                      gapStatus: gap ? gap.status : 'filled', // 'open', 'partially_filled', 'filled'
+                      gapStatus: gap ? gap.status : 'filled',
                     };
-                  })} 
-                  treeName={requiredTreeData.name} 
+                  })}
+                  treeName={requiredTreeData.name}
                   onNodeClick={(node) => {
-                     if (node.gapData && (node.gapData as any).researchItemId) {
-                         handleConvertToResearch(node.gapData, node);
-                     } else if (node.gapData && node.gapData.status !== 'filled') {
-                         handleConvertToResearch(node.gapData, node);
-                     } else if (!node.gapData && node.isGap) {
-                         // Missing from paginated gaps, but it is a gap!
-                         handleConvertToResearch(null, node);
-                     } else if (node.gapData && node.gapData.status === 'filled') {
-                         toast.success('این نیاز دانشی کاملاً پوشش داده شده است');
-                     }
+                    if (node.gapData && (node.gapData as any).researchItemId) {
+                      handleConvertToResearch(node.gapData, node);
+                    } else if (node.gapData && node.gapData.status !== 'filled') {
+                      handleConvertToResearch(node.gapData, node);
+                    } else if (!node.gapData && node.isGap) {
+                      handleConvertToResearch(null, node);
+                    } else if (node.gapData && node.gapData.status === 'filled') {
+                      toast.success('این نیاز دانشی کاملاً پوشش داده شده است');
+                    }
                   }}
                 />
               ) : (
-                <div className="flex items-center justify-center h-full text-gray-500">در حال بارگذاری درختواره...</div>
+                <div className="flex items-center justify-center h-64 text-gray-500 bg-white rounded-2xl border border-gray-200/80">
+                  در حال بارگذاری درختواره...
+                </div>
               )}
             </div>
           ) : (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 overflow-hidden">
               <div className="overflow-x-auto">
-            <table className="w-full text-sm text-right">
-              <thead className="bg-gradient-to-r from-gray-50 to-white border-b">
-                <tr>
-                  <th className="px-4 py-3.5 text-xs font-semibold text-gray-600">#</th>
-                  <th className="px-4 py-3.5 text-xs font-semibold text-gray-600">گره مورد نیاز</th>
-                  <th className="px-4 py-3.5 text-xs font-semibold text-gray-600">وضعیت</th>
-                  <th className="px-4 py-3.5 text-xs font-semibold text-gray-600">نوع</th>
-                  <th className="px-4 py-3.5 text-xs font-semibold text-gray-600">امتیاز تطابق</th>
-                  <th className="px-4 py-3.5 text-xs font-semibold text-gray-600">اولویت</th>
-                  <th className="px-4 py-3.5 text-xs font-semibold text-gray-600 text-center">عملیات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredGaps.map((gap, index) => (
-                  <tr key={gap.id} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="px-4 py-3.5 text-gray-400 text-xs">{index + 1}</td>
-                    <td className="px-4 py-3.5 font-medium text-gray-800">
-                      {gap.requiredNode?.title || 'نامشخص'}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${
-                        gap.status === 'filled' ? 'bg-green-100 text-green-700 border-green-200' :
-                        gap.status === 'partially_filled' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                        'bg-red-100 text-red-700 border-red-200'
-                      }`}>
-                        {gap.status === 'filled' ? <CheckCircle size={12} /> :
-                         gap.status === 'partially_filled' ? <Clock size={12} /> :
-                         <AlertCircle size={12} />}
-                        {gap.status === 'filled' ? 'پر شده' :
-                         gap.status === 'partially_filled' ? 'نیمه‌پر' : 'باز (گپ)'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 text-gray-600">
-                      {gap.gapType === 'fuzzy' ? 'تطابق فازی' :
-                       gap.gapType === 'partial' ? 'تطابق جزئی' :
-                       gap.gapType === 'complete' ? 'کامل' : '-'}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full ${
-                              (gap.matchScore || 0) >= 0.8 ? 'bg-green-500' :
-                              (gap.matchScore || 0) >= 0.5 ? 'bg-amber-500' : 'bg-red-500'
-                            }`}
-                            style={{ width: `${(gap.matchScore || 0) * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-500">
-                          {Math.round((gap.matchScore || 0) * 100)}%
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        gap.priority === 'critical' ? 'bg-red-100 text-red-700' :
-                        gap.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                        gap.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {gap.priority === 'critical' ? 'بحرانی' :
-                         gap.priority === 'high' ? 'بالا' :
-                         gap.priority === 'medium' ? 'متوسط' : 'پایین'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center justify-center gap-1">
-                        {gap.status !== 'filled' && (
-                          <>
-                            {(gap as any).researchItemId ? (
-                              <button
-                                onClick={() => handleConvertToResearch(gap, gap.requiredNode)}
-                                className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                                title="مشاهده و ویرایش مسئله"
-                              >
-                                <Edit2 size={16} />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleConvertToResearch(gap, gap.requiredNode)}
-                                className="p-1.5 text-purple-500 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
-                                title="تبدیل به پژوهش (مسئله)"
-                              >
-                                <Target size={16} />
-                              </button>
+                <table className="w-full text-sm text-right">
+                  <thead className="bg-gradient-to-l from-gray-50 to-white border-b border-gray-100">
+                    <tr>
+                      <th className="px-4 py-3.5 text-xs font-semibold text-gray-500">#</th>
+                      <th className="px-4 py-3.5 text-xs font-semibold text-gray-500">گره مورد نیاز</th>
+                      <th className="px-4 py-3.5 text-xs font-semibold text-gray-500">وضعیت</th>
+                      <th className="px-4 py-3.5 text-xs font-semibold text-gray-500">نوع تطابق</th>
+                      <th className="px-4 py-3.5 text-xs font-semibold text-gray-500">امتیاز تطابق</th>
+                      <th className="px-4 py-3.5 text-xs font-semibold text-gray-500">اولویت</th>
+                      <th className="px-4 py-3.5 text-xs font-semibold text-gray-500 text-center">عملیات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredGaps.map((gap, index) => (
+                      <tr key={gap.id} className="hover:bg-rose-50/40 transition-colors group">
+                        <td className="px-4 py-3.5 text-gray-400 text-xs">{index + 1}</td>
+                        <td className="px-4 py-3.5">
+                          <div className="font-medium text-gray-800">{gap.requiredNode?.title || 'نامشخص'}</div>
+                          {gap.requiredNode?.level && (
+                            <span className="text-[10px] text-gray-400">
+                              سطح: {LEVEL_LABELS[gap.requiredNode.level] || gap.requiredNode.level}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${
+                            gap.status === 'filled' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            gap.status === 'partially_filled' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
+                            {gap.status === 'filled' ? <CheckCircle size={12} /> :
+                              gap.status === 'partially_filled' ? <Clock size={12} /> :
+                                <AlertCircle size={12} />}
+                            {gap.status === 'filled' ? 'پر شده' :
+                              gap.status === 'partially_filled' ? 'نیمه‌پر' : 'باز (گپ)'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-gray-600">
+                          {GAP_TYPE_LABELS[gap.gapType || ''] || '-'}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  (gap.matchScore || 0) >= 0.8 ? 'bg-emerald-500' :
+                                  (gap.matchScore || 0) >= 0.5 ? 'bg-amber-500' : 'bg-rose-500'
+                                }`}
+                                style={{ width: `${(gap.matchScore || 0) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-500 font-medium">
+                              {Math.round((gap.matchScore || 0) * 100)}٪
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            gap.priority === 'critical' ? 'bg-rose-100 text-rose-700' :
+                              gap.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                                gap.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-gray-100 text-gray-600'
+                          }`}>
+                            {gap.priority === 'critical' ? 'بحرانی' :
+                              gap.priority === 'high' ? 'بالا' :
+                                gap.priority === 'medium' ? 'متوسط' : 'پایین'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center justify-center gap-1">
+                            {gap.status !== 'filled' && (
+                              <>
+                                {(gap as any).researchItemId ? (
+                                  <button
+                                    onClick={() => handleConvertToResearch(gap, gap.requiredNode)}
+                                    className="p-1.5 text-sky-500 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition-colors"
+                                    title="مشاهده و ویرایش مسئله"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleConvertToResearch(gap, gap.requiredNode)}
+                                    className="p-1.5 text-violet-500 hover:text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
+                                    title="تبدیل به پژوهش (مسئله)"
+                                  >
+                                    <Target size={16} />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setSelectedGap(gap);
+                                    setShowFillModal(true);
+                                  }}
+                                  className="p-1.5 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                                  title="پر کردن گپ"
+                                >
+                                  <CheckCircle size={16} />
+                                </button>
+                              </>
                             )}
                             <button
-                              onClick={() => {
-                                setSelectedGap(gap);
-                                setShowFillModal(true);
-                              }}
-                              className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="پر کردن گپ"
+                              onClick={() => handleDeleteGap(gap.id)}
+                              className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              title="حذف گپ"
                             >
-                              <CheckCircle size={16} />
+                              <X size={16} />
                             </button>
-                          </>
-                        )}
-                        <button
-                          onClick={() => handleDeleteGap(gap.id)}
-                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                          title="حذف گپ"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="p-4 border-t bg-gray-50/50 flex items-center justify-between">
-              <span className="text-xs text-gray-400">
-                نمایش {filteredGaps.length} از {pagination.total} گپ
-              </span>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                  const page = i + 1;
-                  return (
-                    <button
-                      key={page}
-                      onClick={() => fetchGaps({ page, limit: pagination.limit })}
-                      className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                        page === pagination.page
-                          ? 'bg-red-600 text-white'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  );
-                })}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="p-4 border-t bg-gray-50/50 flex items-center justify-between">
+                  <span className="text-xs text-gray-400">
+                    نمایش {filteredGaps.length} از {pagination.total} گپ
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                      const page = i + 1;
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => fetchGaps({ page, limit: pagination.limit })}
+                          className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                            page === pagination.page
+                              ? 'bg-rose-600 text-white shadow-sm'
+                              : 'text-gray-600 hover:bg-white'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
           )}
         </>
       )}
 
-      {/* Fill Gap Modal */}
+      {/* ═══════════════ مودال پر کردن گپ ═══════════════ */}
       {showFillModal && selectedGap && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+            <div className="p-4 border-b bg-gradient-to-l from-sky-50 to-indigo-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <CheckCircle size={18} className="text-blue-600" />
+                <div className="p-2 bg-white rounded-lg shadow-sm border border-sky-100">
+                  <CheckCircle size={18} className="text-sky-600" />
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-800">پر کردن گپ</h3>
@@ -780,24 +948,27 @@ export function GapAnalysis() {
                   setShowFillModal(false);
                   setSelectedGap(null);
                 }}
-                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white/70 rounded-lg transition-colors"
               >
                 <X size={20} />
               </button>
             </div>
 
             <div className="p-5 space-y-4">
+              {selectedGap.description && (
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs text-gray-600 leading-relaxed flex gap-2">
+                  <Info size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                  <span>{selectedGap.description}</span>
+                </div>
+              )}
+
               <p className="text-sm text-gray-600">
                 برای پر کردن این گپ، گره تولیدشده معادل را انتخاب کنید:
               </p>
-              
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
-                💡 نکته: گره‌های تولیدشده موجود در درختواره تولیدشده را بررسی کنید
-              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  انتخاب گره تولیدشده <span className="text-red-500">*</span>
+                  انتخاب گره تولیدشده <span className="text-rose-500">*</span>
                 </label>
                 {producedTreeId && producedTreeData?.nodes ? (
                   <SearchableSelect
@@ -810,7 +981,7 @@ export function GapAnalysis() {
                     placeholder="جستجو و انتخاب گره تولیدشده..."
                   />
                 ) : (
-                  <div className="text-sm text-red-500 bg-red-50 p-2 rounded-lg border border-red-200">
+                  <div className="text-sm text-rose-500 bg-rose-50 p-2 rounded-lg border border-rose-200">
                     ابتدا یک درختواره تولیدشده انتخاب کنید.
                   </div>
                 )}
@@ -837,8 +1008,8 @@ export function GapAnalysis() {
                   }}
                   className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
                     fillProducedNodeId
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-200/50'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      ? 'bg-gradient-to-l from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white shadow-lg shadow-sky-200/60'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
                 >
                   <CheckCircle size={16} />

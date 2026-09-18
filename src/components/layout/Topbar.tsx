@@ -2,7 +2,7 @@
 // نوار بالایی برنامه
 import React, { useState, useEffect } from 'react';
 import { useAuthStore, useUIStore } from '../../store';
-import { Search, LogOut, User as UserIcon, Info, Mail, Phone, LayoutDashboard, Maximize2, Minimize2, Menu, Moon, Sun, Calendar } from 'lucide-react';
+import { Search, LogOut, User as UserIcon, Info, Mail, Phone, LayoutDashboard, Maximize2, Minimize2, Menu, Moon, Sun, Calendar, Network } from 'lucide-react';
 import { format } from 'date-fns-jalali';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { useNavigate } from 'react-router-dom';
@@ -53,9 +53,9 @@ export function Topbar() {
   };
 
   return (
-    <header className="bg-white dark:bg-[#1e1e2f] shadow-lg border-b border-gray-200 dark:border-[#2d2d44] h-16 flex items-center justify-between px-4 sticky top-0 z-50 transition-colors duration-200">
+    <header className="bg-white/95 dark:bg-[#1e1e2f] backdrop-blur-md shadow-sm border-b border-gray-200/80 dark:border-[#2d2d44] h-16 flex items-center justify-between px-4 sticky top-0 z-50 transition-colors duration-200">
       {/* بخش چپ */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <button
           onClick={toggleSidebar}
           className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-white/10 text-gray-600 dark:text-gray-300 transition-colors"
@@ -64,14 +64,19 @@ export function Topbar() {
         </button>
         
         {/* عنوان */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-200/50">
+            <Network size={17} className="text-white" />
+          </div>
           <h1 className="text-xl font-bold text-gray-800 dark:text-white tracking-tight">
-            <span className="text-blue-500 dark:text-blue-400">DANA</span>
+            <span className="bg-gradient-to-l from-blue-600 to-indigo-600 bg-clip-text text-transparent">DANA</span>
           </h1>
-          <div className="hidden md:block w-48 lg:w-64 overflow-hidden relative">
-            <p className="text-gray-500 dark:text-white text-sm whitespace-nowrap animate-[marquee_15s_linear_infinite] hover:animate-none">
-              {systemName || 'سیستم مدیریت دانش'}
-            </p>
+          <div className="hidden md:flex items-center before:content-[''] before:w-px before:h-5 before:bg-gray-200 before:mx-2">
+            <div className="w-44 lg:w-56 overflow-hidden relative">
+              <p className="text-gray-500 dark:text-gray-300 text-sm whitespace-nowrap animate-[marquee_15s_linear_infinite] hover:animate-none">
+                {systemName || 'سیستم مدیریت دانش'}
+              </p>
+            </div>
           </div>
         </div>
 

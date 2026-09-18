@@ -246,35 +246,41 @@ function TreeNode({ item, level, expandedItems, toggleExpand, onNavigate }: Tree
     <div className="select-none">
       <div
         className={twMerge(
-          'flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 cursor-pointer',
-          isActive ? 'bg-blue-50 text-blue-700 border border-blue-200/50' : 'hover:bg-gray-100/80 text-gray-700',
+          'group flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer relative',
+          isActive
+            ? 'bg-gradient-to-l from-blue-50 to-indigo-50/60 text-blue-700 shadow-sm border border-blue-100'
+            : 'hover:bg-gray-100/80 text-gray-700 border border-transparent',
           level > 0 ? 'mr-4' : ''
         )}
         style={{ paddingRight: `${level * 16 + 12}px` }}
         onClick={handleClick}
       >
-        {Icon && (
-          <Icon
-            size={level === 0 ? 18 : 16}
-            className={clsx('flex-shrink-0', isActive ? 'text-blue-600' : 'text-gray-500')}
-          />
+        {/* نشانگر آیتم فعال */}
+        {isActive && (
+          <span className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-l-full bg-gradient-to-b from-blue-500 to-indigo-500" />
         )}
-        <span className={twMerge('flex-1', level === 0 ? 'text-sm font-medium' : 'text-sm')}>
+        {Icon && (
+          <span className={clsx(
+            'flex-shrink-0 p-1 rounded-lg transition-all duration-200',
+            isActive
+              ? 'bg-blue-100 text-blue-600'
+              : 'text-gray-400 group-hover:text-gray-600 group-hover:bg-gray-200/60'
+          )}>
+            <Icon size={level === 0 ? 17 : 15} />
+          </span>
+        )}
+        <span className={twMerge('flex-1', level === 0 ? 'text-sm font-medium' : 'text-[13px] text-gray-600')}>
           {item.label}
         </span>
         {hasChildren && (
-          <div className="flex-shrink-0">
-            {isExpanded ? (
-              <ChevronUp size={16} className="text-gray-400" />
-            ) : (
-              <ChevronDown size={16} className="text-gray-400" />
-            )}
-          </div>
+          <span className="flex-shrink-0 text-gray-300 transition-transform duration-300" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none' }}>
+            <ChevronDown size={15} />
+          </span>
         )}
       </div>
 
       {isExpanded && hasChildren && (
-        <div className={clsx(level > 0 ? 'border-r-2 border-gray-200/50 mr-4' : '')}>
+        <div className={clsx('mt-1 space-y-0.5 animate-fade-in', level > 0 ? 'border-r-2 border-gray-200/50 mr-4' : '')}>
           {item.children!.map((child) => (
             <TreeNode
               key={child.id}
@@ -447,17 +453,20 @@ export function Sidebar() {
   return (
     <aside
       className={clsx(
-        "bg-white border-l border-gray-200/80 shadow-xl h-[calc(100vh-4rem)] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 flex-shrink-0 flex flex-col",
+        "bg-white border-l border-gray-200/70 shadow-xl h-[calc(100vh-4rem)] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 flex-shrink-0 flex flex-col",
         sidebarOpen ? "w-72" : "w-0 opacity-0 overflow-hidden"
       )}
     >
       {/* هدر سایدبار */}
-      <div className="p-5 border-b border-gray-200/80 bg-gradient-to-r from-blue-600 to-indigo-700 flex-shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="p-5 border-b border-gray-200/70 bg-gradient-to-l from-blue-700 via-blue-600 to-indigo-600 flex-shrink-0 relative overflow-hidden">
+        {/* الگوی تزئینی ظریف */}
+        <div className="absolute -top-8 -left-8 w-28 h-28 rounded-full bg-white/5 pointer-events-none" />
+        <div className="absolute -bottom-10 -right-6 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
+        <div className="relative flex items-center gap-3">
           {siteLogo ? (
             <img src={siteLogo} alt="Logo" className="w-10 h-10 rounded-xl object-cover bg-white/20 backdrop-blur-sm shadow-sm" />
           ) : (
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+            <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/10">
               <Building2 className="text-white" size={22} />
             </div>
           )}
@@ -527,12 +536,15 @@ export function Sidebar() {
       </div>
 
       {/* فوتر سایدبار */}
-      <div className="p-4 border-t border-gray-200/80 bg-gradient-to-b from-gray-50 to-white flex-shrink-0">
+      <div className="p-4 border-t border-gray-200/70 bg-gradient-to-b from-gray-50 to-white flex-shrink-0">
         <div className="flex flex-col gap-3">
           {/* پروفایل کاربر */}
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white shadow-sm border border-gray-200/80">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md flex-shrink-0">
-              <UserIcon size={18} />
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white shadow-sm border border-gray-200/70 card-elevated">
+            <div className="relative">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md flex-shrink-0">
+                <UserIcon size={18} />
+              </div>
+              <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-gray-800 truncate">{user?.fullName || 'کاربر مهمان'}</p>
@@ -540,7 +552,6 @@ export function Sidebar() {
                 {user?.role === 'superadmin' ? 'مدیر کل سیستم' : 'کاربر سیستم'}
               </p>
             </div>
-            <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
           </div>
 
           {/* دکمه‌های پایین */}

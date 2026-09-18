@@ -1,6 +1,7 @@
 import { AuthRequest } from '../types/AuthRequest.js';
 // server/routes/gapRoutes.ts
-// مدیریت شکاف‌های دانشی - تحلیل، شناسایی و پر کردن گپ‌ها - نسخه ۳.۱
+// مدیریت شکاف‌های دانشی - تحلیل، شناسایی و پر کردن گپ‌ها - نسخه ۳.۲ (موتور تحلیل ارتقاء یافته)
+// منطق کسب‌وکار و ساختار API حفظ شده است؛ فقط دقت تشخیص تطابق و شفافیت گزارش بهبود یافته است.
 
 import { Router } from 'express';
 import { db } from '../../src/db/index.js';
@@ -17,30 +18,19 @@ import {
 import { eq, and, isNull, not, like, desc, inArray, or, sql } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
 import { format } from 'date-fns-jalali';
+import {
+  compareRequiredLeaf,
+  buildAnalysisReport,
+  buildAncestorPath,
+  normalizePersianText,
+  DEFAULT_ENGINE_OPTIONS,
+  type EngineNode,
+  type EngineInstance,
+  type EngineAsset,
+  type GapAnalysisEngineOptions,
+} from '../../src/utils/gapAnalysisEngine.js';
 
 export const gapRoutes = Router();
-
-// ============================================
-// 🔍 تابع محاسبه شباهت فازی بین دو رشته
-// ============================================
-
-function fuzzyMatch(str1: string, str2: string): number {
-  if (!str1 || !str2) return 0;
-  
-  const s1 = str1.toLowerCase().trim();
-  const s2 = str2.toLowerCase().trim();
-  
-  if (s1 === s2) return 1;
-  if (s1.includes(s2) || s2.includes(s1)) return 0.85;
-  
-  const words1 = s1.split(/\s+/);
-  const words2 = s2.split(/\s+/);
-  const common = words1.filter(w => words2.includes(w));
-  
-  if (common.length === 0) return 0;
-  
-  return common.length / Math.max(words1.length, words2.length);
-}
 
 // ============================================
 // ۱. دریافت گپ‌ها با فیلترهای پیشرفته
@@ -48,41 +38,40 @@ function fuzzyMatch(str1: string, str2: string): number {
 
 gapRoutes.get('/', async (req, res) => {
   try {
-    const { 
-      treeId, 
-      status, 
-      gapType, 
-      priority, 
+    const {
+      treeId,
+      status,
+      gapType,
+      priority,
       search,
       advancedFilter,
       page = 1,
-      limit = 20 
+      limit = 20
     } = req.query;
 
     let query = db.select().from(gaps);
     const conditions: any[] = [];
 
-    
     if (treeId) {
       const targetTree = await db.query.knowledgeTrees.findFirst({
         where: eq(knowledgeTrees.id, parseInt(treeId as string)),
       });
-      
+
       const treeNodesIds = await db.select({ id: treeNodes.id })
         .from(treeNodes)
         .where(eq(treeNodes.treeId, parseInt(treeId as string)));
-        
+
       const nodeIds = treeNodesIds.map(n => n.id);
-      
+
       if (nodeIds.length > 0) {
         if (targetTree?.type === 'research') {
           // If it's a research tree, filter by researchItems.nodeId
           const researchItemsList = await db.select({ gapId: researchItems.gapId })
             .from(researchItems)
             .where(inArray(researchItems.nodeId, nodeIds));
-            
+
           const gapIds = researchItemsList.map(r => r.gapId).filter(id => id !== null) as number[];
-          
+
           if (gapIds.length > 0) {
             if (gapIds.length > 500) {
               const chunks = [];
@@ -113,20 +102,20 @@ gapRoutes.get('/', async (req, res) => {
       }
     } else if (req.query.periodId) {
       const periodId = parseInt(req.query.periodId as string);
-      
+
       const treesInPeriod = await db.select({ id: knowledgeTrees.id })
          .from(knowledgeTrees)
          .where(eq(knowledgeTrees.periodId, periodId));
-         
+
       const treeIds = treesInPeriod.map(t => t.id);
-      
+
       if (treeIds.length > 0) {
          const nodesInPeriod = await db.select({ id: treeNodes.id })
             .from(treeNodes)
             .where(inArray(treeNodes.treeId, treeIds));
-            
+
          const nodeIds = nodesInPeriod.map(n => n.id);
-         
+
          if (nodeIds.length > 0) {
             if (nodeIds.length > 500) {
               const chunks = [];
@@ -158,14 +147,13 @@ gapRoutes.get('/', async (req, res) => {
       conditions.push(like(gaps.description, `%${search}%`));
     }
 
-    
     if (advancedFilter) {
       try {
         const parsed = JSON.parse(advancedFilter as string);
-        
+
         const buildCondition = (group: any): any => {
           if (!group || !group.rules || !Array.isArray(group.rules) || group.rules.length === 0) return undefined;
-          
+
           const conds = group.rules.map((rule: any) => {
              if (rule.condition) {
                 return buildCondition(rule);
@@ -173,7 +161,7 @@ gapRoutes.get('/', async (req, res) => {
                 const { field, op, value } = rule;
                 const col = (gaps as any)[field];
                 if (!col) return undefined;
-                
+
                 if (op === 'eq') return eq(col, value);
                 if (op === 'neq') return not(eq(col, value));
                 if (op === 'like') return like(col, `%${value}%`);
@@ -181,7 +169,7 @@ gapRoutes.get('/', async (req, res) => {
                 return undefined;
              }
           }).filter(Boolean);
-          
+
           if (conds.length === 0) return undefined;
           if (group.condition === 'OR') return or(...conds);
           return and(...conds);
@@ -220,8 +208,8 @@ gapRoutes.get('/', async (req, res) => {
       const requiredNode = await db.query.treeNodes.findFirst({
         where: eq(treeNodes.id, gap.requiredNodeId),
       });
-      
-      const producedNode = gap.producedNodeId 
+
+      const producedNode = gap.producedNodeId
         ? await db.query.treeNodes.findFirst({
             where: eq(treeNodes.id, gap.producedNodeId),
           })
@@ -264,7 +252,96 @@ gapRoutes.get('/', async (req, res) => {
 
 // ============================================
 // ۲. دریافت یک گپ با جزئیات کامل
+// ⚠️ نکته: این مسیر باید بعد از مسیرهای ثابت مثل /stats تعریف شود تا با آنها تداخل نکند
 // ============================================
+
+gapRoutes.get('/stats', async (req, res) => {
+  try {
+    const { treeId } = req.query;
+
+    let query = db.select().from(gaps);
+    if (treeId) {
+      const targetTree = await db.query.knowledgeTrees.findFirst({
+        where: eq(knowledgeTrees.id, parseInt(treeId as string)),
+      });
+      const treeNodesIds = await db.select({ id: treeNodes.id })
+        .from(treeNodes)
+        .where(eq(treeNodes.treeId, parseInt(treeId as string)));
+
+      const nodeIds = treeNodesIds.map(n => n.id);
+      if (nodeIds.length > 0) {
+        if (targetTree?.type === 'research') {
+          const researchItemsList = await db.select({ gapId: researchItems.gapId })
+            .from(researchItems)
+            .where(inArray(researchItems.nodeId, nodeIds));
+          const gapIds = researchItemsList.map(r => r.gapId).filter(id => id !== null) as number[];
+          if (gapIds.length > 0) {
+            if (gapIds.length > 500) {
+              const chunks = [];
+              for (let i = 0; i < gapIds.length; i += 500) {
+                chunks.push(inArray(gaps.id, gapIds.slice(i, i + 500)));
+              }
+              query = query.where(or(...chunks)) as any;
+            } else {
+              query = query.where(inArray(gaps.id, gapIds)) as any;
+            }
+          } else {
+            query = query.where(eq(gaps.id, -1)) as any;
+          }
+        } else {
+          if (nodeIds.length > 500) {
+            const chunks = [];
+            for (let i = 0; i < nodeIds.length; i += 500) {
+              chunks.push(inArray(gaps.requiredNodeId, nodeIds.slice(i, i + 500)));
+            }
+            query = query.where(or(...chunks)) as any;
+          } else {
+            query = query.where(inArray(gaps.requiredNodeId, nodeIds)) as any;
+          }
+        }
+      } else {
+        query = query.where(eq(gaps.id, -1)) as any;
+      }
+    }
+
+    const allGaps = await query;
+    const total = allGaps.length;
+
+    const open = allGaps.filter(g => g.status === 'open').length;
+    const filled = allGaps.filter(g => g.status === 'filled').length;
+    const partial = allGaps.filter(g => g.status === 'partially_filled').length;
+
+    const byPriority = allGaps.reduce((acc: any, gap) => {
+      const priority = gap.priority || 'medium';
+      acc[priority] = (acc[priority] || 0) + 1;
+      return acc;
+    }, {});
+
+    const byType = allGaps.reduce((acc: any, gap) => {
+      const type = gap.gapType || 'unknown';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+
+    const avgMatchScore = total > 0
+      ? allGaps.reduce((sum, g) => sum + (g.matchScore || 0), 0) / total
+      : 0;
+
+    res.json({
+      total,
+      open,
+      filled,
+      partial,
+      coveragePercent: total > 0 ? Math.round((filled / total) * 100) : 0,
+      byPriority,
+      byType,
+      avgMatchScore: Math.round(avgMatchScore * 100) / 100,
+    });
+  } catch (error) {
+    console.error('Error fetching gap stats:', error);
+    res.status(500).json({ error: 'خطا در دریافت آمار گپ‌ها' });
+  }
+});
 
 gapRoutes.get('/:id', async (req, res) => {
   try {
@@ -283,7 +360,7 @@ gapRoutes.get('/:id', async (req, res) => {
       where: eq(treeNodes.id, gap.requiredNodeId),
     });
 
-    const producedNode = gap.producedNodeId 
+    const producedNode = gap.producedNodeId
       ? await db.query.treeNodes.findFirst({
           where: eq(treeNodes.id, gap.producedNodeId),
         })
@@ -306,7 +383,7 @@ gapRoutes.get('/:id', async (req, res) => {
 });
 
 // ============================================
-// ۳. تحلیل شکاف (مقایسه درختواره‌ها) - با پشتیبانی از نمونه‌های قالب
+// ۳. تحلیل شکاف (مقایسه درختواره‌ها) - با موتور تحلیل دقیق‌تر و گزارش توضیحی
 // ============================================
 
 gapRoutes.post('/analyze', async (req, res) => {
@@ -316,8 +393,8 @@ gapRoutes.post('/analyze', async (req, res) => {
     const userId = (req as AuthRequest).user?.id || null;
 
     if (!requiredTreeId || producedTreeId === undefined) {
-      return res.status(400).json({ 
-        error: 'شناسه درختواره مورد نیاز و تولیدشده الزامی است' 
+      return res.status(400).json({
+        error: 'شناسه درختواره مورد نیاز و تولیدشده الزامی است'
       });
     }
 
@@ -344,28 +421,40 @@ gapRoutes.post('/analyze', async (req, res) => {
         inArray(treeNodes.level, ['L', 'Q'])
       ));
 
-    // ۲. دریافت تمام گره‌های برگ از درختواره تولیدشده
-    let producedLeaves: any[] = [];
+    // ۲. دریافت تمام گره‌های درختواره تولیدشده (برگ‌ها + کل ساختار برای مسیر ساختاری)
+    let producedNodes: any[] = [];
+    let producedLeaves: EngineNode[] = [];
     if (producedTree) {
-      producedLeaves = await db.select()
+      producedNodes = await db.select()
         .from(treeNodes)
-        .where(and(
-          eq(treeNodes.treeId, parseInt(producedTreeId)),
-          inArray(treeNodes.level, ['L', 'Q'])
-        ));
+        .where(eq(treeNodes.treeId, parseInt(producedTreeId)));
+
+      producedLeaves = producedNodes.filter(n => n.level === 'L' || n.level === 'Q') as EngineNode[];
     }
 
-    // ۳. حذف گپ‌های قبلی این تحلیل
-    const allRequiredNodes = await db.select({ id: treeNodes.id }).from(treeNodes).where(eq(treeNodes.treeId, parseInt(requiredTreeId)));
-    const requiredNodeIds = allRequiredNodes.map(n => n.id);
+    // نقشه همه گره‌های هر دو درخت برای ساخت مسیر ساختاری (اجداد)
+    const requiredAllNodes = await db.select().from(treeNodes).where(eq(treeNodes.treeId, parseInt(requiredTreeId)));
+    const nodeMapRequired = new Map<number, EngineNode>();
+    requiredAllNodes.forEach(n => nodeMapRequired.set(n.id, n as EngineNode));
+
+    const nodeMapProduced = new Map<number, EngineNode>();
+    producedNodes.forEach(n => nodeMapProduced.set(n.id, n as EngineNode));
+
+    const producedAncestorsMap = new Map<number, EngineNode[]>();
+    producedLeaves.forEach(l => {
+      producedAncestorsMap.set(l.id, buildAncestorPath(l, nodeMapProduced));
+    });
+
+    // ۳. حذف گپ‌های قبلی این تحلیل (منطق قدیمی حفظ شده)
+    const requiredNodeIds = requiredAllNodes.map(n => n.id);
     if (requiredNodeIds.length > 0) {
       // Find gaps to be deleted
       const oldGaps = await db.select({ id: gaps.id }).from(gaps).where(inArray(gaps.requiredNodeId, requiredNodeIds));
       if (oldGaps.length > 0) {
           const oldGapIds = oldGaps.map(g => g.id);
-          
+
           // Delete related researchItems
-          const oldResearchItems = [];
+          const oldResearchItems: Array<{ id: number; nodeId: number | null }> = [];
           if (oldGapIds.length > 500) {
               for (let i = 0; i < oldGapIds.length; i += 500) {
                   const chunk = await db.select({ id: researchItems.id, nodeId: researchItems.nodeId }).from(researchItems).where(inArray(researchItems.gapId, oldGapIds.slice(i, i + 500)));
@@ -375,11 +464,11 @@ gapRoutes.post('/analyze', async (req, res) => {
               const chunk = await db.select({ id: researchItems.id, nodeId: researchItems.nodeId }).from(researchItems).where(inArray(researchItems.gapId, oldGapIds));
               oldResearchItems.push(...chunk);
           }
-          
+
           if (oldResearchItems.length > 0) {
               const oldResearchItemIds = oldResearchItems.map(r => r.id);
               const oldResearchNodeIds = oldResearchItems.map(r => r.nodeId).filter(Boolean) as number[];
-              
+
               // Nullify issues that point to these researchItems
               if (oldResearchItemIds.length > 500) {
                   for (let i = 0; i < oldResearchItemIds.length; i += 500) {
@@ -390,7 +479,7 @@ gapRoutes.post('/analyze', async (req, res) => {
                   await db.update(issues).set({ researchItemId: null }).where(inArray(issues.researchItemId, oldResearchItemIds));
                   await db.delete(researchItems).where(inArray(researchItems.id, oldResearchItemIds));
               }
-              
+
               // Delete orphaned treeNodes from the research tree
               if (oldResearchNodeIds.length > 500) {
                   for (let i = 0; i < oldResearchNodeIds.length; i += 500) {
@@ -400,7 +489,7 @@ gapRoutes.post('/analyze', async (req, res) => {
                   await db.delete(treeNodes).where(inArray(treeNodes.id, oldResearchNodeIds));
               }
           }
-          
+
           // Finally delete the gaps
           if (oldGapIds.length > 500) {
               for (let i = 0; i < oldGapIds.length; i += 500) {
@@ -412,158 +501,67 @@ gapRoutes.post('/analyze', async (req, res) => {
       }
     }
 
-    // ۴. تحلیل تطابق با استفاده از نمونه‌های قالب
-    const createdGaps = [];
+    // ۴. آماده‌سازی داده‌های ورودی موتور تحلیل
+    const instanceRows = await db.select().from(templateInstances);
+    const instancesMap = new Map<number, EngineInstance>();
+    instanceRows.forEach(inst => instancesMap.set(inst.id, inst as EngineInstance));
+
+    const assetRows = await db.select().from(knowledgeAssets);
+    const assetsMap = new Map<number, EngineAsset[]>();
+    for (const a of assetRows) {
+      const list = assetsMap.get(a.nodeId) || [];
+      list.push(a as EngineAsset);
+      assetsMap.set(a.nodeId, list);
+    }
+
+    // ۵. اجرای موتور تحلیل برای هر برگ
+    const engineOptions = {
+      ...DEFAULT_ENGINE_OPTIONS,
+      ...((options || {}) as GapAnalysisEngineOptions),
+    };
+
+    const createdGaps: any[] = [];
     let filledCount = 0;
     let openCount = 0;
     let partialCount = 0;
 
     for (const requiredLeaf of requiredLeaves) {
-      // دریافت templateIds از گره مورد نیاز
-      const requiredTemplateIds = (Array.isArray(requiredLeaf.templateIds) ? requiredLeaf.templateIds : (requiredLeaf.templateIds ? String(requiredLeaf.templateIds).split(',').filter(Boolean) : [])) || [];
-      
-      let foundMatch = false;
-      let matchedNode = null;
-      let matchScore = 0;
-      let gapStatus = 'open';
-      let gapType = 'complete';
+      const requiredAncestors = buildAncestorPath(requiredLeaf as EngineNode, nodeMapRequired);
 
-      // برای هر گره تولیدشده، بررسی کن
-      for (const producedLeaf of producedLeaves) {
-        // دریافت instanceIds از گره تولیدشده
-        const producedInstanceIds = producedLeaf.instanceIds?.split(',').filter(Boolean) || [];
-        
-        let hasChecked = false;
-        if (producedInstanceIds.includes('checked')) {
-          if (requiredLeaf.title === producedLeaf.title) {
-            foundMatch = true;
-            matchedNode = producedLeaf;
-            matchScore = 1;
-            gapStatus = 'filled';
-            gapType = 'manual';
-            break;
-          }
-          hasChecked = true;
-        }
+      const match = compareRequiredLeaf({
+        requiredNode: requiredLeaf as EngineNode,
+        requiredAncestors,
+        producedLeaves,
+        producedAncestors: producedAncestorsMap,
+        instances: instancesMap,
+        assets: assetsMap,
+        options: engineOptions,
+      });
 
-        const validIds = producedInstanceIds.filter((id: string) => id !== 'checked').map((id: string) => parseInt(id));
-        
-        // دریافت template_id برای هر نمونه
-        let producedTemplateIds: string[] = [];
-        if (validIds.length > 0) {
-          const instances = await db.select()
-            .from(templateInstances)
-            .where(inArray(templateInstances.id, validIds));
-          producedTemplateIds = instances.map(inst => String(inst.templateId));
-        }
-
-        // دریافت template_id از دارایی‌های دانشی (مستندات)
-        const assets = await db.select()
-          .from(knowledgeAssets)
-          .where(eq(knowledgeAssets.nodeId, producedLeaf.id));
-          
-        const assetTemplateIds = assets.map(a => String(a.templateId)).filter(Boolean);
-        
-        // ترکیب قالب‌ها
-        producedTemplateIds = [...new Set([...producedTemplateIds, ...assetTemplateIds])];
-
-        if (producedTemplateIds.length === 0 && !hasChecked) continue;
-
-        // بررسی تطابق: آیا همه templateIds مورد نیاز در تولیدشده وجود دارند؟
-        const hasAllTemplates = requiredTemplateIds.length > 0 && requiredTemplateIds.every(id => 
-          producedTemplateIds.includes(id)
-        );
-
-        if (hasAllTemplates) {
-          foundMatch = true;
-          matchedNode = producedLeaf;
-          matchScore = 1;
-          gapStatus = 'filled';
-          gapType = 'complete';
-          break;
-        }
-
-        // بررسی تطابق جزئی (حداقل یکی از قالب‌ها)
-        const hasPartialMatch = requiredTemplateIds.some(id => 
-          producedTemplateIds.includes(id)
-        );
-
-        if (hasPartialMatch && !foundMatch) {
-          const matchCount = requiredTemplateIds.filter(id => 
-            producedTemplateIds.includes(id)
-          ).length;
-          matchScore = matchCount / requiredTemplateIds.length;
-          
-          if (matchScore > 0.3) {
-            foundMatch = true;
-            matchedNode = producedLeaf;
-            gapStatus = 'partially_filled';
-            gapType = 'partial';
-          }
-        }
-      }
-
-      // اگر تطابق پیدا نشد، جستجوی فازی بر اساس عنوان
-      if (!foundMatch) {
-        let bestMatch: any = null;
-        let bestScore = 0;
-        
-        for (const producedLeaf of producedLeaves) {
-          
-          // Base score by title
-          let score = fuzzyMatch(requiredLeaf.title, producedLeaf.title);
-          
-          // Bonus by template / instance metadata similarity
-          if (requiredLeaf.templateIds && producedLeaf.templateIds) {
-            const reqTpl = requiredLeaf.templateIds.split(',');
-            const prodTpl = producedLeaf.templateIds.split(',');
-            const common = reqTpl.filter(t => prodTpl.includes(t));
-            if (common.length > 0) score = Math.min(1.0, score + 0.2); // Boost score
-          }
-
-          if (requiredLeaf.instanceIds && producedLeaf.instanceIds) {
-            const reqInst = requiredLeaf.instanceIds.split(',');
-            const prodInst = producedLeaf.instanceIds.split(',');
-            const common = reqInst.filter(i => prodInst.includes(i));
-            if (common.length > 0) score = Math.min(1.0, score + 0.3); // High boost for same metadata instance
-          }
-
-          if (score > bestScore) {
-            bestScore = score;
-            bestMatch = producedLeaf;
-          }
-        }
-        
-        if (bestScore > 0.5) {
-          foundMatch = true;
-          matchedNode = bestMatch;
-          gapStatus = 'partially_filled';
-          gapType = 'fuzzy';
-          matchScore = bestScore;
-        } else {
-          openCount++;
-          gapStatus = 'open';
-          gapType = 'complete';
-          matchScore = 0;
-        }
-      }
-
+      const gapStatus = match.status;
       if (gapStatus === 'filled') filledCount++;
       else if (gapStatus === 'partially_filled') partialCount++;
+      else openCount++;
+
+      // شرح فارسی نتیجه (برای نمایش در UI)
+      const description = match.reasonFa;
 
       // ایجاد گپ
       const result = await db.insert(gaps).values({
         requiredNodeId: requiredLeaf.id,
-        producedNodeId: matchedNode?.id || null,
+        producedNodeId: match.matchedNodeId,
         status: gapStatus,
-        gapType: gapType,
+        gapType: match.gapType,
         priority: options?.defaultPriority || 'medium',
-        matchScore: matchScore,
-        description: gapStatus === 'filled' 
-          ? `تطابق کامل با ${matchedNode?.title || 'گره تولیدشده'}` 
-          : gapStatus === 'partially_filled' 
-            ? `تطابق جزئی با ${matchedNode?.title || 'گره تولیدشده'} (${Math.round(matchScore * 100)}%)` 
-            : 'هیچ تطابقی یافت نشد',
+        matchScore: match.matchScore,
+        description,
+        metadata: {
+          engine: 'v2',
+          analyzedAt: now,
+          templateDetails: match.templateDetails || null,
+          scoreBreakdown: match.scoreBreakdown || null,
+          matchedNodeTitle: match.matchedNodeTitle || null,
+        },
         createdAt: now,
         updatedAt: now,
       }).returning();
@@ -580,7 +578,8 @@ gapRoutes.post('/analyze', async (req, res) => {
       createdGaps.push({
         ...result[0],
         requiredNode: requiredLeaf,
-        producedNode: matchedNode || null,
+        producedNode: match.matchedNodeId ? nodeMapProduced.get(match.matchedNodeId) || null : null,
+        reasonFa: match.reasonFa,
       });
     }
 
@@ -601,20 +600,22 @@ gapRoutes.post('/analyze', async (req, res) => {
       userAgent: req.headers['user-agent'],
     });
 
-    // ۶. تولید گزارش تحلیلی
-    const analysisReport = {
-      requiredTree: requiredTree.name,
-      producedTree: producedTree ? producedTree.name : 'بدون درختواره',
-      totalLeaves: requiredLeaves.length,
-      filledGaps: filledCount,
-      openGaps: openCount,
-      partialGaps: partialCount,
-      coveragePercent: requiredLeaves.length > 0 
-        ? Math.round((filledCount / requiredLeaves.length) * 100) 
-        : 0,
+    // ۶. تولید گزارش تحلیلی با شرح فارسی روش تحلیل
+    const analysisReport = buildAnalysisReport({
+      requiredTreeName: requiredTree.name,
+      producedTreeName: producedTree ? producedTree.name : null,
+      results: createdGaps.map((g: any) => ({
+        requiredNodeId: g.requiredNodeId,
+        requiredNodeTitle: g.requiredNode?.title || '',
+        level: g.requiredNode?.level || 'L',
+        status: g.status,
+        gapType: g.gapType,
+        matchScore: g.matchScore || 0,
+        matchedNodeTitle: g.producedNode?.title || null,
+        reasonFa: g.reasonFa,
+      })),
       createdAt: format(new Date(), 'yyyy/MM/dd HH:mm'),
-      gaps: createdGaps,
-    };
+    });
 
     res.json({
       success: true,
@@ -630,9 +631,9 @@ gapRoutes.post('/analyze', async (req, res) => {
 });
 
 // ============================================
-// ============================================
 // X. تولید درختواره پژوهشی
 // ============================================
+
 gapRoutes.post('/generate-research', async (req, res) => {
   try {
     const { requiredTreeId, producedTreeId } = req.body;
@@ -688,7 +689,7 @@ gapRoutes.post('/generate-research', async (req, res) => {
     }
 
     // chunking in case nodeIds is too big
-    const gapsList = [];
+    const gapsList: any[] = [];
     if (nodeIds.length > 500) {
       for (let i = 0; i < nodeIds.length; i += 500) {
         const chunk = nodeIds.slice(i, i + 500);
@@ -711,7 +712,7 @@ gapRoutes.post('/generate-research', async (req, res) => {
     // Filter out gaps that already have a research item
     const existingResearchItems = await db.select({ gapId: researchItems.gapId }).from(researchItems);
     const existingGapIds = new Set(existingResearchItems.map(r => r.gapId));
-    
+
     const newGapsToConvert = gapsList.filter(gap => !existingGapIds.has(gap.id));
 
     if (newGapsToConvert.length === 0) {
@@ -722,7 +723,7 @@ gapRoutes.post('/generate-research', async (req, res) => {
     let addedCount = 0;
     for (const gap of newGapsToConvert) {
       const relatedReqNode = requiredNodes.find(n => n.id === gap.requiredNodeId);
-      
+
       const newNode = await db.insert(treeNodes).values({
          treeId: newTreeId,
          title: relatedReqNode ? relatedReqNode.title : `گپ ${gap.id}`,
@@ -731,7 +732,7 @@ gapRoutes.post('/generate-research', async (req, res) => {
          createdAt: now,
          updatedAt: now
       }).returning();
-      
+
       await db.insert(researchItems).values({
          gapId: gap.id,
          nodeId: (newNode as any[])[0].id,
@@ -762,6 +763,8 @@ gapRoutes.post('/generate-research', async (req, res) => {
     res.status(500).json({ error: 'خطا در تولید درختواره پژوهشی' });
   }
 });
+
+// ============================================
 // ۴. پر کردن گپ (اتصال دستی توسط کاربر)
 // ============================================
 
@@ -868,7 +871,7 @@ gapRoutes.delete('/:gapId', async (req, res) => {
       .where(eq(researchItems.gapId, gapIdNum));
 
     if (researchItemsList.length > 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'این گپ دارای آیتم‌های پژوهشی است، ابتدا آنها را حذف کنید',
         count: researchItemsList.length,
       });
@@ -894,95 +897,7 @@ gapRoutes.delete('/:gapId', async (req, res) => {
 });
 
 // ============================================
-// ۶. دریافت آمار گپ‌ها
+// آمار گپ‌ها — مسیر /stats پیش از /:id تعریف شده است
 // ============================================
-
-gapRoutes.get('/stats', async (req, res) => {
-  try {
-    const { treeId } = req.query;
-
-    let query = db.select().from(gaps);
-    if (treeId) {
-      const targetTree = await db.query.knowledgeTrees.findFirst({
-        where: eq(knowledgeTrees.id, parseInt(treeId as string)),
-      });
-      const treeNodesIds = await db.select({ id: treeNodes.id })
-        .from(treeNodes)
-        .where(eq(treeNodes.treeId, parseInt(treeId as string)));
-      
-      const nodeIds = treeNodesIds.map(n => n.id);
-      if (nodeIds.length > 0) {
-        if (targetTree?.type === 'research') {
-          const researchItemsList = await db.select({ gapId: researchItems.gapId })
-            .from(researchItems)
-            .where(inArray(researchItems.nodeId, nodeIds));
-          const gapIds = researchItemsList.map(r => r.gapId).filter(id => id !== null) as number[];
-          if (gapIds.length > 0) {
-            if (gapIds.length > 500) {
-              const chunks = [];
-              for (let i = 0; i < gapIds.length; i += 500) {
-                chunks.push(inArray(gaps.id, gapIds.slice(i, i + 500)));
-              }
-              query = query.where(or(...chunks)) as any;
-            } else {
-              query = query.where(inArray(gaps.id, gapIds)) as any;
-            }
-          } else {
-            query = query.where(eq(gaps.id, -1)) as any;
-          }
-        } else {
-          if (nodeIds.length > 500) {
-            const chunks = [];
-            for (let i = 0; i < nodeIds.length; i += 500) {
-              chunks.push(inArray(gaps.requiredNodeId, nodeIds.slice(i, i + 500)));
-            }
-            query = query.where(or(...chunks)) as any;
-          } else {
-            query = query.where(inArray(gaps.requiredNodeId, nodeIds)) as any;
-          }
-        }
-      } else {
-        query = query.where(eq(gaps.id, -1)) as any;
-      }
-    }
-
-    const allGaps = await query;
-    const total = allGaps.length;
-    
-    const open = allGaps.filter(g => g.status === 'open').length;
-    const filled = allGaps.filter(g => g.status === 'filled').length;
-    const partial = allGaps.filter(g => g.status === 'partially_filled').length;
-
-    const byPriority = allGaps.reduce((acc: any, gap) => {
-      const priority = gap.priority || 'medium';
-      acc[priority] = (acc[priority] || 0) + 1;
-      return acc;
-    }, {});
-
-    const byType = allGaps.reduce((acc: any, gap) => {
-      const type = gap.gapType || 'unknown';
-      acc[type] = (acc[type] || 0) + 1;
-      return acc;
-    }, {});
-
-    const avgMatchScore = total > 0 
-      ? allGaps.reduce((sum, g) => sum + (g.matchScore || 0), 0) / total 
-      : 0;
-
-    res.json({
-      total,
-      open,
-      filled,
-      partial,
-      coveragePercent: total > 0 ? Math.round((filled / total) * 100) : 0,
-      byPriority,
-      byType,
-      avgMatchScore: Math.round(avgMatchScore * 100) / 100,
-    });
-  } catch (error) {
-    console.error('Error fetching gap stats:', error);
-    res.status(500).json({ error: 'خطا در دریافت آمار گپ‌ها' });
-  }
-});
 
 export default gapRoutes;
