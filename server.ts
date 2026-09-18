@@ -39,6 +39,7 @@ import { roleRoutes } from "./server/routes/roles.js";
 import { levelRoutes } from './server/routes/levelRoutes.js';
 import { assetRoutes } from './server/routes/assetRoutes.js';
 import { gapRoutes } from './server/routes/gapRoutes.js';
+import { mergeRoutes } from './server/routes/mergeRoutes.js';
 import { researchRoutes } from './server/routes/researchRoutes.js';
 import { issueRoutes } from './server/routes/issueRoutes.js';
 import { outputRoutes } from './server/routes/outputRoutes.js';
@@ -157,8 +158,8 @@ app.use(async (req, res, next) => {
         }
       }
     } catch (err: any) {
-      console.warn('Invalid or expired token:', err.message);
-      // Ignore bad tokens for login/register to prevent infinite loops
+      // ⚠️ بدون لاگ برای توکن‌های منقضی — جلوی اسپم صدها خط در لاگ گرفته می‌شود
+      // (پیام به کلاینت فقط یک‌بار نمایش داده می‌شود؛ مدیریت dedup در apiClient.ts)
       if (!req.path.includes('/auth/')) {
         return res.status(401).json({ error: 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.' });
       }
@@ -213,6 +214,7 @@ app.use('/api/roles', requireAuth, roleRoutes);
 app.use('/api/levels', requireAuth, levelRoutes);
 app.use('/api/assets', requireAuth, assetRoutes);
 app.use('/api/gaps', requireAuth, gapRoutes);
+app.use('/api/merge', requireAuth, mergeRoutes);
 app.use('/api/research', requireAuth, researchRoutes);
 app.use('/api/issues', requireAuth, issueRoutes);
 app.use('/api/outputs', requireAuth, outputRoutes);
