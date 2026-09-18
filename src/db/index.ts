@@ -261,7 +261,7 @@ export function initDb() {
       created_at TEXT NOT NULL
     );
 
-    -- بازنگی‌های دستی کاربر روی گپ‌ها
+    -- بازنگری‌های دستی کاربر روی گپ‌ها
     CREATE TABLE IF NOT EXISTS gap_reviews (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       gap_id INTEGER,

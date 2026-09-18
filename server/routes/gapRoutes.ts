@@ -425,7 +425,7 @@ gapRoutes.post('/analyze', async (req, res) => {
     const now = new Date().toISOString();
     const userId = (req as AuthRequest).user?.id || null;
 
-    // 🟢 بازنگی‌های دستی کاربر از گپ‌های قبلی — قبل از حذف جمع و به تحلیل جدید اعمال می‌شود
+    // 🟢 بازنگری‌های دستی کاربر از گپ‌های قبلی — قبل از حذف جمع و به تحلیل جدید اعمال می‌شود
     const manualReviews: Array<{ requiredNodeId: number; verdict: string; newStatus: string | null; note: string | null }> = [];
     const manualStatusMap = new Map<number, { status: string; note: string | null; verdict: string | null }>();
     const notGapNodeIds = new Set<number>();
@@ -486,12 +486,12 @@ gapRoutes.post('/analyze', async (req, res) => {
     // ۳. حذف گپ‌های قبلی این تحلیل (منطق قدیمی حفظ شده)
     const requiredNodeIds = requiredAllNodes.map(n => n.id);
     if (requiredNodeIds.length > 0) {
-      // Find gaps to be deleted (با متادیتا برای نجات بازنگی‌های دستی کاربر)
+      // Find gaps to be deleted (با متادیتا برای نجات بازنگری‌های دستی کاربر)
       const oldGaps = await db.select({ id: gaps.id, requiredNodeId: gaps.requiredNodeId, status: gaps.status, metadata: gaps.metadata }).from(gaps).where(inArray(gaps.requiredNodeId, requiredNodeIds));
       if (oldGaps.length > 0) {
           const oldGapIds = oldGaps.map(g => g.id);
 
-          // 🟢 جمع‌آوری بازنگی‌های دستی کاربر از گپ‌های قدیمی (قبل از حذف)
+          // 🟢 جمع‌آوری بازنگری‌های دستی کاربر از گپ‌های قدیمی (قبل از حذف)
           for (const og of oldGaps) {
             const meta = (og.metadata as any) || {};
             const review = meta.manualReview as { verdict?: string; note?: string | null; newStatus?: string | null } | undefined;
@@ -582,7 +582,7 @@ gapRoutes.post('/analyze', async (req, res) => {
       ...((options || {}) as GapAnalysisEngineOptions),
     };
 
-    // 🟢 بازنگی‌های دستی جمع‌آوری‌شده از گپ‌های قبلی (بخش ۳)
+    // 🟢 بازنگری‌های دستی جمع‌آوری‌شده از گپ‌های قبلی (بخش ۳)
     const carriedReviewCount = manualReviews.length;
 
     // 🟢 ساخت مسیر مالکیت سازمانی هر درختواره (آجا/نیرو/رده) — نمایش روی گره‌های خروجی
@@ -971,7 +971,7 @@ gapRoutes.post('/:gapId/fill', async (req, res) => {
       .where(eq(gaps.id, gapIdNum))
       .returning();
 
-    // 🟢 ثبت در سوابق بازنگی (تاریخچه کامل عملیات دستی)
+    // 🟢 ثبت در سوابق بازنگری (تاریخچه کامل عملیات دستی)
     await db.insert(gapReviews).values({
       gapId: gapIdNum,
       requiredNodeId: existingGap.requiredNodeId,
@@ -1055,7 +1055,7 @@ gapRoutes.delete('/:gapId', async (req, res) => {
 
     await db.delete(gaps).where(eq(gaps.id, gapIdNum));
 
-    // 🟢 ثبت حذف در سوابق بازنگی (تاریخچه کامل حتی پس از حذف گپ حفظ می‌شود)
+    // 🟢 ثبت حذف در سوابق بازنگری (تاریخچه کامل حتی پس از حذف گپ حفظ می‌شود)
     const delMeta = (existing.metadata as any) || {};
     await db.insert(gapReviews).values({
       gapId: gapIdNum,
@@ -1090,7 +1090,7 @@ gapRoutes.delete('/:gapId', async (req, res) => {
 // ============================================
 
 // ============================================
-// بازنگی دستی کاربر روی گپ (نظر کاربر: گپ هست / گپ نیست / اصلاح وضعیت)
+// بازنگری دستی کاربر روی گپ (نظر کاربر: گپ هست / گپ نیست / اصلاح وضعیت)
 // نظر در gap_reviews ثبت و در تحلیل‌های بعدی به‌صورت خودکار اعمال می‌شود (منطق آخرین نسخه)
 // ============================================
 
@@ -1124,7 +1124,7 @@ gapRoutes.post('/:gapId/review', async (req, res) => {
     }
     // verdict === 'confirmed_gap' → وضعیت فعلی حفظ می‌شود
 
-    // ثبت سابقه بازنگی (بدون حذف — سابقه کامل حفظ می‌شود)
+    // ثبت سابقه بازنگری (بدون حذف — سابقه کامل حفظ می‌شود)
     await db.insert(gapReviews).values({
       gapId: gapIdNum,
       requiredNodeId: existingGap.requiredNodeId,
@@ -1141,7 +1141,7 @@ gapRoutes.post('/:gapId/review', async (req, res) => {
       .set({
         status: effectiveStatus,
         description: note
-          ? `${existingGap.description || ''} | 🎧 بازنگی دستی: ${note}`.trim()
+          ? `${existingGap.description || ''} | 🎧 بازنگری دستی: ${note}`.trim()
           : existingGap.description,
         metadata: {
           ...((existingGap.metadata as any) || {}),
@@ -1164,7 +1164,7 @@ gapRoutes.post('/:gapId/review', async (req, res) => {
     logAudit({
       userId,
       action: 'UPDATE',
-      entityName: 'بازنگی دستی گپ',
+      entityName: 'بازنگری دستی گپ',
       entityId: gapIdNum,
       changes: { verdict, note, previousStatus: existingGap.status, newStatus: effectiveStatus },
       ip: req.ip,
@@ -1180,11 +1180,11 @@ gapRoutes.post('/:gapId/review', async (req, res) => {
     });
   } catch (error) {
     console.error('Error reviewing gap:', error);
-    res.status(500).json({ error: 'خطا در ثبت بازنگی گپ' });
+    res.status(500).json({ error: 'خطا در ثبت بازنگری گپ' });
   }
 });
 
-// تاریخچه بازنگی‌های دستی یک گره مورد نیاز (نمایش سابقه کامل)
+// تاریخچه بازنگری‌های دستی یک گره مورد نیاز (نمایش سابقه کامل)
 gapRoutes.get('/review-history/:requiredNodeId', async (req, res) => {
   try {
     const { requiredNodeId } = req.params;
@@ -1197,7 +1197,7 @@ gapRoutes.get('/review-history/:requiredNodeId', async (req, res) => {
     res.json(history);
   } catch (error) {
     console.error('Error fetching gap review history:', error);
-    res.status(500).json({ error: 'خطا در دریافت سابقه بازنگی' });
+    res.status(500).json({ error: 'خطا در دریافت سابقه بازنگری' });
   }
 });
 

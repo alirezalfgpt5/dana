@@ -48,8 +48,23 @@ export function GapAnalysis() {
 
   const { trees, fetchTrees } = useTree();
 
-  const [requiredTreeId, setRequiredTreeId] = useState<number | null>(null);
-  const [producedTreeId, setProducedTreeId] = useState<number | null>(null);
+  // 🟢 کش انتخاب درختواره‌ها در sessionStorage:
+  // - اولین ورود بعد از لاگین: خالی
+  // - تا وقتی کاربر تغییر ندهد یا لاگ‌اوت نکند: آخرین انتخاب حفظ می‌شود
+  const [requiredTreeId, setRequiredTreeIdState] = useState<number | null>(() => {
+    try { const v = sessionStorage.getItem('gap_selected_required_tree'); return v ? parseInt(v) : null; } catch { return null; }
+  });
+  const [producedTreeId, setProducedTreeIdState] = useState<number | null>(() => {
+    try { const v = sessionStorage.getItem('gap_selected_produced_tree'); return v !== null ? parseInt(v) : null; } catch { return null; }
+  });
+  const setRequiredTreeId = (id: number | null) => {
+    setRequiredTreeIdState(id);
+    try { id ? sessionStorage.setItem('gap_selected_required_tree', String(id)) : sessionStorage.removeItem('gap_selected_required_tree'); } catch {}
+  };
+  const setProducedTreeId = (id: number | null) => {
+    setProducedTreeIdState(id);
+    try { id !== null ? sessionStorage.setItem('gap_selected_produced_tree', String(id)) : sessionStorage.removeItem('gap_selected_produced_tree'); } catch {}
+  };
   const [generating, setGenerating] = useState(false);
   const { tree: requiredTreeData, fetchTree: fetchRequiredTree } = useTree();
   const { tree: producedTreeData, fetchTree: fetchProducedTree } = useTree();
@@ -120,7 +135,7 @@ export function GapAnalysis() {
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [showHelp, setShowHelp] = useState(false);
 
-  // 🟢 بازنگی دستی گپ
+  // 🟢 بازنگری دستی گپ
   const [reviewModalGap, setReviewModalGap] = useState<any>(null);
   const [reviewNote, setReviewNote] = useState('');
   // 🟢 سوابق تحلیل‌های قبلی
@@ -225,14 +240,18 @@ export function GapAnalysis() {
     setShowFillModal(false);
     setSelectedGap(null);
     setFillNote('');
+    // 🟢 همگام‌سازی نمای درختی و جدول با وضعیت جدید گپ‌ها
+    if (requiredTreeId) fetchRequiredTree(requiredTreeId);
     toast.success(statusChoice === 'partially_filled' ? 'گپ با تطابق جزئی ثبت شد' : 'گپ با موفقیت پر شد');
   };
 
   const handleDeleteGap = async (gapId: number) => {
     await deleteGap(gapId);
+    // 🟢 همگام‌سازی نمای درختی و جدول پس از حذف
+    if (requiredTreeId) fetchRequiredTree(requiredTreeId);
   };
 
-  // 🟢 ثبت بازنگی دستی
+  // 🟢 ثبت بازنگری دستی
   const handleReview = async (verdict: 'confirmed_gap' | 'not_gap' | 'adjusted', newStatus?: string) => {
     if (!reviewModalGap) return;
     await reviewGap(reviewModalGap.id, verdict, newStatus, reviewNote);
@@ -497,7 +516,7 @@ export function GapAnalysis() {
               </div>
               <p className="text-[10px] text-gray-400 mt-3 flex items-center gap-1">
                 <Info size={11} />
-                هر بار اجرای تحلیل، یک رکورد سابقه ثبت می‌شود. نظرات دستی شما (بازنگی‌ها) در تمام تحلیل‌های بعدی به‌صورت خودکار اعمال و حفظ می‌شوند.
+                هر بار اجرای تحلیل، یک رکورد سابقه ثبت می‌شود. نظرات دستی شما (بازنگری‌ها) در تمام تحلیل‌های بعدی به‌صورت خودکار اعمال و حفظ می‌شوند.
               </p>
             </div>
           )}
@@ -997,10 +1016,10 @@ export function GapAnalysis() {
                               )}
                             </div>
                           )}
-                          {/* 🟢 نشان بازنگی دستی کاربر */}
+                          {/* 🟢 نشان بازنگری دستی کاربر */}
                           {gap.metadata?.manualReview && (
                             <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200 text-[9px]">
-                              <UserCheck size={9} /> بازنگی دستی
+                              <UserCheck size={9} /> بازنگری دستی
                             </span>
                           )}
                         </td>
@@ -1080,21 +1099,21 @@ export function GapAnalysis() {
                                 <CheckCircle size={16} />
                               </button>
                             )}
-                            {/* 🟢 بازنگی دستی = نظر کاربر: این گپ نیست / گپ تأیید می‌شود / اصلاح وضعیت — ذخیره در DB و اعمال خودکار در تحلیل‌های بعدی */}
+                            {/* 🟢 بازنگری دستی = نظر کاربر: این گپ نیست / گپ تأیید می‌شود / اصلاح وضعیت — ذخیره در DB و اعمال خودکار در تحلیل‌های بعدی */}
                             <button
                               onClick={() => {
                                 setReviewModalGap(gap);
                                 setReviewNote('');
                               }}
                               className="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
-                              title="بازنگی (نظر من): این گپ نیست / گپ تأیید می‌شود / اصلاح وضعیت — در تحلیل‌های بعدی اعمال می‌شود"
+                              title="بازنگری (نظر من): این گپ نیست / گپ تأیید می‌شود / اصلاح وضعیت — در تحلیل‌های بعدی اعمال می‌شود"
                             >
                               <UserCheck size={16} />
                             </button>
                             <button
                               onClick={() => handleDeleteGap(gap.id)}
                               className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                              title="حذف گپ (در سوابق بازنگی ثبت می‌شود)"
+                              title="حذف گپ (در سوابق بازنگری ثبت می‌شود)"
                             >
                               <X size={16} />
                             </button>
@@ -1137,7 +1156,7 @@ export function GapAnalysis() {
         </>
       )}
 
-      {/* ═══════════════ مودال بازنگی دستی گپ ═══════════════ */}
+      {/* ═══════════════ مودال بازنگری دستی گپ ═══════════════ */}
       {reviewModalGap && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
@@ -1147,7 +1166,7 @@ export function GapAnalysis() {
                   <UserCheck size={18} className="text-amber-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-800">بازنگی دستی نتیجه تحلیل</h3>
+                  <h3 className="font-bold text-gray-800">بازنگری دستی نتیجه تحلیل</h3>
                   <p className="text-xs text-gray-500">
                     گره: {reviewModalGap.requiredNode?.title || 'نامشخص'}
                   </p>

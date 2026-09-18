@@ -58,7 +58,14 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       login: (user, token) => set({ user, token }),
-      logout: () => set({ user: null, token: null }),
+      logout: () => {
+        // 🟢 پاک کردن کش‌های انتخاب کاربر هنگام خروج (انتخاب درختواره‌های تحلیل شکاف و...)
+        try {
+          sessionStorage.removeItem('gap_selected_required_tree');
+          sessionStorage.removeItem('gap_selected_produced_tree');
+        } catch { /* noop */ }
+        set({ user: null, token: null });
+      },
       updateUser: (user) => set({ user }),
     }),
     {
