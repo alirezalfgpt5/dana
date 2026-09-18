@@ -8,7 +8,7 @@ import http from 'http';
 import path from 'path';
 import cors from 'cors';
 import { initDb, db } from './src/db/index.js';
-import { users, knowledgeTrees, treeNodes, gaps, issues, issueAttachments, knowledgeAssets } from './src/db/schema.js';
+import { users, knowledgeTrees, treeNodes, gaps, issues } from './src/db/schema.js';
 import { sql } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
@@ -19,17 +19,10 @@ app.set('trust proxy', 1); // Trust first proxy for express-rate-limit
 // ============================================
 // Fix Item 45: Process Death on Unhandled Exceptions
 // ============================================
-process.on('uncaughtException', (err) => {
-  console.error('CRITICAL: Uncaught Exception:', err);
-  // Do NOT crash the process. Just log it.
-});
+// ⚠️ توجه: به‌طور عمدی هیچ handler سراسری uncaughtException/unhandledRejection ثبت نمی‌شود
+// تا خطاهای راه‌اندازی (مانند اشغال بودن پورت) باعث خروج تمیز و شفاف پروسه شوند.
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('CRITICAL: Unhandled Rejection at:', promise, 'reason:', reason);
-  // Do NOT crash the process. Just log it.
-});
-
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 const currentDir = process.cwd();
 
@@ -55,8 +48,8 @@ import { auditRoutes } from './server/routes/audit.js';
 import { searchRoutes } from './server/routes/searchRoutes.js';
 import { reportRoutes } from './server/routes/reportRoutes.js';
 import { dynamicFieldsRoutes } from './server/routes/dynamicFieldsRoutes.js';
-import { setupAutoBackup } from './server/utils/backup.js';
 import { logAudit } from './server/utils/audit.js';
+import { requireAuth } from './server/middleware/rbac.js';
 
 // ============================================
 // Middleware
@@ -84,57 +77,6 @@ dirs.forEach(dir => {
 // ============================================
 
 initDb();
-setupAutoBackup();
-
-// ============================================
-// Dark Data Garbage Collector (Fix Item 40)
-// ============================================
-function runGarbageCollector() {
-  setTimeout(async () => {
-    try {
-      console.log('Running Dark Data Garbage Collector...');
-      
-      const issuesDir = path.join(currentDir, 'storage', 'issues');
-      if (fs.existsSync(issuesDir)) {
-        const files = fs.readdirSync(issuesDir);
-        for (const file of files) {
-          const filePath = path.join(issuesDir, file);
-          const stat = fs.statSync(filePath);
-          if (stat.isFile()) {
-            const dbFile = await db.query.issueAttachments.findFirst({
-              where: (attachments, { eq }) => eq(attachments.filePath, filePath)
-            });
-            if (!dbFile) {
-              console.log('Orphaned issue file deleted:', filePath);
-              fs.unlinkSync(filePath);
-            }
-          }
-        }
-      }
-      
-      const assetsDir = path.join(currentDir, 'storage', 'assets');
-      if (fs.existsSync(assetsDir)) {
-        const files = fs.readdirSync(assetsDir);
-        for (const file of files) {
-          const filePath = path.join(assetsDir, file);
-          const stat = fs.statSync(filePath);
-          if (stat.isFile()) {
-            const dbFile = await db.query.knowledgeAssets.findFirst({
-              where: (assets, { eq }) => eq(assets.filePath, filePath)
-            });
-            if (!dbFile) {
-              console.log('Orphaned asset file deleted:', filePath);
-              fs.unlinkSync(filePath);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error('GC Error:', e);
-    }
-  }, 10000);
-}
-runGarbageCollector();
 
 // ایجاد کاربر ادمین
 async function setupAdmin() {
@@ -163,15 +105,6 @@ setupAdmin();
 // API Routes
 // ============================================
 
-app.get('/api/backup/download', requireAuth, (req, res) => {
-  const dbPath = path.join(currentDir, 'database.sqlite');
-  if (fs.existsSync(dbPath)) {
-    res.download(dbPath, 'database.sqlite');
-  } else {
-    res.status(404).json({ error: 'Database file not found' });
-  }
-});
-
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', version: '3.0.0' });
 });
@@ -179,7 +112,6 @@ app.get('/api/health', (req, res) => {
 
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { requireAuth } from './server/middleware/rbac.js';
 
 let JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -236,6 +168,41 @@ app.use(async (req, res, next) => {
 // محافظت از فایل‌های محرمانه با احراز هویت (Fix 32)
 app.use('/uploads', requireAuth, express.static(path.join(currentDir, 'uploads')));
 app.use('/storage', requireAuth, express.static(path.join(currentDir, 'storage')));
+
+// ⚠️ مسیرهای بکاپ باید بعد از میدل‌ور احراز هویت تعریف شوند تا req.user ست شده باشد
+import { createManualBackup } from './server/utils/backup.js';
+
+app.get('/api/backup/download', requireAuth, (req, res) => {
+  const dbPath = path.join(currentDir, 'database.sqlite');
+  if (fs.existsSync(dbPath)) {
+    res.download(dbPath, 'database.sqlite');
+  } else {
+    res.status(404).json({ error: 'Database file not found' });
+  }
+});
+
+// پشتیبان‌گیری دستی (فقط با کلیک کاربر در تنظیمات)
+app.post('/api/backup/create', requireAuth, async (req, res) => {
+  try {
+    const result = await createManualBackup();
+    if (!result) {
+      return res.status(500).json({ error: 'خطا در ایجاد پشتیبان' });
+    }
+    logAudit({
+      userId: (req as any).user?.id || null,
+      action: 'CREATE',
+      entityName: 'پشتیبان‌گیری دستی',
+      entityId: 0,
+      changes: { name: result.name, size: result.size },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    res.json({ success: true, message: 'پشتیبان با موفقیت ساخته شد', backup: { name: result.name, size: result.size } });
+  } catch (error: any) {
+    console.error('Manual backup API error:', error);
+    res.status(500).json({ error: 'خطا در ایجاد پشتیبان' });
+  }
+});
 
 app.use('/api/metadata', metadataRoutes);
 app.use('/api/trees', requireAuth, treeRoutes);
@@ -400,8 +367,19 @@ async function startServer() {
   });
 
   // ============================================
-  // Start
+  // Start (با مدیریت خطای پورت)
   // ============================================
+
+  httpServer.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ پورت ${PORT} توسط پردازش دیگری اشغال شده است (EADDRINUSE).`);
+      console.error('   یک نمونه دیگر از سرور احتمالاً در حال اجراست. آن را ببندید و دوباره تلاش کنید.');
+      // خروج با کد خطا تا فرآیندمدیر (platform) بتواند نمونه قبلی را پاک و دوباره اجرا کند
+      process.exit(1);
+    }
+    console.error('❌ Server error:', err);
+    process.exit(1);
+  });
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
@@ -411,6 +389,3 @@ async function startServer() {
 }
 
 startServer();
-
-process.on('uncaughtException', (e) => {});
-process.on('unhandledRejection', (e) => {});

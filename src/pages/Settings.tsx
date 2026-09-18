@@ -462,32 +462,54 @@ export function Settings() {
   const renderGeneralTab = () => (
     <div className="space-y-6 max-w-2xl">
       {/* پشتیبان‌گیری دیتابیس */}
-      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl flex items-center justify-between">
+      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl flex items-center justify-between gap-4">
         <div>
           <h3 className="font-semibold text-blue-800 dark:text-blue-300">پشتیبان‌گیری از پایگاه داده</h3>
-          <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">دریافت فایل کامل دیتابیس (SQLite) برای امنیت اطلاعات</p>
+          <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">ایجاد نسخه پشتیبان یا دریافت فایل کامل دیتابیس (SQLite)</p>
         </div>
-        <button
-          onClick={() => {
-            const token = useAuthStore.getState().token;
-           (window.customFetch || window.fetch)('/api/backup/download', {
-              headers: { Authorization: `Bearer ${token}` }
-            })
-            .then(res => res.blob())
-            .then(blob => {
-              const url = window.URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = url;
-              link.setAttribute('download', 'database.sqlite');
-              document.body.appendChild(link);
-              link.click();
-              link.remove();
-            });
-          }}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-        >
-          <Download size={18} /> دانلود دیتابیس
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={async () => {
+              const loadToast = toast.loading('در حال ایجاد پشتیبان...');
+              try {
+                const token = useAuthStore.getState().token;
+                const res = await (window.customFetch || window.fetch)('/api/backup/create', {
+                  method: 'POST',
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'خطا در ایجاد پشتیبان');
+                toast.success(`پشتیبان ساخته شد: ${data.backup?.name || ''}`, { id: loadToast });
+              } catch (err: any) {
+                toast.error(err.message || 'خطا در ایجاد پشتیبان', { id: loadToast });
+              }
+            }}
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 text-sm"
+          >
+            <Save size={16} /> ایجاد پشتیبان
+          </button>
+          <button
+            onClick={() => {
+              const token = useAuthStore.getState().token;
+             (window.customFetch || window.fetch)('/api/backup/download', {
+                headers: { Authorization: `Bearer ${token}` }
+              })
+              .then(res => res.blob())
+              .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', 'database.sqlite');
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+              });
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
+          >
+            <Download size={16} /> دانلود دیتابیس
+          </button>
+        </div>
       </div>
 
       {/* لوگو */}

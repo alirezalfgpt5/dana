@@ -1,3 +1,9 @@
 node_modules/
 backups/
 
+# SQLite runtime database files (regenerated on every run)
+database.sqlite
+database.sqlite-shm
+database.sqlite-wal
+database.sqlite-journal
+
