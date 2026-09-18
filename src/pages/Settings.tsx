@@ -10,8 +10,11 @@ import {
 } from 'lucide-react';
 import { useSecurityStore, useUIStore, useAuthStore, THEMES, ThemeId } from '../store';
 import { DynamicMetadataManager } from '../components/DynamicMetadataManager';
-import toast from 'react-hot-toast';  type TabType = 'general' | 'appearance' | 'gapConfig' | 'security';
+import toast from 'react-hot-toast';
 
+type TabType = 'general' | 'appearance' | 'gapConfig' | 'security';
+
+export function Settings() {
   // تنظیمات تحلیل شکاف (ذخیره در localStorage)
   const GAP_CONFIG_KEY = 'dana_gap_config';
   const [gapConfig, setGapConfig] = useState({
@@ -27,7 +30,7 @@ import toast from 'react-hot-toast';  type TabType = 'general' | 'appearance' | 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(GAP_CONFIG_KEY);
-      if (saved) setGapConfig({ ...gapConfig, ...JSON.parse(saved) });
+      if (saved) setGapConfig(prev => ({ ...prev, ...JSON.parse(saved) }));
     } catch {}
   }, []);
 
@@ -35,8 +38,6 @@ import toast from 'react-hot-toast';  type TabType = 'general' | 'appearance' | 
     localStorage.setItem(GAP_CONFIG_KEY, JSON.stringify(gapConfig));
     toast.success('تنظیمات تحلیل شکاف ذخیره شد');
   };
-
-export function Settings() {
   const { 
     systemName, setSystemName,
     pageTitle, setPageTitle,
