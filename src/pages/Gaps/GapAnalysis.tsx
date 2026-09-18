@@ -10,7 +10,7 @@ import {
   CheckCircle, AlertCircle, Clock,
   Filter, HelpCircle, Zap, Edit2, Upload,
   FileText, Info, Layers, Sparkles, TrendingUp, ChevronDown, RotateCcw, ListChecks,
-  Database, UserCheck, Ban, ShieldCheck, History, GitBranch as PathIcon
+  Database, UserCheck, Ban, ShieldCheck, History, GitBranch as PathIcon, XCircle
 } from 'lucide-react';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RelationalView } from '../../components/gaps/RelationalView';
@@ -110,6 +110,9 @@ export function GapAnalysis() {
   const [selectedGap, setSelectedGap] = useState<any>(null);
   const [showFillModal, setShowFillModal] = useState(false);
   const [fillProducedNodeId, setFillProducedNodeId] = useState<number | null>(null);
+  // 🟢 انتخاب نوع تطابق هنگام پر کردن گپ (کامل یا جزئی)
+  const [fillStatusChoice, setFillStatusChoice] = useState<'filled' | 'partially_filled'>('filled');
+  const [fillNote, setFillNote] = useState('');
   const [showMethodology, setShowMethodology] = useState(true);
   const [showStats, setShowStats] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -217,11 +220,12 @@ export function GapAnalysis() {
     }
   };
 
-  const handleFillGap = async (gapId: number, producedNodeId: number) => {
-    await fillGap(gapId, producedNodeId);
+  const handleFillGap = async (gapId: number, producedNodeId: number, statusChoice: 'filled' | 'partially_filled' = 'filled', note?: string) => {
+    await fillGap(gapId, producedNodeId, statusChoice, note);
     setShowFillModal(false);
     setSelectedGap(null);
-    toast.success('گپ با موفقیت پر شد');
+    setFillNote('');
+    toast.success(statusChoice === 'partially_filled' ? 'گپ با تطابق جزئی ثبت شد' : 'گپ با موفقیت پر شد');
   };
 
   const handleDeleteGap = async (gapId: number) => {
@@ -229,9 +233,9 @@ export function GapAnalysis() {
   };
 
   // 🟢 ثبت بازنگی دستی
-  const handleReview = async (verdict: 'confirmed_gap' | 'not_gap' | 'adjusted') => {
+  const handleReview = async (verdict: 'confirmed_gap' | 'not_gap' | 'adjusted', newStatus?: string) => {
     if (!reviewModalGap) return;
-    await reviewGap(reviewModalGap.id, verdict, verdict === 'adjusted' ? 'open' : undefined, reviewNote);
+    await reviewGap(reviewModalGap.id, verdict, newStatus, reviewNote);
     setReviewModalGap(null);
     setReviewNote('');
     if (requiredTreeId) fetchRequiredTree(requiredTreeId);
@@ -1046,52 +1050,51 @@ export function GapAnalysis() {
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="flex items-center justify-center gap-1">
-                            {gap.status !== 'filled' && (
-                              <>
-                                {(gap as any).researchItemId ? (
-                                  <button
-                                    onClick={() => handleConvertToResearch(gap, gap.requiredNode)}
-                                    className="p-1.5 text-sky-500 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition-colors"
-                                    title="مشاهده و ویرایش مسئله"
-                                  >
-                                    <Edit2 size={16} />
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => handleConvertToResearch(gap, gap.requiredNode)}
-                                    className="p-1.5 text-violet-500 hover:text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
-                                    title="تبدیل به پژوهش (مسئله)"
-                                  >
-                                    <Target size={16} />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    setSelectedGap(gap);
-                                    setShowFillModal(true);
-                                  }}
-                                  className="p-1.5 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                                  title="پر کردن گپ"
-                                >
-                                  <CheckCircle size={16} />
-                                </button>
-                                {/* 🟢 بازنگی دستی: این گپ نیست / گپ است / اصلاح */}
-                                <button
-                                  onClick={() => {
-                                    setReviewModalGap(gap);
-                                    setReviewNote('');
-                                  }}
-                                  className="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
-                                  title="بازنگی دستی (نظر کاربر)"
-                                >
-                                  <UserCheck size={16} />
-                                </button>
-                              </>
+                            {(gap as any).researchItemId ? (
+                              <button
+                                onClick={() => handleConvertToResearch(gap, gap.requiredNode)}
+                                className="p-1.5 text-sky-500 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition-colors"
+                                title="مشاهده و ویرایش مسئله"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleConvertToResearch(gap, gap.requiredNode)}
+                                className="p-1.5 text-violet-500 hover:text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
+                                title="تبدیل به پژوهش (مسئله)"
+                              >
+                                <Target size={16} />
+                              </button>
                             )}
+                            {gap.status !== 'filled' && (
+                              <button
+                                onClick={() => {
+                                  setSelectedGap(gap);
+                                  setFillStatusChoice('filled');
+                                  setShowFillModal(true);
+                                }}
+                                className="p-1.5 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                                title="پر کردن گپ (تطابق کامل یا جزئی)"
+                              >
+                                <CheckCircle size={16} />
+                              </button>
+                            )}
+                            {/* 🟢 بازنگی دستی = نظر کاربر: این گپ نیست / گپ تأیید می‌شود / اصلاح وضعیت — ذخیره در DB و اعمال خودکار در تحلیل‌های بعدی */}
+                            <button
+                              onClick={() => {
+                                setReviewModalGap(gap);
+                                setReviewNote('');
+                              }}
+                              className="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                              title="بازنگی (نظر من): این گپ نیست / گپ تأیید می‌شود / اصلاح وضعیت — در تحلیل‌های بعدی اعمال می‌شود"
+                            >
+                              <UserCheck size={16} />
+                            </button>
                             <button
                               onClick={() => handleDeleteGap(gap.id)}
                               className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                              title="حذف گپ"
+                              title="حذف گپ (در سوابق بازنگی ثبت می‌شود)"
                             >
                               <X size={16} />
                             </button>
@@ -1188,6 +1191,31 @@ export function GapAnalysis() {
                 </button>
               </div>
 
+              {/* 🟢 انتخاب وضعیت جدید در حالت اصلاح */}
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => handleReview('adjusted', 'filled')}
+                  className="p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/60 text-emerald-700 hover:bg-emerald-100 transition-colors flex flex-col items-center gap-1 text-[11px] font-medium"
+                >
+                  <CheckCircle size={15} />
+                  پوشش کامل
+                </button>
+                <button
+                  onClick={() => handleReview('adjusted', 'partially_filled')}
+                  className="p-2.5 rounded-xl border border-amber-100 bg-amber-50/60 text-amber-700 hover:bg-amber-100 transition-colors flex flex-col items-center gap-1 text-[11px] font-medium"
+                >
+                  <AlertCircle size={15} />
+                  پوشش جزئی
+                </button>
+                <button
+                  onClick={() => handleReview('adjusted', 'open')}
+                  className="p-2.5 rounded-xl border border-rose-100 bg-rose-50/60 text-rose-700 hover:bg-rose-100 transition-colors flex flex-col items-center gap-1 text-[11px] font-medium"
+                >
+                  <XCircle size={15} />
+                  گپ باز
+                </button>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1.5">توضیح نظر (اختیاری — در سابقه ثبت می‌شود)</label>
                 <textarea
@@ -1241,6 +1269,49 @@ export function GapAnalysis() {
                 برای پر کردن این گپ، گره تولیدشده معادل را انتخاب کنید:
               </p>
 
+              {/* 🟢 نوع تطابق: کامل یا جزئی */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">نوع تطابق</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFillStatusChoice('filled')}
+                    className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 text-xs font-medium ${
+                      fillStatusChoice === 'filled'
+                        ? 'border-emerald-400 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-100'
+                        : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
+                    }`}
+                  >
+                    <CheckCircle size={16} />
+                    تطابق کامل
+                    <span className="text-[10px] opacity-70">دانش به‌طور کامل پوشش داده شده</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFillStatusChoice('partially_filled')}
+                    className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 text-xs font-medium ${
+                      fillStatusChoice === 'partially_filled'
+                        ? 'border-amber-400 bg-amber-50 text-amber-700 ring-2 ring-amber-100'
+                        : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
+                    }`}
+                  >
+                    <AlertCircle size={16} />
+                    تطابق جزئی
+                    <span className="text-[10px] opacity-70">بخشی از نیاز پوشش دارد و ادامه پژوهش لازم است</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">توضیح (اختیاری — در سوابق ثبت می‌شود)</label>
+                <textarea
+                  value={fillNote}
+                  onChange={e => setFillNote(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 min-h-[60px] bg-gray-50/50 focus:bg-white"
+                  placeholder="مثلاً: ۷۰٪ محتوا پوشش داده شده؛ بخش سنجش عملکرد هنوز نیاز به پژوهش دارد..."
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   انتخاب گره تولیدشده <span className="text-rose-500">*</span>
@@ -1269,6 +1340,7 @@ export function GapAnalysis() {
                     setShowFillModal(false);
                     setSelectedGap(null);
                     setFillProducedNodeId(null);
+                    setFillNote('');
                   }}
                   className="flex-1 px-4 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium transition-all duration-200"
                 >
@@ -1278,7 +1350,7 @@ export function GapAnalysis() {
                   disabled={!fillProducedNodeId}
                   onClick={() => {
                     if (fillProducedNodeId && selectedGap) {
-                      handleFillGap(selectedGap.id, fillProducedNodeId);
+                      handleFillGap(selectedGap.id, fillProducedNodeId, fillStatusChoice, fillNote || undefined);
                     }
                   }}
                   className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${

@@ -926,7 +926,7 @@ gapRoutes.post('/generate-research', async (req, res) => {
 gapRoutes.post('/:gapId/fill', async (req, res) => {
   try {
     const { gapId } = req.params;
-    const { producedNodeId, description, priority } = req.body;
+    const { producedNodeId, description, priority, status: requestedStatus } = req.body;
     const now = new Date().toISOString();
     const userId = (req as AuthRequest).user?.id || null;
 
@@ -957,10 +957,13 @@ gapRoutes.post('/:gapId/fill', async (req, res) => {
       return res.status(404).json({ error: 'گره تولیدشده یافت نشد' });
     }
 
+    // 🟢 وضعیت نهایی: تطابق کامل (filled) یا جزئی (partially_filled) — انتخاب کاربر
+    const effectiveStatus = requestedStatus === 'partially_filled' ? 'partially_filled' : 'filled';
+
     const result = await db.update(gaps)
       .set({
         producedNodeId: parseInt(producedNodeId),
-        status: 'filled',
+        status: effectiveStatus,
         priority: priority || existingGap.priority || 'medium',
         description: description || `اتصال دستی به گره "${producedNode.title}"`,
         updatedAt: now,
@@ -968,11 +971,23 @@ gapRoutes.post('/:gapId/fill', async (req, res) => {
       .where(eq(gaps.id, gapIdNum))
       .returning();
 
+    // 🟢 ثبت در سوابق بازنگی (تاریخچه کامل عملیات دستی)
+    await db.insert(gapReviews).values({
+      gapId: gapIdNum,
+      requiredNodeId: existingGap.requiredNodeId,
+      verdict: 'manual_fill',
+      previousStatus: existingGap.status,
+      newStatus: effectiveStatus,
+      note: description || `اتصال دستی به گره "${producedNode.title}"`,
+      reviewedBy: userId,
+      createdAt: now,
+    });
+
     // به‌روزرسانی گره مورد نیاز
     await db.update(treeNodes)
       .set({
         isGap: 0,
-        gapStatus: 'filled',
+        gapStatus: effectiveStatus,
         updatedAt: now,
       })
       .where(eq(treeNodes.id, existingGap.requiredNodeId));
@@ -980,16 +995,22 @@ gapRoutes.post('/:gapId/fill', async (req, res) => {
     logAudit({
       userId,
       action: 'UPDATE',
-      entityName: 'پر کردن گپ (دستی)',
+      entityName: effectiveStatus === 'partially_filled' ? 'پر کردن گپ (تطابق جزئی)' : 'پر کردن گپ (دستی)',
       entityId: gapIdNum,
       changes: {
         gapId: gapIdNum,
         producedNodeId,
-        status: 'filled',
+        status: effectiveStatus,
         priority: priority || existingGap.priority,
       },
       ip: req.ip,
       userAgent: req.headers['user-agent'],
+    });
+
+    res.json({
+      success: true,
+      message: effectiveStatus === 'partially_filled' ? 'گپ با تطابق جزئی ثبت شد' : 'گپ با موفقیت پر شد',
+      gap: result[0],
     });
 
     res.json({
@@ -1033,6 +1054,19 @@ gapRoutes.delete('/:gapId', async (req, res) => {
     }
 
     await db.delete(gaps).where(eq(gaps.id, gapIdNum));
+
+    // 🟢 ثبت حذف در سوابق بازنگی (تاریخچه کامل حتی پس از حذف گپ حفظ می‌شود)
+    const delMeta = (existing.metadata as any) || {};
+    await db.insert(gapReviews).values({
+      gapId: gapIdNum,
+      requiredNodeId: existing.requiredNodeId,
+      verdict: 'deleted',
+      previousStatus: existing.status,
+      newStatus: null,
+      note: delMeta.manualReview?.note || 'حذف دستی گپ توسط کاربر',
+      reviewedBy: userId,
+      createdAt: new Date().toISOString(),
+    });
 
     logAudit({
       userId,
