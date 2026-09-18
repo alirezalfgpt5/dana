@@ -9,9 +9,11 @@ import {
   Target, Search, X, Download, RefreshCw,
   CheckCircle, AlertCircle, Clock,
   Filter, HelpCircle, Zap, Edit2, Upload,
-  FileText, Info, Layers, Sparkles, TrendingUp, ChevronDown, RotateCcw, ListChecks
+  FileText, Info, Layers, Sparkles, TrendingUp, ChevronDown, RotateCcw, ListChecks,
+  Database
 } from 'lucide-react';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { RelationalView } from '../../components/gaps/RelationalView';
 import toast from 'react-hot-toast';
 import { TreeGraphView } from '../Trees/components/TreeGraphView';
 import { useNavigate } from 'react-router-dom';
@@ -50,7 +52,60 @@ export function GapAnalysis() {
   const [generating, setGenerating] = useState(false);
   const { tree: requiredTreeData, fetchTree: fetchRequiredTree } = useTree();
   const { tree: producedTreeData, fetchTree: fetchProducedTree } = useTree();
-  const [viewMode, setViewMode] = useState<'tree' | 'table'>('tree');
+  const [viewMode, setViewMode] = useState<'tree' | 'table' | 'relational'>('tree');
+  const [relHoveredGap, setRelHoveredGap] = useState<number | null>(null);
+
+  // ساخت داده‌های نمای ارتباطی
+  const relRequiredNodes = useMemo(() => {
+    const nodes = requiredTreeData?.nodes || [];
+    return nodes.filter((n: any) => n.level === 'L' || n.level === 'SB').map((n: any) => {
+      const gap = gaps.find((g: any) => g.requiredNodeId === n.id);
+      const research = gap?.researchItem;
+      return {
+        id: n.id,
+        title: n.title,
+        level: n.level,
+        levelLabel: LEVEL_LABELS[n.level] || n.level,
+        gapId: gap?.id,
+        gapStatus: gap?.status || 'filled',
+        matchScore: gap?.matchScore || 0,
+        producedNodeId: gap?.producedNodeId,
+        researchItem: research,
+        gap: gap,
+      };
+    });
+  }, [requiredTreeData, gaps]);
+
+  const relProducedNodes = useMemo(() => {
+    const nodes = producedTreeData?.nodes || [];
+    return nodes.filter((n: any) => n.level === 'L' || n.level === 'SB').map((n: any) => {
+      const connectedGap = relRequiredNodes.find((r: any) => r.producedNodeId === n.id);
+      return {
+        id: n.id,
+        title: n.title,
+        level: n.level,
+        levelLabel: LEVEL_LABELS[n.level] || n.level,
+        connected: !!connectedGap,
+        connectedGapId: connectedGap?.gapId,
+        matchScore: connectedGap?.matchScore || 0,
+      };
+    });
+  }, [producedTreeData, relRequiredNodes]);
+
+  const relResearchItems = useMemo(() => {
+    const items: any[] = [];
+    relRequiredNodes.forEach((r: any) => {
+      if (r.researchItem) {
+        items.push({
+          ...r.researchItem,
+          requiredNodeId: r.id,
+          requiredNodeTitle: r.title,
+          gapStatus: r.gapStatus,
+        });
+      }
+    });
+    return items;
+  }, [relRequiredNodes]);
   const [selectedGap, setSelectedGap] = useState<any>(null);
   const [showFillModal, setShowFillModal] = useState(false);
   const [fillProducedNodeId, setFillProducedNodeId] = useState<number | null>(null);
@@ -748,7 +803,7 @@ export function GapAnalysis() {
               }`}
             >
               <Layers size={15} />
-              نمای درختی
+              درختی
             </button>
             <button
               onClick={() => setViewMode('table')}
@@ -759,11 +814,41 @@ export function GapAnalysis() {
               }`}
             >
               <ListChecks size={15} />
-              نمای جدولی
+              جدولی
+            </button>
+            <button
+              onClick={() => setViewMode('relational')}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                viewMode === 'relational'
+                  ? 'bg-gradient-to-l from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-200/60'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              <Database size={15} />
+              ارتباطی (۳ جدول)
             </button>
           </div>
 
-          {viewMode === 'tree' ? (
+          {viewMode === 'relational' ? (
+            <RelationalView
+              requiredNodes={relRequiredNodes}
+              producedNodes={relProducedNodes}
+              researchItems={relResearchItems}
+              onNodeClick={(node, type) => {
+                if (type === 'required') {
+                  const gap = gaps.find((g: any) => g.requiredNodeId === node.id);
+                  if (gap && gap.status !== 'filled') {
+                    handleConvertToResearch(gap, node);
+                  } else if (gap) {
+                    toast.success('این نیاز دانشی کاملاً پوشش داده شده است');
+                  }
+                } else if (type === 'research') {
+                  const gap = gaps.find((g: any) => g.requiredNodeId === node.requiredNodeId);
+                  if (gap) handleConvertToResearch(gap, node);
+                }
+              }}
+            />
+          ) : viewMode === 'tree' ? (
             <div>
               {requiredTreeData && requiredTreeData.nodes ? (
                 <TreeGraphView
