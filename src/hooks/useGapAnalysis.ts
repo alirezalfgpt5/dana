@@ -163,6 +163,29 @@ export function useGapAnalysis() {
   }, []);
 
   // ============================================
+  // 🟢 بازنگی دستی کاربر روی گپ (گپ نیست / گپ است / اصلاح وضعیت)
+  // ============================================
+
+  const reviewGap = useCallback(async (gapId: number, verdict: 'confirmed_gap' | 'not_gap' | 'adjusted', newStatus?: string, note?: string) => {
+    setLoading(true);
+    try {
+      const data = await apiClient(`/api/gaps/${gapId}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verdict, newStatus, note }),
+      });
+      toast.success(data.message || 'نظر شما ثبت شد');
+      await fetchGaps({ page: pagination.page, limit: pagination.limit });
+      return data;
+    } catch (err: any) {
+      toast.error(err.message || 'خطا در ثبت نظر');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchGaps, pagination]);
+
+  // ============================================
   // پر کردن گپ
   // ============================================
 
@@ -259,6 +282,7 @@ export function useGapAnalysis() {
     fetchGaps,
     fetchGap,
     analyzeGaps,
+    reviewGap,
     fillGap,
     deleteGap,
     getGapStats,

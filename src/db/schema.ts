@@ -207,6 +207,9 @@ export const gaps = sqliteTable('gaps', {
   gapStatusIdx: index('gaps_status_idx').on(table.status),
 }));
 
+// ۳-۱-الف. ستون‌های بازنگی دستی کاربر روی گپ
+// (review_status: confirmed_gap = گپ تأیید شد | not_gap = گپ نیست | adjusted = اصلاح دستی)
+
 // ۳-۲. آیتم‌های پژوهشی
 export const researchItems = sqliteTable('research_items', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -230,6 +233,38 @@ export const researchItems = sqliteTable('research_items', {
 }, (table) => ({
   researchGapIdx: index('research_gap_idx').on(table.gapId),
   researchNodeIdx: index('research_node_idx').on(table.nodeId),
+}));
+
+// ۳-۳. سوابق اجرای تحلیل شکاف (هر بار کلیک دکمه تحلیل یک رکورد)
+export const gapAnalysisRuns = sqliteTable('gap_analysis_runs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  requiredTreeId: integer('required_tree_id'),
+  producedTreeId: integer('produced_tree_id'),
+  totalLeaves: integer('total_leaves').default(0),
+  filled: integer('filled').default(0),
+  partial: integer('partial').default(0),
+  openCount: integer('open_count').default(0),
+  coveragePercent: real('coverage_percent').default(0),
+  carriedReviews: integer('carried_reviews').default(0),
+  report: text('report', { mode: 'json' }),
+  createdBy: integer('created_by'),
+  createdAt: text('created_at').notNull(),
+});
+
+// ۳-۴. بازنگی‌های دستی کاربر روی گپ‌ها (سابقه کامل حفظ می‌شود)
+export const gapReviews = sqliteTable('gap_reviews', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  gapId: integer('gap_id'),
+  requiredNodeId: integer('required_node_id'),
+  verdict: text('verdict').notNull(), // confirmed_gap | not_gap | adjusted
+  previousStatus: text('previous_status'),
+  newStatus: text('new_status'),
+  note: text('note'),
+  reviewedBy: integer('reviewed_by'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  reviewNodeIdx: index('gap_reviews_node_idx').on(table.requiredNodeId),
+  reviewGapIdx: index('gap_reviews_gap_idx').on(table.gapId),
 }));
 
 // ============================================
@@ -414,6 +449,26 @@ export const programCoverages = sqliteTable('program_coverages', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
+
+// ============================================
+// ۶-الف. سوابق تلفیق لایه‌ای درختواره‌ها (Merge History)
+// ============================================
+export const treeMerges = sqliteTable('tree_merges', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  treeId: integer('tree_id').references(() => knowledgeTrees.id, { onDelete: 'cascade' }).notNull(),
+  sourceLabel: text('source_label'),
+  sourceType: text('source_type'), // 'excel' | 'tree'
+  sourceTreeId: integer('source_tree_id'),
+  added: integer('added').default(0),
+  updated: integer('updated').default(0),
+  conflicts: integer('conflicts').default(0),
+  skipped: integer('skipped').default(0),
+  details: text('details', { mode: 'json' }),
+  createdBy: integer('created_by'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  mergeTreeIdx: index('tree_merges_tree_idx').on(table.treeId),
+}));
 
 // ============================================
 // ۷. روابط (Relations)

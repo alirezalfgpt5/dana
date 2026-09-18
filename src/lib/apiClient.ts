@@ -21,6 +21,14 @@ export async function apiClient<T = any>(
     ...fetchOptions
   } = options;
 
+  // 🟢 اگر نشست منقضی شده و صفحه قفل است، درخواست‌های جدید زودتر قطع می‌شوند (جلوگیری از طوفان درخواست و پیام تکراری)
+  if ((window as any)._sessionExpiredHandled) {
+    const { useSecurityStore } = await import('../store');
+    if (useSecurityStore.getState().isLocked) {
+      throw new Error('Session locked');
+    }
+  }
+
   try {
     const isFormData = fetchOptions.body instanceof FormData;
     const customHeaders = (fetchOptions.headers as Record<string, string>) || {};
@@ -45,6 +53,7 @@ export async function apiClient<T = any>(
       delete finalHeaders['Content-Type'];
     }
 
+    // 🟢 توکن و user از Store خوانده می‌شود — توکن null یعنی نیاز به قفل صفحه
     const res = await fetch(endpoint, {
       ...fetchOptions,
       headers: finalHeaders,
@@ -70,13 +79,23 @@ export async function apiClient<T = any>(
 
     // خطا در پاسخ
     if (!res.ok) {
-      // اگر ۴۰۱ بود، فقط لاگاوت کن (بدون ریلود)
+      // اگر ۴۰۱ بود، فقط یک‌بار پیام بده و به اسکرین‌لاک برو (نه صفحه لاگین)
       if (res.status === 401) {
-        useAuthStore.getState().logout();
-        if (showErrorToast) {
-          toast.error('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
+        // ⚠️ Dedup: فقط اولین ۴۰۱ پیام می‌دهد و قفل می‌کند — نه ۵۰ بار پیام پشت هم
+        if (!(window as any)._sessionExpiredHandled) {
+          (window as any)._sessionExpiredHandled = true;
+          toast.error('نشست شما منقضی شد — برای ادامه، رمز عبور خود را وارد کنید', {
+            id: 'session-expired',
+            duration: 5000,
+          });
+          // 🟢 قفل صفحه (اسکرین‌لاک) به‌جای ردن به صفحه لاگین:
+          // داده‌ها و وضعیت کاربر حفظ می‌شود و با رمز صحیح ادامه می‌دهد
+          import('../store').then(({ useSecurityStore }) => {
+            useSecurityStore.getState().setLocked(true);
+            // توکن نامعتبر حذف می‌شود اما user و همه stateها حفظ می‌مانند
+            useAuthStore.setState({ token: null });
+          });
         }
-        // ریلود نمیکنیم تا کاربر بتونه دوباره لاگین کنه
         throw new Error('Unauthorized');
       }
       

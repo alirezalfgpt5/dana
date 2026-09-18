@@ -245,6 +245,54 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS research_gap_idx ON research_items(gap_id);
     CREATE INDEX IF NOT EXISTS research_node_idx ON research_items(node_id);
     
+    -- سوابق اجرای تحلیل شکاف
+    CREATE TABLE IF NOT EXISTS gap_analysis_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      required_tree_id INTEGER,
+      produced_tree_id INTEGER,
+      total_leaves INTEGER DEFAULT 0,
+      filled INTEGER DEFAULT 0,
+      partial INTEGER DEFAULT 0,
+      open_count INTEGER DEFAULT 0,
+      coverage_percent REAL DEFAULT 0,
+      carried_reviews INTEGER DEFAULT 0,
+      report TEXT,
+      created_by INTEGER,
+      created_at TEXT NOT NULL
+    );
+
+    -- بازنگی‌های دستی کاربر روی گپ‌ها
+    CREATE TABLE IF NOT EXISTS gap_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      gap_id INTEGER,
+      required_node_id INTEGER,
+      verdict TEXT NOT NULL,
+      previous_status TEXT,
+      new_status TEXT,
+      note TEXT,
+      reviewed_by INTEGER,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS gap_reviews_node_idx ON gap_reviews(required_node_id);
+    CREATE INDEX IF NOT EXISTS gap_reviews_gap_idx ON gap_reviews(gap_id);
+
+    -- سوابق تلفیق لایه‌ای درختواره‌ها
+    CREATE TABLE IF NOT EXISTS tree_merges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tree_id INTEGER NOT NULL REFERENCES knowledge_trees(id) ON DELETE CASCADE,
+      source_label TEXT,
+      source_type TEXT,
+      source_tree_id INTEGER,
+      added INTEGER DEFAULT 0,
+      updated INTEGER DEFAULT 0,
+      conflicts INTEGER DEFAULT 0,
+      skipped INTEGER DEFAULT 0,
+      details TEXT,
+      created_by INTEGER,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS tree_merges_tree_idx ON tree_merges(tree_id);
+
     -- ============================================
     -- ۴. نظام مسائل
     -- ============================================

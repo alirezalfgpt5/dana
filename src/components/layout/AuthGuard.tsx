@@ -58,9 +58,13 @@ export function AuthGuard({ children }: AuthGuardProps) {
         .then(r => r.json())
         .then(data => {
           if (data.token) {
+            // 🟢 ریست پرچم ۴۰۱ + ذخیره توکن جدید + بروزرسانی state کاربر
+            (window as any)._sessionExpiredHandled = false;
+            useAuthStore.setState({ token: data.token, user: data.user || user });
             setLocked(false);
             setError('');
             setPassword('');
+            window.location.reload();
           } else {
             setError('رمز عبور اشتباه است');
           }

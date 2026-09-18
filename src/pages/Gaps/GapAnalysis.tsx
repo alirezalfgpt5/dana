@@ -10,7 +10,7 @@ import {
   CheckCircle, AlertCircle, Clock,
   Filter, HelpCircle, Zap, Edit2, Upload,
   FileText, Info, Layers, Sparkles, TrendingUp, ChevronDown, RotateCcw, ListChecks,
-  Database
+  Database, UserCheck, Ban, ShieldCheck, History, GitBranch as PathIcon
 } from 'lucide-react';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RelationalView } from '../../components/gaps/RelationalView';
@@ -40,6 +40,7 @@ export function GapAnalysis() {
     pagination,
     fetchGaps,
     analyzeGaps,
+    reviewGap,
     fillGap,
     deleteGap,
     getGapStats,
@@ -116,6 +117,14 @@ export function GapAnalysis() {
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [showHelp, setShowHelp] = useState(false);
 
+  // 🟢 بازنگی دستی گپ
+  const [reviewModalGap, setReviewModalGap] = useState<any>(null);
+  const [reviewNote, setReviewNote] = useState('');
+  // 🟢 سوابق تحلیل‌های قبلی
+  const [runHistory, setRunHistory] = useState<any[]>([]);
+  const [showRunHistory, setShowRunHistory] = useState(false);
+  const [ownerPath, setOwnerPath] = useState<string>('');
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -174,6 +183,9 @@ export function GapAnalysis() {
       if (result) {
         setShowStats(true);
         setShowMethodology(true);
+        // 🟢 ذخیره سوابق و مسیر مالک از پاسخ سرور
+        if (result.runHistory) setRunHistory(result.runHistory);
+        if (result.ownerPath) setOwnerPath(result.ownerPath);
         fetchRequiredTree(requiredTreeId); // Fetch the tree nodes for visualization
       }
     } catch (error: any) {
@@ -214,6 +226,15 @@ export function GapAnalysis() {
 
   const handleDeleteGap = async (gapId: number) => {
     await deleteGap(gapId);
+  };
+
+  // 🟢 ثبت بازنگی دستی
+  const handleReview = async (verdict: 'confirmed_gap' | 'not_gap' | 'adjusted') => {
+    if (!reviewModalGap) return;
+    await reviewGap(reviewModalGap.id, verdict, verdict === 'adjusted' ? 'open' : undefined, reviewNote);
+    setReviewModalGap(null);
+    setReviewNote('');
+    if (requiredTreeId) fetchRequiredTree(requiredTreeId);
   };
 
   const handleConvertToResearch = (gap: any, nodeFallback?: any) => {
@@ -425,6 +446,59 @@ export function GapAnalysis() {
           </div>
         </div>
       </div>
+
+      {/* ═══════════════ سوابق تحلیل‌های قبلی ═══════════════ */}
+      {runHistory.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 overflow-hidden">
+          <button
+            onClick={() => setShowRunHistory(!showRunHistory)}
+            className="w-full flex items-center justify-between p-4 bg-gray-50/50 hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-2 text-gray-700 font-medium text-sm">
+              <History size={18} className="text-slate-500" />
+              سوابق تحلیل شکاف ({runHistory.length} اجرای اخیر)
+              {ownerPath && (
+                <span className="text-[10px] font-normal text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 mr-2">
+                  مالک: {ownerPath}
+                </span>
+              )}
+            </div>
+            <ChevronDown size={16} className={`text-gray-400 transition-transform duration-300 ${showRunHistory ? 'rotate-180' : ''}`} />
+          </button>
+          {showRunHistory && (
+            <div className="p-4 border-t border-gray-100 animate-fade-in">
+              <div className="space-y-2">
+                {runHistory.map((run, i) => (
+                  <div key={run.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border text-xs ${
+                    i === 0 ? 'bg-indigo-50/50 border-indigo-100' : 'bg-gray-50/50 border-gray-100'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {i === 0 && <span className="px-1.5 py-0.5 bg-indigo-600 text-white rounded text-[9px] font-bold">آخرین</span>}
+                      <span className="text-gray-500">{run.createdAt?.slice(0, 19).replace('T', ' ')}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px]">
+                      <span className="text-gray-600">{run.totalLeaves} نیاز</span>
+                      <span className="text-emerald-600 font-medium">✔ {run.filled}</span>
+                      <span className="text-amber-600 font-medium">◐ {run.partial}</span>
+                      <span className="text-rose-600 font-medium">✖ {run.openCount}</span>
+                      <span className="text-sky-600 font-bold">پوشش {run.coveragePercent}٪</span>
+                      {run.carriedReviews > 0 && (
+                        <span className="text-amber-500" title="نظرات دستی کاربر که از تحلیل قبلی حفظ شد">
+                          🎧 {run.carriedReviews} نظر دستی
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-3 flex items-center gap-1">
+                <Info size={11} />
+                هر بار اجرای تحلیل، یک رکورد سابقه ثبت می‌شود. نظرات دستی شما (بازنگی‌ها) در تمام تحلیل‌های بعدی به‌صورت خودکار اعمال و حفظ می‌شوند.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ═══════════════ راهنما ═══════════════ */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 overflow-hidden">
@@ -905,6 +979,26 @@ export function GapAnalysis() {
                               سطح: {LEVEL_LABELS[gap.requiredNode.level] || gap.requiredNode.level}
                             </span>
                           )}
+                          {/* 🟢 مسیر ساختاری + مالک گره (مطابق ساختار آجا/نیرو/رده) */}
+                          {(gap.metadata?.structuralPath || gap.metadata?.ownerPath) && (
+                            <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1" dir="rtl">
+                              <PathIcon size={10} />
+                              <span title="مسیر ساختاری درختواره (ریشه تا گره)">
+                                {gap.metadata?.structuralPath}
+                              </span>
+                              {gap.metadata?.ownerPath && (
+                                <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500 border border-indigo-100 mr-1">
+                                  {gap.metadata.ownerPath}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {/* 🟢 نشان بازنگی دستی کاربر */}
+                          {gap.metadata?.manualReview && (
+                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200 text-[9px]">
+                              <UserCheck size={9} /> بازنگی دستی
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3.5">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${
@@ -981,6 +1075,17 @@ export function GapAnalysis() {
                                 >
                                   <CheckCircle size={16} />
                                 </button>
+                                {/* 🟢 بازنگی دستی: این گپ نیست / گپ است / اصلاح */}
+                                <button
+                                  onClick={() => {
+                                    setReviewModalGap(gap);
+                                    setReviewNote('');
+                                  }}
+                                  className="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                                  title="بازنگی دستی (نظر کاربر)"
+                                >
+                                  <UserCheck size={16} />
+                                </button>
                               </>
                             )}
                             <button
@@ -1027,6 +1132,74 @@ export function GapAnalysis() {
             </div>
           )}
         </>
+      )}
+
+      {/* ═══════════════ مودال بازنگی دستی گپ ═══════════════ */}
+      {reviewModalGap && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
+            <div className="p-4 border-b bg-gradient-to-l from-amber-50 to-orange-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white rounded-lg shadow-sm border border-amber-100">
+                  <UserCheck size={18} className="text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">بازنگی دستی نتیجه تحلیل</h3>
+                  <p className="text-xs text-gray-500">
+                    گره: {reviewModalGap.requiredNode?.title || 'نامشخص'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setReviewModalGap(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white/70 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs text-gray-600 leading-relaxed">
+                <Info size={13} className="inline ml-1 text-slate-400" />
+                نظر شما ثبت و در دیتابیس ذخیره می‌شود. در تحلیل‌های بعدی، نظر شما به‌عنوان «آخرین نسخه» به‌صورت خودکار بر نتیجه موتور تحلیل اولویت دارد.
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => handleReview('not_gap')}
+                  className="p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex flex-col items-center gap-1.5 text-xs font-medium"
+                >
+                  <Ban size={18} />
+                  این گپ نیست
+                </button>
+                <button
+                  onClick={() => handleReview('confirmed_gap')}
+                  className="p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors flex flex-col items-center gap-1.5 text-xs font-medium"
+                >
+                  <ShieldCheck size={18} />
+                  گپ تأیید می‌شود
+                </button>
+                <button
+                  onClick={() => handleReview('adjusted')}
+                  className="p-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors flex flex-col items-center gap-1.5 text-xs font-medium"
+                >
+                  <Edit2 size={18} />
+                  اصلاح وضعیت
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">توضیح نظر (اختیاری — در سابقه ثبت می‌شود)</label>
+                <textarea
+                  value={reviewNote}
+                  onChange={e => setReviewNote(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-300 min-h-[70px] bg-gray-50/50 focus:bg-white"
+                  placeholder="مثلاً: این دانش در قالب روش اجرایی شماره ۲۲ پوشش داده شده است..."
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ═══════════════ مودال پر کردن گپ ═══════════════ */}
