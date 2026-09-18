@@ -1,18 +1,18 @@
 // src/pages/Settings.tsx
-// تنظیمات سیستم - با مدیریت قالب‌ها و سطوح
+// تنظیمات سیستم - با مدیریت قالب‌ها، سطوح و سیستم تم
 
 import React, { useState, useEffect } from 'react';
 import { 
   Save, Settings as SettingsIcon, Shield,
   Image, RefreshCw, CheckCircle,
   Plus, Trash2, Edit, X,
-  Layers, Tag, Building2, Download
+  Layers, Tag, Building2, Download, Palette
 } from 'lucide-react';
-import { useSecurityStore, useUIStore, useAuthStore } from '../store';
+import { useSecurityStore, useUIStore, useAuthStore, THEMES, ThemeId } from '../store';
 import { DynamicMetadataManager } from '../components/DynamicMetadataManager';
 import toast from 'react-hot-toast';
 
-type TabType = 'general' | 'security';
+type TabType = 'general' | 'appearance' | 'security';
 
 export function Settings() {
   const { 
@@ -25,6 +25,7 @@ export function Settings() {
   } = useUIStore();
   
   const { lockTimerMinutes, setLockTimerMinutes } = useSecurityStore();
+  const { darkMode, toggleDarkMode, themeId, setTheme } = useUIStore();
 
   const [activeTab, setActiveTab] = useState<TabType>('general');
   const [isSaved, setIsSaved] = useState(false);
@@ -452,12 +453,126 @@ export function Settings() {
     switch (activeTab) {
       case 'general':
         return renderGeneralTab();
+      case 'appearance':
+        return renderAppearanceTab();
       case 'security':
         return renderSecurityTab();
       default:
         return null;
     }
   };
+
+  // ============================================
+  // تب ظاهر: انتخاب تم + پیش‌نمایش زنده
+  // ============================================
+
+  const renderAppearanceTab = () => (
+    <div className="space-y-6 max-w-3xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {THEMES.map((theme) => {
+          const isActive = themeId === theme.id;
+          return (
+            <button
+              key={theme.id}
+              onClick={() => {
+                setTheme(theme.id);
+                toast.success(`تم «${theme.name}» فعال شد`);
+              }}
+              className={`theme-card relative overflow-hidden p-4 text-right transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${
+                isActive ? 'ring-2 ring-offset-2' : ''
+              }`}
+              style={{
+                boxShadow: isActive ? '0 0 0 2px var(--brand-600)' : undefined,
+              }}
+            >
+              {/* نوار گرادیان تم */}
+              <div
+                className="h-14 rounded-xl mb-3 relative overflow-hidden"
+                style={{ background: `linear-gradient(135deg, ${theme.swatch[0]}, ${theme.swatch[1]})` }}
+              >
+                {/* پیش‌نمایش مینیاتوری */}
+                <div className="absolute inset-0 flex items-end gap-1 p-2">
+                  <span className="w-8 h-2 rounded-full bg-white/70" />
+                  <span className="w-4 h-2 rounded-full bg-white/40" />
+                  <span className="w-5 h-2 rounded-full bg-white/25" />
+                </div>
+                {/* نشان «فعال» */}
+                {isActive && (
+                  <span className="absolute top-2 left-2 flex items-center gap-1 bg-white/95 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: theme.swatch[0] }}>
+                    <CheckCircle size={12} /> فعال
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-sm text-strong">{theme.name}</h4>
+                  <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{theme.desc}</p>
+                </div>
+                <div className="flex gap-1">
+                  {theme.swatch.map((c) => (
+                    <span key={c} className="w-4 h-4 rounded-full border border-black/10" style={{ backgroundColor: c }} />
+                  ))}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* حالت شب */}
+      <div className="theme-card p-5 flex items-center justify-between">
+        <div>
+          <h3 className="font-bold text-strong">حالت شب (Dark Mode)</h3>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            ترکیب هر تم با حالت شب رنگ‌های برند را حفظ و سطوح را تیره می‌کند
+          </p>
+        </div>
+        <button
+          onClick={toggleDarkMode}
+          className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${darkMode ? '' : ''}`}
+          style={{ backgroundColor: darkMode ? 'var(--brand-600)' : 'var(--border-main)' }}
+          title={darkMode ? 'خروج از حالت شب' : 'فعال‌سازی حالت شب'}
+        >
+          <span
+            className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all duration-300 ${darkMode ? 'right-1' : 'right-7'}`}
+          />
+        </button>
+      </div>
+
+      {/* پیش‌نمایش زنده اجزا */}
+      <div className="theme-card p-5">
+        <h3 className="font-bold text-strong mb-4 flex items-center gap-2">
+          <Palette size={18} style={{ color: 'var(--brand-600)' }} />
+          پیش‌نمایش زنده اجزا
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <p className="text-xs font-medium" style={{ color: 'var(--text-faint)' }}>دکمه‌ها</p>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-primary px-4 py-2 text-sm">دکمه اصلی</button>
+              <button className="btn-ghost px-4 py-2 text-sm">دکمه خنثی</button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs font-medium" style={{ color: 'var(--text-faint)' }}>ورودی</p>
+            <input className="input-theme w-full px-3 py-2 text-sm" placeholder="متن نمونه..." readOnly />
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs font-medium" style={{ color: 'var(--text-faint)' }}>نشان وضعیت</p>
+            <div className="flex flex-wrap gap-2">
+              <span className="status-badge completed">تکمیل</span>
+              <span className="status-badge in-progress">در حال اجرا</span>
+              <span className="status-badge pending">در انتظار</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300">
+        💡 تم انتخابی و حالت شب به‌صورت خودکار ذخیره می‌شوند و در ورود بعدی هم اعمال خواهند شد.
+      </div>
+    </div>
+  );
 
   const renderGeneralTab = () => (
     <div className="space-y-6 max-w-2xl">
@@ -667,31 +782,31 @@ export function Settings() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="-mx-4 md:-mx-6 -mt-4 md:-mt-6 px-4 md:px-6 pt-4 md:pt-6 sticky top-0 z-20 bg-gray-100 dark:bg-[#12121a] pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200 dark:border-gray-800 mb-6 transition-colors duration-200">
+      <div className="-mx-4 md:-mx-6 -mt-4 md:-mt-6 px-4 md:px-6 pt-4 md:pt-6 sticky top-0 z-20 surface-page pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b divider-main mb-6 transition-colors duration-200">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-slate-500 to-slate-700 rounded-xl shadow-lg shadow-slate-200/50">
+            <div className="p-2.5 brand-gradient rounded-xl shadow-lg">
               <SettingsIcon size={24} className="text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">تنظیمات سیستم</h1>
-              <p className="text-gray-500 text-sm mt-0.5">مدیریت تنظیمات عمومی، قالب‌ها، سطوح و امنیت</p>
+              <h1 className="text-2xl font-bold text-strong">تنظیمات سیستم</h1>
+              <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>مدیریت تنظیمات عمومی، ظاهر و تم، و امنیت</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="bg-white dark:bg-[#1e1e2f] rounded-xl shadow-sm border border-gray-200 dark:border-[#2d2d44]/80 overflow-hidden">
-        <div className="border-b border-gray-200 dark:border-[#2d2d44]">
+      <div className="theme-card shadow-sm overflow-hidden rounded-xl">
+        <div className="border-b divider-main">
           <div className="flex flex-wrap">
-            <button onClick={() => setActiveTab('general')} className={`px-5 py-3 text-sm font-medium transition-all duration-200 border-b-2 flex items-center gap-2 ${activeTab === 'general' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:border-[#2d2d44]'}`}>
+            <button onClick={() => setActiveTab('general')} className={`px-5 py-3 text-sm font-medium transition-all duration-200 border-b-2 flex items-center gap-2 ${activeTab === 'general' ? 'text-brand bg-brand-soft/50' : 'border-transparent hover:text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:border-[#2d2d44]'}`} style={activeTab === 'general' ? { color: 'var(--brand-600)', borderColor: 'var(--brand-600)' } : undefined}>
               <SettingsIcon size={16} /> عمومی
             </button>
-            
-            
-            
-            <button onClick={() => setActiveTab('security')} className={`px-5 py-3 text-sm font-medium transition-all duration-200 border-b-2 flex items-center gap-2 ${activeTab === 'security' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:border-[#2d2d44]'}`}>
+            <button onClick={() => setActiveTab('appearance')} className={`px-5 py-3 text-sm font-medium transition-all duration-200 border-b-2 flex items-center gap-2 ${activeTab === 'appearance' ? 'text-brand bg-brand-soft/50' : 'border-transparent hover:text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:border-[#2d2d44]'}`} style={activeTab === 'appearance' ? { color: 'var(--brand-600)', borderColor: 'var(--brand-600)' } : undefined}>
+              <Palette size={16} /> ظاهر و تم
+            </button>
+            <button onClick={() => setActiveTab('security')} className={`px-5 py-3 text-sm font-medium transition-all duration-200 border-b-2 flex items-center gap-2 ${activeTab === 'security' ? 'text-brand bg-brand-soft/50' : 'border-transparent hover:text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:border-[#2d2d44]'}`} style={activeTab === 'security' ? { color: 'var(--brand-600)', borderColor: 'var(--brand-600)' } : undefined}>
               <Shield size={16} /> امنیت
             </button>
             

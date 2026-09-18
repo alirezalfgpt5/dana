@@ -19,6 +19,17 @@ if (!rootElement) {
 }
 
 // ============================================
+// اعمال تم و حالت شب ذخیره‌شده (قبل از رندر — ضد فلش)
+// ============================================
+
+try {
+  const stored = JSON.parse(localStorage.getItem('dana_ui_state') || '{}');
+  const persisted = (stored?.state || {}) as { darkMode?: boolean; themeId?: string };
+  if (persisted.darkMode) document.documentElement.classList.add('dark');
+  document.documentElement.setAttribute('data-theme', String(persisted.themeId || 'ocean'));
+} catch { /* noop */ }
+
+// ============================================
 // Patch Global Fetch for Auth Token Injection
 // ============================================
 const originalFetch = window.fetch;

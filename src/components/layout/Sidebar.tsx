@@ -1,12 +1,11 @@
 // src/components/layout/Sidebar.tsx
-// سایدبار اصلی برنامه - با منوی کامل
+// سایدبار اصلی برنامه — با پشتیبانی کامل از سیستم تم
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useUIStore, useAuthStore } from '../../store';
 import {
   ChevronDown,
-  ChevronUp,
   User as UserIcon,
   LogOut,
   Search,
@@ -186,19 +185,13 @@ const MENU_ITEMS: MenuItem[] = [
 const filterMenuByRole = (items: MenuItem[], role: string | null, permissions: string[] = []): MenuItem[] => {
   return items
     .filter(item => {
-      // Allow if user has 'all' permission
       if (permissions.includes('all')) return true;
-
-      // If it's a leaf node with a path (and not the dashboard which we'll always allow)
       if (item.path && item.id !== 'dashboard') {
         return permissions.includes(item.id);
       }
-      
-      // If it's a parent node with roles explicitly defined
       if (item.roles && !item.roles.includes(role || '')) {
         return false;
       }
-      
       return true;
     })
     .map(item => ({
@@ -232,14 +225,8 @@ function TreeNode({ item, level, expandedItems, toggleExpand, onNavigate }: Tree
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    if (hasChildren) {
-      toggleExpand(item.id);
-    }
-    
-    if (item.path) {
-      onNavigate(item.path);
-    }
+    if (hasChildren) toggleExpand(item.id);
+    if (item.path) onNavigate(item.path);
   };
 
   return (
@@ -248,8 +235,8 @@ function TreeNode({ item, level, expandedItems, toggleExpand, onNavigate }: Tree
         className={twMerge(
           'group flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer relative',
           isActive
-            ? 'bg-gradient-to-l from-blue-50 to-indigo-50/60 text-blue-700 shadow-sm border border-blue-100'
-            : 'hover:bg-gray-100/80 text-gray-700 border border-transparent',
+            ? 'menu-item-active shadow-sm'
+            : 'menu-item-idle',
           level > 0 ? 'mr-4' : ''
         )}
         style={{ paddingRight: `${level * 16 + 12}px` }}
@@ -257,30 +244,31 @@ function TreeNode({ item, level, expandedItems, toggleExpand, onNavigate }: Tree
       >
         {/* نشانگر آیتم فعال */}
         {isActive && (
-          <span className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-l-full bg-gradient-to-b from-blue-500 to-indigo-500" />
+          <span className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-l-full bg-brand-500" style={{ backgroundColor: 'var(--brand-500)' }} />
         )}
         {Icon && (
           <span className={clsx(
             'flex-shrink-0 p-1 rounded-lg transition-all duration-200',
             isActive
-              ? 'bg-blue-100 text-blue-600'
-              : 'text-gray-400 group-hover:text-gray-600 group-hover:bg-gray-200/60'
-          )}>
+              ? 'text-brand'
+              : 'text-faint group-hover:text-main'
+          )}
+          style={isActive ? { color: 'var(--brand-600)' } : { color: 'var(--text-faint)' }}>
             <Icon size={level === 0 ? 17 : 15} />
           </span>
         )}
-        <span className={twMerge('flex-1', level === 0 ? 'text-sm font-medium' : 'text-[13px] text-gray-600')}>
+        <span className={twMerge('flex-1', level === 0 ? 'text-sm font-medium' : 'text-[13px]')} style={!isActive ? { color: 'var(--text-muted)' } : undefined}>
           {item.label}
         </span>
         {hasChildren && (
-          <span className="flex-shrink-0 text-gray-300 transition-transform duration-300" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none' }}>
+          <span className="flex-shrink-0 text-faint transition-transform duration-300" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', color: 'var(--text-faint)' }}>
             <ChevronDown size={15} />
           </span>
         )}
       </div>
 
       {isExpanded && hasChildren && (
-        <div className={clsx('mt-1 space-y-0.5 animate-fade-in', level > 0 ? 'border-r-2 border-gray-200/50 mr-4' : '')}>
+        <div className={clsx('mt-1 space-y-0.5 animate-fade-in', level > 0 ? 'border-r-2 divider-main mr-4' : '')}>
           {item.children!.map((child) => (
             <TreeNode
               key={child.id}
@@ -310,7 +298,7 @@ export function Sidebar() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<MenuItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  
+
   const expandedItems = useMemo(() => new Set(sidebarExpandedItems), [sidebarExpandedItems]);
 
   // باز کردن خودکار منو بر اساس مسیر فعلی
@@ -318,7 +306,7 @@ export function Sidebar() {
     const currentPath = location.pathname;
     const itemsToExpand = new Set(sidebarExpandedItems);
     let changed = false;
-    
+
     for (const item of MENU_ITEMS) {
       if (item.children) {
         for (const child of item.children) {
@@ -339,7 +327,7 @@ export function Sidebar() {
         }
       }
     }
-    
+
     if (changed) {
       setSidebarExpandedItems(Array.from(itemsToExpand));
     }
@@ -348,7 +336,6 @@ export function Sidebar() {
   const filteredMenu = useMemo(() => {
     const userRole = user?.role || 'user';
     const permissions = user?.permissions || [];
-    // Superadmin has all permissions by default
     if (userRole === 'superadmin' && !permissions.includes('all')) {
       permissions.push('all');
     }
@@ -393,33 +380,21 @@ export function Sidebar() {
     setIsSearching(false);
   };
 
-  // ============================================
-  // باز/بسته کردن منوها
-  // ============================================
-
   const toggleExpand = (id: string) => {
     toggleSidebarItem(id);
   };
-
-  // ============================================
-  // ناوبری
-  // ============================================
 
   const handleNavigate = (path: string) => {
     navigate(path);
     clearSearch();
   };
 
-  // ============================================
-  // رندر نتایج جستجو
-  // ============================================
-
   const renderSearchResults = () => {
     if (searchResults.length === 0 && searchTerm.length > 0) {
       return (
-        <div className="px-4 py-6 text-center text-gray-400 text-sm">
-          <Search size={32} className="mx-auto mb-2 text-gray-300" />
-          <p>نتیجه‌ای برای "<span className="font-medium text-gray-600">{searchTerm}</span>" یافت نشد</p>
+        <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--text-faint)' }}>
+          <Search size={32} className="mx-auto mb-2 opacity-40" />
+          <p>نتیجه‌ای برای "<span className="font-medium">{searchTerm}</span>" یافت نشد</p>
         </div>
       );
     }
@@ -434,12 +409,10 @@ export function Sidebar() {
           onClick={() => result.path && handleNavigate(result.path)}
           className={twMerge(
             'flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium cursor-pointer',
-            isActive
-              ? 'bg-blue-50 text-blue-700 border border-blue-100/50'
-              : 'text-gray-600 hover:bg-gray-100/80 hover:text-gray-900'
+            isActive ? 'menu-item-active' : 'menu-item-idle'
           )}
         >
-          {Icon && <Icon size={18} className="flex-shrink-0 text-gray-400" />}
+          {Icon && <Icon size={18} className="flex-shrink-0 opacity-60" />}
           <span>{result.label}</span>
         </div>
       );
@@ -453,13 +426,12 @@ export function Sidebar() {
   return (
     <aside
       className={clsx(
-        "bg-white border-l border-gray-200/70 shadow-xl h-[calc(100vh-4rem)] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 flex-shrink-0 flex flex-col",
+        "sidebar-shell shadow-xl h-[calc(100vh-4rem)] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 flex-shrink-0 flex flex-col",
         sidebarOpen ? "w-72" : "w-0 opacity-0 overflow-hidden"
       )}
     >
-      {/* هدر سایدبار */}
-      <div className="p-5 border-b border-gray-200/70 bg-gradient-to-l from-blue-700 via-blue-600 to-indigo-600 flex-shrink-0 relative overflow-hidden">
-        {/* الگوی تزئینی ظریف */}
+      {/* هدر سایدبار — گرادیان برند از تم */}
+      <div className="sidebar-header p-5 flex-shrink-0 relative overflow-hidden">
         <div className="absolute -top-8 -left-8 w-28 h-28 rounded-full bg-white/5 pointer-events-none" />
         <div className="absolute -bottom-10 -right-6 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
         <div className="relative flex items-center gap-3">
@@ -472,39 +444,38 @@ export function Sidebar() {
           )}
           <div>
             <h2 className="text-white font-bold text-lg tracking-tight">DANA</h2>
-            <p className="text-blue-200 text-xs">{systemName || 'سیستم مدیریت دانش'}</p>
+            <p className="text-white/70 text-xs">{systemName || 'سیستم مدیریت دانش'}</p>
           </div>
         </div>
       </div>
 
       {/* جستجو */}
-      <div className="p-3 border-b border-gray-200/80 flex-shrink-0">
+      <div className="p-3 border-b divider-main flex-shrink-0">
         <div className="relative">
           <Search
             size={18}
-            className={clsx(
-              "absolute right-3 top-1/2 -translate-y-1/2 transition-colors duration-200",
-              searchTerm ? 'text-blue-500' : 'text-gray-400'
-            )}
+            className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors duration-200"
+            style={{ color: searchTerm ? 'var(--brand-500)' : 'var(--text-faint)' }}
           />
           <input
             type="text"
             placeholder="جستجوی سریع..."
-            className="w-full pr-10 pl-9 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+            className="input-theme w-full pr-10 pl-9 py-2 text-sm outline-none"
             value={searchTerm}
             onChange={(e) => handleSearch(e.target.value)}
           />
           {searchTerm && (
             <button
               onClick={clearSearch}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute left-3 top-1/2 -translate-y-1/2 transition-colors"
+              style={{ color: 'var(--text-faint)' }}
             >
               <X size={16} />
             </button>
           )}
         </div>
         {searchTerm && (
-          <div className="text-xs text-gray-400 mt-1.5 px-1">
+          <div className="text-xs mt-1.5 px-1" style={{ color: 'var(--text-faint)' }}>
             {searchResults.length} نتیجه برای "{searchTerm}"
           </div>
         )}
@@ -515,7 +486,7 @@ export function Sidebar() {
         {isSearching ? (
           <div className="space-y-1">
             <div className="px-3 py-1.5">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">نتایج جستجو</span>
+              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-faint)' }}>نتایج جستجو</span>
             </div>
             {renderSearchResults()}
           </div>
@@ -536,19 +507,19 @@ export function Sidebar() {
       </div>
 
       {/* فوتر سایدبار */}
-      <div className="p-4 border-t border-gray-200/70 bg-gradient-to-b from-gray-50 to-white flex-shrink-0">
+      <div className="p-4 border-t divider-main flex-shrink-0" style={{ background: 'var(--surface-soft)' }}>
         <div className="flex flex-col gap-3">
           {/* پروفایل کاربر */}
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white shadow-sm border border-gray-200/70 card-elevated">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl theme-card card-elevated">
             <div className="relative">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md flex-shrink-0">
+              <div className="w-10 h-10 brand-gradient rounded-xl flex items-center justify-center text-white shadow-md flex-shrink-0">
                 <UserIcon size={18} />
               </div>
               <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-gray-800 truncate">{user?.fullName || 'کاربر مهمان'}</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm font-bold truncate text-strong">{user?.fullName || 'کاربر مهمان'}</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 {user?.role === 'superadmin' ? 'مدیر کل سیستم' : 'کاربر سیستم'}
               </p>
             </div>
@@ -560,9 +531,7 @@ export function Sidebar() {
               onClick={() => handleNavigate('/profile')}
               className={twMerge(
                 "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
-                location.pathname === '/profile'
-                  ? "bg-blue-50 text-blue-700 border border-blue-200"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-transparent hover:border-gray-200"
+                location.pathname === '/profile' ? 'menu-item-active' : 'btn-ghost'
               )}
             >
               <UserIcon size={16} />

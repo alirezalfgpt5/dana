@@ -5,6 +5,28 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 // ============================================
+// Theme System — تعریف تم‌های برنامه
+// ============================================
+
+export type ThemeId = 'ocean' | 'emerald' | 'royal' | 'sunset' | 'amber' | 'graphite';
+
+export interface ThemeMeta {
+  id: ThemeId;
+  name: string;           // نام فارسی
+  desc: string;           // توضیح کوتاه
+  swatch: string[];       // دو رنگ برای پیش‌نمایش
+}
+
+export const THEMES: ThemeMeta[] = [
+  { id: 'ocean',    name: 'اقیانوس آبی',  desc: 'آبی و نیلی — پیش‌فرض حرفه‌ای',   swatch: ['#2563eb', '#4f46e5'] },
+  { id: 'emerald',  name: 'زمرد سبز',     desc: 'سبز و فیروزه‌ای — آرام و شفاف',  swatch: ['#059669', '#0d9488'] },
+  { id: 'royal',    name: 'بنفش سلطنتی',  desc: 'بنفش و سرخابی — مدرن و متمایز',  swatch: ['#7c3aed', '#c026d3'] },
+  { id: 'sunset',   name: 'غروب سرخ',     desc: 'قرمز و نارنجی — پرانرژی',        swatch: ['#dc2626', '#ea580c'] },
+  { id: 'amber',    name: 'کهربای طلایی', desc: 'طلایی و نارنجی — گرم و کلاسیک',  swatch: ['#b45309', '#d97706'] },
+  { id: 'graphite', name: 'گرافیت مدرن',  desc: 'خاکستری و آبی سرد — رسمی و مینیمال', swatch: ['#334155', '#0ea5e9'] },
+];
+
+// ============================================
 // Auth Store
 // ============================================
 
@@ -89,6 +111,8 @@ interface UIState {
   setSiteLogo: (logo: string | null) => void;
   darkMode: boolean;
   toggleDarkMode: () => void;
+  themeId: ThemeId;
+  setTheme: (id: ThemeId) => void;
   systemName: string;
   setSystemName: (name: string) => void;
   pageTitle: string;
@@ -295,6 +319,13 @@ export const useUIStore = create<UIState>()(
         }
         return { darkMode: newDarkMode };
       }),
+
+      // --- سیستم تم ---
+      themeId: 'ocean',
+      setTheme: (id: ThemeId) => {
+        document.documentElement.setAttribute('data-theme', id);
+        set({ themeId: id });
+      },
       
       systemName: 'سیستم مدیریت دانش و نظام مسائل (DANA)',
       setSystemName: (name) => set({ systemName: name }),
@@ -324,6 +355,7 @@ export const useUIStore = create<UIState>()(
         activePeriod: state.activePeriod,
         siteLogo: state.siteLogo,
         darkMode: state.darkMode,
+        themeId: state.themeId,
         systemName: state.systemName,
         pageTitle: state.pageTitle,
         loginTitle: state.loginTitle,

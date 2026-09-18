@@ -1,24 +1,37 @@
 // src/components/layout/Topbar.tsx
-// نوار بالایی برنامه
-import React, { useState, useEffect } from 'react';
-import { useAuthStore, useUIStore } from '../../store';
-import { Search, LogOut, User as UserIcon, Info, Mail, Phone, LayoutDashboard, Maximize2, Minimize2, Menu, Moon, Sun, Calendar, Network } from 'lucide-react';
+// نوار بالایی برنامه — با پشتیبانی از سیستم تم
+import React, { useState, useEffect, useRef } from 'react';
+import { useAuthStore, useUIStore, THEMES } from '../../store';
+import { Search, LogOut, Info, Mail, Phone, LayoutDashboard, Maximize2, Minimize2, Menu, Moon, Sun, Calendar, Network, Palette, Check } from 'lucide-react';
 import { format } from 'date-fns-jalali';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { useNavigate } from 'react-router-dom';
 
 export function Topbar() {
   const { user, logout } = useAuthStore();
-  const { toggleSidebar, periods, activePeriod, setActivePeriod, systemName, darkMode, toggleDarkMode } = useUIStore();
+  const { toggleSidebar, periods, activePeriod, setActivePeriod, systemName, darkMode, toggleDarkMode, themeId, setTheme } = useUIStore();
   const [time, setTime] = useState(new Date());
   const [showDevInfo, setShowDevInfo] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const themeMenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // بستن منوی تم با کلیک بیرون
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (themeMenuRef.current && !themeMenuRef.current.contains(e.target as Node)) {
+        setShowThemeMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // گوش دادن به تغییرات فول‌اسکرین
@@ -53,7 +66,7 @@ export function Topbar() {
   };
 
   return (
-    <header className="bg-white/95 dark:bg-[#1e1e2f] backdrop-blur-md shadow-sm border-b border-gray-200/80 dark:border-[#2d2d44] h-16 flex items-center justify-between px-4 sticky top-0 z-50 transition-colors duration-200">
+    <header className="topbar-shell shadow-sm h-16 flex items-center justify-between px-4 sticky top-0 z-50 transition-colors duration-200">
       {/* بخش چپ */}
       <div className="flex items-center gap-3">
         <button
@@ -65,15 +78,15 @@ export function Topbar() {
         
         {/* عنوان */}
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-200/50">
+          <div className="w-8 h-8 rounded-xl brand-gradient flex items-center justify-center shadow-md">
             <Network size={17} className="text-white" />
           </div>
-          <h1 className="text-xl font-bold text-gray-800 dark:text-white tracking-tight">
-            <span className="bg-gradient-to-l from-blue-600 to-indigo-600 bg-clip-text text-transparent">DANA</span>
+          <h1 className="text-xl font-bold tracking-tight text-strong">
+            <span className="brand-gradient-text">DANA</span>
           </h1>
-          <div className="hidden md:flex items-center before:content-[''] before:w-px before:h-5 before:bg-gray-200 before:mx-2">
+          <div className="hidden md:flex items-center before:content-[''] before:w-px before:h-5 before:bg-gray-200 dark:before:bg-[#2d2d44] before:mx-2">
             <div className="w-44 lg:w-56 overflow-hidden relative">
-              <p className="text-gray-500 dark:text-gray-300 text-sm whitespace-nowrap animate-[marquee_15s_linear_infinite] hover:animate-none">
+              <p className="text-sm whitespace-nowrap animate-[marquee_15s_linear_infinite] hover:animate-none" style={{ color: 'var(--text-muted)' }}>
                 {systemName || 'سیستم مدیریت دانش'}
               </p>
             </div>
@@ -120,7 +133,8 @@ export function Topbar() {
         {/* دکمه داشبورد */}
         <button
           onClick={() => navigate('/')}
-          className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-blue-400 transition-all duration-200"
+          className="p-2 rounded-lg transition-all duration-200"
+          style={{ color: 'var(--text-faint)' }}
           title="داشبورد"
         >
           <LayoutDashboard size={18} />
@@ -129,16 +143,69 @@ export function Topbar() {
         {/* دکمه تم */}
         <button
           onClick={toggleDarkMode}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-all duration-200"
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-all duration-200"
+          style={{ color: 'var(--text-muted)' }}
           title={darkMode ? 'حالت روز' : 'حالت شب'}
         >
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
+        {/* سوئیچر تم (پالت رنگی) */}
+        <div className="relative" ref={themeMenuRef}>
+          <button
+            onClick={() => setShowThemeMenu(!showThemeMenu)}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-all duration-200"
+            style={{ color: 'var(--text-muted)' }}
+            title="انتخاب تم ظاهری"
+          >
+            <Palette size={18} />
+          </button>
+
+          {showThemeMenu && (
+            <div className="absolute left-0 top-full mt-2 w-64 surface-raised border divider-main rounded-2xl shadow-2xl p-2 z-[60] animate-fade-in">
+              <p className="text-xs font-bold px-3 py-2" style={{ color: 'var(--text-faint)' }}>
+                انتخاب تم ظاهری
+              </p>
+              {THEMES.map((theme) => {
+                const isActive = themeId === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    onClick={() => { setTheme(theme.id); setShowThemeMenu(false); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-right transition-colors ${
+                      isActive ? 'menu-item-active' : 'menu-item-idle hover:bg-gray-100 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <span
+                      className="w-7 h-7 rounded-lg flex-shrink-0 shadow-inner border border-white/20"
+                      style={{ background: `linear-gradient(135deg, ${theme.swatch[0]}, ${theme.swatch[1]})` }}
+                    />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-medium leading-tight">{theme.name}</span>
+                      <span className="block text-[10px] truncate" style={{ color: 'var(--text-faint)' }}>{theme.desc}</span>
+                    </span>
+                    {isActive && <Check size={16} style={{ color: 'var(--brand-600)' }} />}
+                  </button>
+                );
+              })}
+              <div className="border-t divider-main mt-1 pt-1">
+                <button
+                  onClick={() => { navigate('/settings'); setShowThemeMenu(false); }}
+                  className="w-full text-center text-xs py-2 rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-white/5"
+                  style={{ color: 'var(--brand-600)' }}
+                >
+                  تنظیمات بیشتر در بخش تنظیمات ←
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* دکمه فول‌اسکرین */}
         <button
           onClick={toggleFullscreen}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-all duration-200"
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-all duration-200"
+          style={{ color: 'var(--text-muted)' }}
           title={isFullscreen ? 'خروج از حالت تمام‌صفحه' : 'حالت تمام‌صفحه'}
         >
           {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
@@ -148,7 +215,7 @@ export function Topbar() {
       {/* بخش راست */}
       <div className="flex items-center gap-6">
         {/* تاریخ و ساعت */}
-        <div className="hidden md:flex flex-col items-center justify-center text-xs text-gray-600 dark:text-gray-300 font-medium font-mono leading-tight min-w-[70px]">
+        <div className="hidden md:flex flex-col items-center justify-center text-xs font-medium font-mono leading-tight min-w-[70px]" style={{ color: 'var(--text-muted)' }}>
           <span>{format(time, 'yyyy/MM/dd')}</span>
           <span>{format(time, 'HH:mm:ss')}</span>
         </div>
@@ -187,7 +254,7 @@ export function Topbar() {
         </div>
 
         {/* خروج */}
-        <div className="flex items-center border-r border-gray-200 dark:border-[#2d2d44] pr-4">
+        <div className="flex items-center border-r divider-main pr-4">
           <button
             onClick={logout}
             className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all duration-200"

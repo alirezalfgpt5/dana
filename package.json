@@ -16,7 +16,8 @@
     "seed:org": "tsx scripts/seed/organization.ts",
     "seed:trees": "tsx scripts/seed/trees.ts",
     "seed:issues": "tsx scripts/seed/issues.ts",
-    "seed": "npm run seed:base && npm run seed:periods && npm run seed:org && npm run seed:trees && npm run seed:issues",
+    "seed:gaps": "tsx scripts/seed/gapsAndResearch.ts",
+    "seed": "npm run seed:base && npm run seed:periods && npm run seed:org && npm run seed:trees && npm run seed:issues && npm run seed:gaps",
     "create-structure": "powershell -ExecutionPolicy Bypass -File ./scripts/Create-ProjectStructure.ps1"
   },
   "dependencies": {

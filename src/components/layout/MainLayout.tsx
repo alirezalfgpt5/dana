@@ -12,8 +12,15 @@ import { CommandPalette } from '../CommandPalette';
 
 export function MainLayout() {
   const { user } = useAuthStore();
-  const { fetchPeriods, fetchTrees, fetchOrgData, fetchMetadata, periods, bases, units } = useUIStore();
+  const { fetchPeriods, fetchTrees, fetchOrgData, fetchMetadata, periods, bases, units, themeId } = useUIStore();
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  // اعمال تم انتخابی روی <html> (حتی اگر از localStorage بازیابی شده باشد)
+  useEffect(() => {
+    if (themeId) {
+      document.documentElement.setAttribute('data-theme', themeId);
+    }
+  }, [themeId]);
 
   useEffect(() => {
     if (user) {
@@ -42,7 +49,7 @@ export function MainLayout() {
   }
 
   return (
-    <div className="h-screen bg-gray-50 dark:bg-[#12121a] flex flex-col font-sans overflow-hidden print:bg-white print:h-auto print:overflow-visible transition-colors duration-200">
+    <div className="h-screen surface-page flex flex-col font-sans overflow-hidden print:bg-white print:h-auto print:overflow-visible transition-colors duration-200">
       <div className="print:hidden">
         <Topbar />
       </div>
@@ -51,7 +58,7 @@ export function MainLayout() {
         <div className="print:hidden">
           <Sidebar />
         </div>
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-100 dark:bg-[#12121a] print:bg-white print:p-0 print:overflow-visible transition-colors duration-200">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 surface-page print:bg-white print:p-0 print:overflow-visible transition-colors duration-200">
           <div className="max-w-7xl mx-auto print:max-w-none print:w-full print:m-0">
             <div className="print:hidden">
               <Breadcrumbs />
