@@ -13,7 +13,9 @@ import { sql } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 const app = express();
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+// frameguard غیرفعال می‌شود تا برنامه در iframe پنل پیش‌نمایش پلتفرم قابل بارگذاری باشد
+// (بدون این تنظیم، مرورگر با خطای «refused to connect» iframe را رد می‌کند)
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, frameguard: false }));
 app.set('trust proxy', 1); // Trust first proxy for express-rate-limit
 
 // ============================================
