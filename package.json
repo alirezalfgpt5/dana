@@ -58,6 +58,7 @@
     "socket.io-client": "^4.8.3",
     "sqlite3": "^6.0.1",
     "tailwind-merge": "^3.6.0",
+    "vazirmatn": "^33.0.3",
     "vite": "^6.2.3",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"

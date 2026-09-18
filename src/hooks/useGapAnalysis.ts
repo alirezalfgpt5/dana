@@ -37,6 +37,14 @@ interface GapAnalysisReport {
   coveragePercent: number;
   createdAt: string;
   gaps: Gap[];
+  // فیلدهای ارتقاء یافته موتور تحلیل نسخه ۲
+  weightedCoveragePercent?: number;
+  avgMatchScore?: number;
+  byLevel?: Record<string, { total: number; filled: number; partial: number; open: number; coveragePercent: number }>;
+  byGapType?: Record<string, number>;
+  worstNodes?: Array<{ title: string; level: string; status: string; matchScore: number }>;
+  methodologyFa?: string[];
+  summaryFa?: string;
 }
 
 interface PaginatedResponse {
@@ -143,7 +151,8 @@ export function useGapAnalysis() {
 
       setReport(data.report);
       setGaps(data.gaps || []);
-      toast.success(`تحلیل شکاف با موفقیت انجام شد (${data.gaps?.length || 0} گپ شناسایی شد)`);
+      const summary = data.report?.summaryFa || `${data.gaps?.length || 0} گپ شناسایی شد`;
+      toast.success(`تحلیل شکاف انجام شد: ${summary.slice(0, 80)}${summary.length > 80 ? '…' : ''}`, { duration: 5000 });
       return data;
     } catch (err: any) {
       toast.error(err.message || 'خطا در اجرای تحلیل شکاف');

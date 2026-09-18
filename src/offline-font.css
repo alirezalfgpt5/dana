@@ -1,0 +1,45 @@
+/* offline-font.css
+   فونت وزیرمتن به صورت کاملاً آفلاین — از پکیج npm «vazirmatn» بارگذاری می‌شود.
+   فایل‌های woff2 مستقیماً از node_modules resolve می‌شوند و نیازی به اینترنت نیست.
+   اگر پکیج در دسترس نباشد، سیستم به فونت‌های سیستمی fallback می‌کند.
+*/
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('vazirmatn/fonts/webfonts/Vazirmatn-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('vazirmatn/fonts/webfonts/Vazirmatn-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('vazirmatn/fonts/webfonts/Vazirmatn-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('vazirmatn/fonts/webfonts/Vazirmatn-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('vazirmatn/fonts/webfonts/Vazirmatn-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}

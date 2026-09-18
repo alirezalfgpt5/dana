@@ -1,6 +1,8 @@
-@import url('https://unpkg.com/vazirmatn@33.0.0/Vazirmatn-font-face.css');
 /* src/index.css */
 /* استایل‌های اصلی برنامه - سیستم مدیریت دانش (DANA) */
+/* ⚠️ این برنامه کاملاً آفلاین است؛ فونت از CDN بارگذاری نمی‌شود */
+/* فونت Vazirmatn به صورت آفلاین از پکیج npm استفاده می‌شود (offline-font.css) */
+@import './offline-font.css';
 
    
 
@@ -200,6 +202,32 @@
   .rmdp-week-day {
     font-family: 'Vazirmatn', sans-serif !important;
   }
+}
+
+/* ============================================
+   حرکات ظریف (Micro-interactions) و بهبودهای ظاهری
+   ============================================ */
+
+/* انتقال نرم برای کارت‌ها و دکمه‌ها */
+.card-elevated {
+  transition: transform 0.2s ease, box-shadow 0.25s ease;
+}
+.card-elevated:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.12);
+}
+
+/* حلقه فوکوس ظریف برای دسترسی‌پذیری */
+.focus-ring:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* شمارش نرم اعداد آماری */
+.stat-value-animated {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
 /* ============================================

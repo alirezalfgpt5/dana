@@ -71,19 +71,27 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 p-4 font-sans">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-white/50">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-100 to-purple-100 p-4 font-sans relative overflow-hidden">
+      {/* عناصر تزئینی پس‌زمینه */}
+      <div className="absolute -top-32 -right-32 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 left-1/5 w-24 h-24 border-2 border-indigo-200/40 rounded-3xl rotate-12 pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/6 w-16 h-16 border-2 border-blue-200/40 rounded-full pointer-events-none" />
+
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border border-white/60 relative z-10 animate-fade-in">
         {/* هدر با گرادیانت */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 py-6 px-6 text-center">
-          <div className="flex items-center justify-center gap-3">
+        <div className="bg-gradient-to-l from-blue-700 via-blue-600 to-indigo-600 py-7 px-6 text-center relative overflow-hidden">
+          <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/10 pointer-events-none" />
+          <div className="absolute -bottom-12 -left-8 w-28 h-28 rounded-full bg-white/10 pointer-events-none" />
+          <div className="relative flex items-center justify-center gap-3">
             {siteLogo ? (
-              <img 
-                src={siteLogo} 
-                alt="لوگو" 
-                className="w-14 h-14 rounded-full object-cover bg-white shadow-md border-2 border-white/30" 
+              <img
+                src={siteLogo}
+                alt="لوگو"
+                className="w-14 h-14 rounded-2xl object-cover bg-white shadow-md border-2 border-white/40"
               />
             ) : (
-              <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center shadow-md border-2 border-white/30">
+              <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center shadow-md border border-white/25">
                 <Building2 className="text-white" size={28} />
               </div>
             )}
@@ -91,7 +99,7 @@ export function Login() {
               <h1 className="text-lg font-bold text-white leading-tight">
                 {systemName || 'سیستم مدیریت دانش و نظام مسائل'}
               </h1>
-              <p className="text-blue-100 text-xs">DANA - مدیریت دانش و پژوهش</p>
+              <p className="text-blue-200 text-xs mt-0.5">DANA - مدیریت دانش و پژوهش</p>
             </div>
           </div>
         </div>
@@ -181,7 +189,7 @@ export function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold py-3 rounded-xl transition-all text-sm disabled:opacity-70 flex justify-center items-center gap-2 shadow-md hover:shadow-lg active:scale-[0.97]"
+              className="w-full bg-gradient-to-l from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-xl transition-all text-sm disabled:opacity-70 flex justify-center items-center gap-2 shadow-lg shadow-blue-200/60 hover:shadow-xl hover:shadow-blue-200/70 hover:-translate-y-0.5 active:scale-[0.98]"
             >
               {loading ? (
                 <>

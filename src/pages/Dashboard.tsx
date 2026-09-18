@@ -119,13 +119,14 @@ export function Dashboard() {
   return (
     <div className="space-y-8 pb-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg shadow-blue-200/50">
+      <div className="relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div className="absolute inset-0 bg-gradient-to-l from-indigo-50/50 via-transparent to-transparent pointer-events-none" />
+        <div className="relative flex items-center gap-4">
+          <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg shadow-blue-200/60">
             <LayoutDashboard size={28} className="text-white" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">داشبورد مدیریت دانش</h2>
+            <h2 className="text-2xl font-bold bg-gradient-to-l from-gray-800 to-gray-600 bg-clip-text text-transparent">داشبورد مدیریت دانش</h2>
             <p className="text-gray-500 text-sm mt-1 flex items-center gap-2">
               <span>{user?.fullName || 'کاربر'}</span>
               <span className="w-1 h-1 rounded-full bg-gray-300"></span>
@@ -133,7 +134,7 @@ export function Dashboard() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="relative flex items-center gap-3">
           <span className="text-xs text-gray-400 flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
             <Clock size={14} />
             بروزرسانی: {format(lastUpdated, 'HH:mm')}
@@ -408,37 +409,41 @@ function ShortcutCard({ title, subtitle, icon, color, onClick }: any) {
   return (
     <button 
       onClick={onClick}
-      className={`group flex items-center gap-3 p-4 rounded-2xl border transition-all duration-300 shadow-sm hover:shadow-md text-right ${colors[color]}`}
+      className={`group flex items-center gap-3 p-4 rounded-2xl border transition-all duration-300 shadow-sm hover:shadow-lg hover:-translate-y-0.5 text-right ${colors[color]}`}
     >
-      <div className="p-2.5 bg-white/60 rounded-xl backdrop-blur-sm group-hover:bg-white/20 transition-colors">
+      <div className="p-2.5 bg-white/70 rounded-xl backdrop-blur-sm shadow-sm group-hover:bg-white/25 group-hover:scale-110 transition-all duration-300">
         {icon}
       </div>
       <div>
         <h3 className="font-bold text-sm">{title}</h3>
         <p className="text-[10px] opacity-80 mt-0.5 line-clamp-1">{subtitle}</p>
       </div>
+      <ChevronLeft size={14} className="opacity-0 group-hover:opacity-70 transition-opacity mr-auto" />
     </button>
   );
 }
 
 function MetricCard({ title, value, subtitle, icon, color }: any) {
-  const iconColors: Record<string, string> = {
-    indigo: 'bg-indigo-100 text-indigo-600',
-    rose: 'bg-rose-100 text-rose-600',
-    amber: 'bg-amber-100 text-amber-600',
-    emerald: 'bg-emerald-100 text-emerald-600',
+  const config: Record<string, { iconCls: string; glow: string; ring: string }> = {
+    indigo: { iconCls: 'bg-indigo-100 text-indigo-600', glow: 'shadow-indigo-100', ring: 'border-indigo-100' },
+    rose: { iconCls: 'bg-rose-100 text-rose-600', glow: 'shadow-rose-100', ring: 'border-rose-100' },
+    amber: { iconCls: 'bg-amber-100 text-amber-600', glow: 'shadow-amber-100', ring: 'border-amber-100' },
+    emerald: { iconCls: 'bg-emerald-100 text-emerald-600', glow: 'shadow-emerald-100', ring: 'border-emerald-100' },
   };
+  const c = config[color] || config.indigo;
 
   return (
-    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+    <div className={`stat-card bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between card-elevated`}>
       <div className="flex justify-between items-start mb-4">
-        <div className={`p-3 rounded-xl ${iconColors[color]}`}>
+        <div className={`p-3 rounded-xl shadow-sm ${c.iconCls}`}>
           {icon}
         </div>
+        {/* خط تزئینی */}
+        <div className={`w-10 h-1 rounded-full ${c.iconCls.split(' ')[0]} opacity-40`} />
       </div>
       <div>
         <p className="text-gray-500 text-xs font-medium mb-1">{title}</p>
-        <h3 className="text-2xl font-black text-gray-800">{value}</h3>
+        <h3 className="text-2xl font-black text-gray-800 stat-value-animated">{value}</h3>
       </div>
       <div className="mt-3 pt-3 border-t border-gray-50">
         <p className="text-[10px] text-gray-400 font-medium truncate">{subtitle}</p>
