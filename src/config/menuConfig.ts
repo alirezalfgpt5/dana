@@ -66,7 +66,7 @@ export const MENU_CONFIG: MenuGroup[] = [
   
   {
     id: 'knowledge',
-    label: 'مدیریت دانش',
+    label: 'گامهای حکمرانی دانشی',
     items: [
       { 
         label: 'درختواره مورد نیاز', 

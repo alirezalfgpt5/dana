@@ -129,7 +129,7 @@ export function Dashboard() {
             <LayoutDashboard size={28} className="text-white" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-strong">داشبورد مدیریت دانش</h2>
+            <h2 className="text-2xl font-bold text-strong">داشبورد</h2>
             <p className="text-sm mt-1 flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
               <span>{user?.fullName || 'کاربر'}</span>
               <span className="w-1 h-1 rounded-full" style={{ backgroundColor: 'var(--text-faint)' }} />

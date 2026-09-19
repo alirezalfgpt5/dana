@@ -60,7 +60,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'knowledge',
-    label: 'مدیریت دانش',
+    label: 'گامهای حکمرانی دانشی',
     icon: FolderTree,
     children: [
       {
@@ -101,9 +101,41 @@ const MENU_ITEMS: MenuItem[] = [
       },
     ],
   },
+    {
+    id: 'admin',
+    label: 'تعاریف / پیش نیازها',
+    icon: Settings,
+    roles: ['superadmin'],
+    children: [
+      {
+        id: 'org-structure',
+        label: 'ساختار سازمانی',
+        icon: Network,
+        path: '/org-structure',
+      },
+      {
+        id: 'periods',
+        label: 'دوره‌های زمانی',
+        icon: Calendar,
+        path: '/periods',
+      },
+      {
+        id: 'definitions',
+        label: 'تعاریف متغیرها و مفاهیم',
+        icon: Layers,
+        path: '/definitions',
+      },
+      {
+        id: 'templates',
+        label: 'مدیریت قالب‌ها',
+        icon: FileText,
+        path: '/templates',
+      },
+    ],
+  },
   {
     id: 'tools',
-    label: 'ابزارها',
+    label: 'تنظیمات و ابزارها',
     icon: BarChart3,
     children: [
       {
@@ -136,46 +168,14 @@ const MENU_ITEMS: MenuItem[] = [
         icon: Settings,
         path: '/settings',
       },
-    ],
-  },
-  {
-    id: 'admin',
-    label: 'مدیریت سیستم',
-    icon: Settings,
-    roles: ['superadmin'],
-    children: [
-      {
-        id: 'org-structure',
-        label: 'ساختار سازمانی',
-        icon: Network,
-        path: '/org-structure',
-      },
-      {
-        id: 'periods',
-        label: 'دوره‌های زمانی',
-        icon: Calendar,
-        path: '/periods',
-      },
       {
         id: 'audit',
         label: 'تاریخچه تغییرات',
         icon: History,
         path: '/audit',
       },
-      {
-        id: 'definitions',
-        label: 'تعاریف',
-        icon: Layers,
-        path: '/definitions',
-      },
-      {
-        id: 'templates',
-        label: 'مدیریت قالب‌ها',
-        icon: FileText,
-        path: '/templates',
-      },
     ],
-  },
+  }
 ];
 
 // ============================================

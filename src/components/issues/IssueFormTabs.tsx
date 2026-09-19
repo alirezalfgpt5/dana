@@ -1044,9 +1044,7 @@ export function IssueFormTabs({
 
   const renderNeedTab = () => (
     <div className="space-y-4">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-        📄 بیانیه نیاز - کاربر ذینفع / بیان مسئله / اعتبار پیشنهادی / سطح / فایل / وضعیت تصویب / تاریخ تصویب / مبلغ تصویب
-      </div>
+      
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
@@ -1153,9 +1151,7 @@ export function IssueFormTabs({
 
     const renderExecutiveContractTab = () => (
     <div className="space-y-4">
-      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-xs text-indigo-700">
-        📝 قرارداد اعضای شورای اجرایی کلان پروژه - ثبت صورتجلسه
-      </div>
+      
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
           متن صورتجلسه
@@ -1182,10 +1178,7 @@ export function IssueFormTabs({
 
   const renderContractTab = () => (
     <div className="space-y-4">
-      <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-700">
-        📎 قرارداد - شماره / مجری / همکاران / عوامل / تاریخ / مدت / شروع / مبلغ
-      </div>
-
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">🔢 شماره قرارداد</label>
@@ -1295,9 +1288,7 @@ export function IssueFormTabs({
 
   const renderStagesTab = () => (
     <div className="space-y-6">
-      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-xs text-purple-700">
-        ⏳ مراحل: پروپوزال / فایل / تاریخ دفاع / صورتجلسه / اعتبار پرداختی / تاریخ پرداخت
-      </div>
+      
 
       {/* مرحله ۲۰ درصد */}
       <div className="border border-blue-200 rounded-xl p-4 bg-blue-50/30">
@@ -1535,9 +1526,7 @@ export function IssueFormTabs({
 
   const renderApplicationTab = () => (
     <div className="space-y-4">
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
-        🔄 کاربست: انعکاس نتایج به کاربر / نوع کاربست / تاریخ کاربست / صورتجلسه / کارگروه کاربست
-      </div>
+      
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">📤 انعکاس نتایج به کاربر</label>

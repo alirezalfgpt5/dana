@@ -46,7 +46,7 @@ export function ProcessWizard() {
               مسیریاب یکپارچه دانش
             </h1>
             <p className="text-gray-500 text-sm mt-2 font-medium">
-              اجرای گام‌به‌گام فرآیند مدیریت دانش و نظام مسائل
+              اجرای گام‌به‌گام فرآیند حکمرانی دانشی حوزه علوم و فناوری های نرم و شناختی آجا
             </p>
           </div>
           <div className="flex gap-2">

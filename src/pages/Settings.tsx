@@ -98,7 +98,7 @@ export function Settings() {
   useEffect(() => {
     setFormData({
       systemName: systemName || 'سیستم مدیریت دانش (DANA)',
-      pageTitle: pageTitle || 'داشبورد مدیریت دانش',
+      pageTitle: pageTitle || 'داشبورد',
       loginTitle: loginTitle || 'سیستم مدیریت دانش و نظام مسائل',
       sidebarTitle: sidebarTitle || 'DANA',
       browserTitle: browserTitle || 'DANA - سیستم مدیریت دانش و نظام مسائل',

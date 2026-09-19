@@ -337,7 +337,7 @@ export const useUIStore = create<UIState>()(
       systemName: 'سیستم مدیریت دانش و نظام مسائل (DANA)',
       setSystemName: (name) => set({ systemName: name }),
       
-      pageTitle: 'داشبورد مدیریت دانش',
+      pageTitle: 'داشبورد',
       setPageTitle: (title) => set({ pageTitle: title }),
       
       loginTitle: 'سیستم مدیریت دانش و نظام مسائل',
