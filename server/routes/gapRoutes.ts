@@ -1013,15 +1013,9 @@ gapRoutes.post('/:gapId/fill', async (req, res) => {
       userAgent: req.headers['user-agent'],
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: effectiveStatus === 'partially_filled' ? 'گپ با تطابق جزئی ثبت شد' : 'گپ با موفقیت پر شد',
-      gap: result[0],
-    });
-
-    res.json({
-      success: true,
-      message: 'گپ با موفقیت پر شد',
       gap: result[0],
     });
   } catch (error) {

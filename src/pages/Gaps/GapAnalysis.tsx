@@ -122,13 +122,27 @@ export function GapAnalysis() {
     });
     return items;
   }, [relRequiredNodes]);
+  // خواندن تنظیمات تحلیل شکاف از localStorage
+  const GAP_CONFIG_KEY = 'dana_gap_config';
+  const getGapConfig = () => {
+    try {
+      const saved = localStorage.getItem(GAP_CONFIG_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  };
+
   const [selectedGap, setSelectedGap] = useState<any>(null);
   const [showFillModal, setShowFillModal] = useState(false);
   const [fillProducedNodeId, setFillProducedNodeId] = useState<number | null>(null);
   // 🟢 انتخاب نوع تطابق هنگام پر کردن گپ (کامل یا جزئی)
   const [fillStatusChoice, setFillStatusChoice] = useState<'filled' | 'partially_filled'>('filled');
   const [fillNote, setFillNote] = useState('');
-  const [showMethodology, setShowMethodology] = useState(true);
+  const [showMethodology, setShowMethodology] = useState(() => {
+    const cfg = getGapConfig();
+    return cfg?.showMethodology !== undefined ? cfg.showMethodology : false;
+  });
   const [showStats, setShowStats] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -197,10 +211,15 @@ export function GapAnalysis() {
     }
 
     try {
+      const cfg = getGapConfig();
       const result = await analyzeGaps(requiredTreeId, producedTreeId);
       if (result) {
         setShowStats(true);
-        setShowMethodology(true);
+        if (cfg?.showMethodology !== undefined) {
+          setShowMethodology(cfg.showMethodology);
+        } else {
+          setShowMethodology(true);
+        }
         // 🟢 ذخیره سوابق و مسیر مالک از پاسخ سرور
         if (result.runHistory) setRunHistory(result.runHistory);
         if (result.ownerPath) setOwnerPath(result.ownerPath);
