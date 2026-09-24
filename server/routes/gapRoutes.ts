@@ -43,6 +43,7 @@ gapRoutes.get('/', async (req, res) => {
   try {
     const {
       treeId,
+      periodId,
       status,
       gapType,
       priority,
@@ -54,6 +55,10 @@ gapRoutes.get('/', async (req, res) => {
 
     let query = db.select().from(gaps);
     const conditions: any[] = [];
+
+    if (periodId && periodId !== 'all') {
+      conditions.push(eq(gaps.periodId, parseInt(periodId as string)));
+    }
 
     if (treeId) {
       const targetTree = await db.query.knowledgeTrees.findFirst({
@@ -648,6 +653,7 @@ gapRoutes.post('/analyze', async (req, res) => {
 
       // ایجاد گپ
       const result = await db.insert(gaps).values({
+        periodId: requiredTree.periodId || null,
         requiredNodeId: requiredLeaf.id,
         producedNodeId: validProducedNodeId,
         status: gapStatus,

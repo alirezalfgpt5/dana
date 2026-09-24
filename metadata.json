@@ -1,6 +1,7 @@
 {
-  "name": "Untitled",
-  "description": "",
+  "name": "سیستم مدیریت دانش و نظام مسائل (دانا)",
+  "description": "سامانه جامع مدیریت دانش، نظام مسائل، درخت دانش و ارزیابی پژوهش (DANA)",
+  "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]

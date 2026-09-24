@@ -89,28 +89,132 @@ export function Dashboard() {
   };
 
   const handleExport = () => {
-    const csvContent = [
-      ['Title', 'Value'],
-      ['Total Trees', stats.trees],
-      ['Required Trees', stats.required],
-      ['Produced Trees', stats.produced],
-      ['Research Trees', stats.research],
-      ['Total Gaps', stats.gaps],
-      ['Open Gaps', stats.openGaps],
-      ['Filled Gaps', stats.filledGaps],
-      ['Total Issues', stats.issues],
-      ['Completed Issues', stats.completedIssues],
-      ['In Progress Issues', stats.inProgressIssues],
-    ].map(e => e.join(',')).join('\n');
+    const esc = (val: any): string => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
 
+    const row = (...cells: any[]) => cells.map(esc).join(',');
+
+    const nowStr = format(new Date(), 'yyyy/MM/dd HH:mm');
+    const periodName = activePeriod ? activePeriod.name : 'همه دوره‌ها';
+    const userName = user?.fullName || 'کاربر سیستم';
+    const orgLevel = user?.organizationLevel || 'سازمان';
+
+    const lines: string[] = [];
+
+    // بخش ۱: سربرگ و اطلاعات گزارش
+    lines.push(row('گزارش جامع آماری و مدیریتی داشبورد سامانه دانا'));
+    lines.push(row('تاریخ و زمان گزارش', nowStr));
+    lines.push(row('کاربر گزارش‌گیرنده', userName));
+    lines.push(row('رده سازمانی', orgLevel));
+    lines.push(row('دوره زمانی فعال', periodName));
+    lines.push(row(''));
+
+    // بخش ۲: خلاصه شاخص‌های کلیدی (KPIs)
+    lines.push(row('=== خلاصه شاخص‌های کلیدی عملکرد (KPIs) ==='));
+    lines.push(row('عنوان شاخص', 'مقدار', 'توضیحات / درصد'));
+    lines.push(row('کل درختان دانش', stats.trees, 'مجموع درختان فعال در سیستم'));
+    lines.push(row('درختان دانش مورد نیاز', stats.required, `${stats.trees > 0 ? Math.round((stats.required / stats.trees) * 100) : 0}% از کل درختان`));
+    lines.push(row('درختان دانش موجود (تولید شده)', stats.produced, `${stats.trees > 0 ? Math.round((stats.produced / stats.trees) * 100) : 0}% از کل درختان`));
+    lines.push(row('درختان پژوهشی', stats.research, `${stats.trees > 0 ? Math.round((stats.research / stats.trees) * 100) : 0}% از کل درختان`));
+    lines.push(row('کل شکاف‌های شناسایی‌شده', stats.gaps, 'شکاف‌های دانشی حاصل از تحلیل'));
+    lines.push(row('شکاف‌های باز (تکمیل‌نشده)', stats.openGaps, `${stats.gaps > 0 ? Math.round((stats.openGaps / stats.gaps) * 100) : 0}% از شکاف‌ها`));
+    lines.push(row('شکاف‌های پوشش‌داده‌شده', stats.filledGaps, `${gapProgress}% نرخ پوشش شکاف‌ها`));
+    lines.push(row('کل مسائل در نظام مسائل', stats.issues, 'تعداد کل پروژه‌ها و مسائل ثبت شده'));
+    lines.push(row('مسائل تکمیل‌شده', stats.completedIssues, `${issueProgress}% نرخ تحقق مسائل`));
+    lines.push(row('مسائل در حال اجرا', stats.inProgressIssues, `${stats.issues > 0 ? Math.round((stats.inProgressIssues / stats.issues) * 100) : 0}% از مسائل`));
+    lines.push(row('میانگین پیشرفت مسائل', `${issueStats.avgCompletion || 0}%`, 'میانگین درصد پیشرفت وزنی کلیه مسائل'));
+    lines.push(row('مجموع بودجه مورد نیاز مسائل', `${(issueStats.totalBudget || 0).toLocaleString('fa-IR')} ریال`, 'برآورد مالی کل مسائل'));
+    lines.push(row(''));
+
+    // بخش ۳: فهرست تفصیلی مسائل در داشبورد
+    lines.push(row('=== فهرست تفصیلی مسائل در نظام مسائل ==='));
+    lines.push(row('شناسه', 'عنوان مسئله', 'حوزه دانشی', 'اولویت اقدام', 'وضعیت', 'درصد پیشرفت', 'بودجه مورد نیاز (ریال)', 'زمان به ماه', 'واحد مسئول', 'سند مرجع'));
+    if (issues && issues.length > 0) {
+      issues.forEach(i => {
+        const statusLabel = 
+          i.status === 'completed' ? 'تکمیل شده' :
+          i.status === 'in_progress' ? 'در حال اجرا' :
+          i.status === 'pending' ? 'در انتظار' :
+          i.status === 'on_hold' ? 'متوقف' :
+          i.status === 'canceled' ? 'لغو شده' : (i.status || 'نامشخص');
+        
+        lines.push(row(
+          i.id,
+          i.title || '',
+          (i as any).domain || (i as any).domainNode?.title || 'نامشخص',
+          i.actionPriority || 'متوسط',
+          statusLabel,
+          `${i.completionPercent || 0}%`,
+          (i.requiredBudget || 0).toLocaleString('fa-IR'),
+          i.expectedMonths || 0,
+          i.responsibleUnit || '-',
+          i.referenceDocument || '-'
+        ));
+      });
+    } else {
+      lines.push(row('هیچ مسئله‌ای یافت نشد'));
+    }
+    lines.push(row(''));
+
+    // بخش ۴: فهرست تحلیل شکاف‌های دانشی
+    lines.push(row('=== فهرست شکاف‌های دانشی شناسایی‌شده ==='));
+    lines.push(row('شناسه', 'عنوان دانش مورد نیاز', 'عنوان دانش موجود متناظر', 'سطح اولویت/بحرانیت', 'وضعیت شکاف', 'درصد تطبیق'));
+    if (gaps && gaps.length > 0) {
+      gaps.forEach(g => {
+        const gapStatusLabel = g.status === 'filled' ? 'پوشش‌داده‌شده' : 'باز (پوشش‌نیافته)';
+        const priorityLabel = 
+          g.priority === 'critical' ? 'بحرانی' :
+          g.priority === 'high' ? 'بالا' :
+          g.priority === 'medium' ? 'متوسط' : 'کم';
+
+        lines.push(row(
+          g.id,
+          g.requiredNode?.title || 'گره دانشی',
+          g.producedNode?.title || 'بدون پوشش',
+          priorityLabel,
+          gapStatusLabel,
+          g.matchScore ? `${Math.round(g.matchScore * 100)}%` : '-'
+        ));
+      });
+    } else {
+      lines.push(row('هیچ شکافی یافت نشد'));
+    }
+    lines.push(row(''));
+
+    // بخش ۵: ساختار درختان دانش
+    lines.push(row('=== درختان دانش فعال سامانه ==='));
+    lines.push(row('شناسه', 'عنوان درخت دانش', 'نوع درخت', 'رده / پایگاه سازمانی', 'وضعیت'));
+    if (trees && trees.length > 0) {
+      trees.forEach(t => {
+        const typeLabel = 
+          t.type === 'required' ? 'دانش مورد نیاز' :
+          t.type === 'produced' ? 'دانش موجود (تولید شده)' :
+          t.type === 'research' ? 'دانش و پژوهش' : t.type;
+        lines.push(row(
+          t.id,
+          t.name || '',
+          typeLabel,
+          (t as any).base?.name || (t as any).organizationLevel || '-',
+          t.isActive ? 'فعال' : 'غیرفعال'
+        ));
+      });
+    } else {
+      lines.push(row('هیچ درختی یافت نشد'));
+    }
+
+    const csvContent = lines.join('\r\n');
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', 'dashboard_stats.csv');
+    const dateFileStr = format(new Date(), 'yyyyMMdd_HHmm');
+    link.setAttribute('download', `dana_dashboard_report_${dateFileStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success('گزارش آماری دریافت شد');
+    toast.success('گزارش جامع داشبورد دریافت شد');
   };
 
   const issueProgress = stats.issues > 0 ? Math.round((stats.completedIssues / stats.issues) * 100) : 0;

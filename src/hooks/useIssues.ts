@@ -31,6 +31,7 @@ interface Issue {
   assignedBudget: number;
   expectedMonths: number;
   completionPercent: number;
+  periodId?: number | null;
   actionsTaken: string | null;
   bottlenecks: string | null;
   orders: string | null;
@@ -53,6 +54,7 @@ interface Issue {
 }
 
 interface IssueFilters {
+  periodId?: number | string;
   domain?: string;
   status?: string;
   priority?: string;
@@ -97,6 +99,9 @@ export function useIssues() {
 
     try {
       const params = new URLSearchParams();
+      if (filters?.periodId !== undefined && filters.periodId !== 'all') {
+        params.append('periodId', String(filters.periodId));
+      }
       if (filters?.domain) params.append('domain', filters.domain);
       if (filters?.status) params.append('status', filters.status);
       if (filters?.priority) params.append('priority', filters.priority);
@@ -357,6 +362,52 @@ export function useIssues() {
     };
   }, []);
 
+  // ============================================
+  // انتقال و فریز مسائل بین دوره‌های زمانی (Period Rollover)
+  // ============================================
+
+  const carryOverIssues = useCallback(async (sourcePeriodId: number, targetPeriodId: number, mode = 'open_only', issueIds?: number[]) => {
+    setLoading(true);
+    try {
+      const result: any = await apiClient('/api/issues/carry-over', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourcePeriodId, targetPeriodId, mode, issueIds }),
+      });
+      toast.success(result.message || 'مسائل با موفقیت به دوره جدید انتقال یافتند');
+      await fetchIssues({ page: 1, limit: pagination.limit, periodId: targetPeriodId });
+      return result;
+    } catch (err: any) {
+      toast.error(err.message || 'خطا در انتقال مسائل به دوره جدید');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchIssues, pagination.limit]);
+
+  // ============================================
+  // بارگذاری گروهی مسائل از فایل/سی‌دی برای دوره مشخص
+  // ============================================
+
+  const batchImportIssues = useCallback(async (targetPeriodId: number, issuesList: any[], updateExistingByTitle = true) => {
+    setLoading(true);
+    try {
+      const result: any = await apiClient('/api/issues/batch-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetPeriodId, issuesList, updateExistingByTitle }),
+      });
+      toast.success(result.message || 'مسائل با موفقیت بارگذاری شدند');
+      await fetchIssues({ page: 1, limit: pagination.limit, periodId: targetPeriodId });
+      return result;
+    } catch (err: any) {
+      toast.error(err.message || 'خطا در بارگذاری مسائل');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchIssues, pagination.limit]);
+
   return {
     issues,
     selectedIssue,
@@ -372,6 +423,8 @@ export function useIssues() {
     deleteAttachment,
     getHistory,
     getIssueStats,
+    carryOverIssues,
+    batchImportIssues,
   };
 }
 

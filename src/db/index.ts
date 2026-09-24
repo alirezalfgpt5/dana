@@ -33,6 +33,20 @@ export const db = drizzle(sqlite, { schema });
 export function initDb() {
   console.log('🚀 Database initialization started...');
 
+  // مهاجرت ستون‌های دوره زمانی قبل از ایجاد ایندکس‌ها بر روی دیتابیس موجود
+  try {
+    const issuesTable = sqlite.prepare("PRAGMA table_info(issues)").all() as any[];
+    if (issuesTable.length > 0 && !issuesTable.some(c => c.name === 'period_id')) {
+      sqlite.exec("ALTER TABLE issues ADD COLUMN period_id INTEGER REFERENCES periods(id);");
+    }
+    const gapsTable = sqlite.prepare("PRAGMA table_info(gaps)").all() as any[];
+    if (gapsTable.length > 0 && !gapsTable.some(c => c.name === 'period_id')) {
+      sqlite.exec("ALTER TABLE gaps ADD COLUMN period_id INTEGER REFERENCES periods(id);");
+    }
+  } catch (e) {
+    // جداول هنوز ساخته نشده‌اند، در دستور CREATE TABLE ساخته خواهند شد
+  }
+
   // ============================================
   // ۲-۱. ایجاد جداول اصلی
   // ============================================
@@ -211,6 +225,7 @@ export function initDb() {
     
     CREATE TABLE IF NOT EXISTS gaps (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      period_id INTEGER REFERENCES periods(id),
       required_node_id INTEGER NOT NULL REFERENCES tree_nodes(id) ON DELETE CASCADE,
       produced_node_id INTEGER REFERENCES tree_nodes(id) ON DELETE CASCADE,
       status TEXT NOT NULL DEFAULT 'open',
@@ -222,6 +237,7 @@ export function initDb() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS gaps_period_idx ON gaps(period_id);
     CREATE INDEX IF NOT EXISTS gaps_required_idx ON gaps(required_node_id);
     CREATE INDEX IF NOT EXISTS gaps_status_idx ON gaps(status);
     
@@ -299,6 +315,7 @@ export function initDb() {
     
     CREATE TABLE IF NOT EXISTS issues (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      period_id INTEGER REFERENCES periods(id),
       research_item_id INTEGER REFERENCES research_items(id),
       domain_node_id INTEGER REFERENCES tree_nodes(id),
       title TEXT NOT NULL,
@@ -339,6 +356,7 @@ export function initDb() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS issues_period_idx ON issues(period_id);
     CREATE INDEX IF NOT EXISTS issues_research_idx ON issues(research_item_id);
     CREATE INDEX IF NOT EXISTS issues_status_idx ON issues(status);
 
@@ -606,6 +624,59 @@ export function initDb() {
       new Date().toISOString()
     );
     console.log('✅ Admin user created (username: admin, password: admin123)');
+  }
+
+  // ============================================
+  // مهاجرت پویا برای چنددوره‌ای شدن (Multi-Period Dynamic Migration)
+  // ============================================
+  try {
+    const issuesCols = (sqlite.prepare("PRAGMA table_info(issues)").all() as any[]).map(c => c.name);
+    if (!issuesCols.includes('period_id')) {
+      sqlite.exec("ALTER TABLE issues ADD COLUMN period_id INTEGER REFERENCES periods(id);");
+      sqlite.exec("CREATE INDEX IF NOT EXISTS issues_period_idx ON issues(period_id);");
+      console.log('✅ Added period_id column to issues');
+    }
+    // انتساب دوره برای مسائلی که period_id ندارند از روی درخت متناظر گره
+    sqlite.exec(`
+      UPDATE issues 
+      SET period_id = (
+        SELECT kt.period_id 
+        FROM tree_nodes tn 
+        JOIN knowledge_trees kt ON tn.tree_id = kt.id 
+        WHERE tn.id = issues.domain_node_id
+      )
+      WHERE period_id IS NULL AND domain_node_id IS NOT NULL;
+    `);
+    // در صورت نامشخص بودن، انتساب به دوره فعال اول سیستم
+    sqlite.exec(`
+      UPDATE issues 
+      SET period_id = (SELECT id FROM periods WHERE is_active = 1 LIMIT 1)
+      WHERE period_id IS NULL;
+    `);
+
+    const gapsCols = (sqlite.prepare("PRAGMA table_info(gaps)").all() as any[]).map(c => c.name);
+    if (!gapsCols.includes('period_id')) {
+      sqlite.exec("ALTER TABLE gaps ADD COLUMN period_id INTEGER REFERENCES periods(id);");
+      sqlite.exec("CREATE INDEX IF NOT EXISTS gaps_period_idx ON gaps(period_id);");
+      console.log('✅ Added period_id column to gaps');
+    }
+    sqlite.exec(`
+      UPDATE gaps 
+      SET period_id = (
+        SELECT kt.period_id 
+        FROM tree_nodes tn 
+        JOIN knowledge_trees kt ON tn.tree_id = kt.id 
+        WHERE tn.id = gaps.required_node_id
+      )
+      WHERE period_id IS NULL AND required_node_id IS NOT NULL;
+    `);
+    sqlite.exec(`
+      UPDATE gaps 
+      SET period_id = (SELECT id FROM periods WHERE is_active = 1 LIMIT 1)
+      WHERE period_id IS NULL;
+    `);
+  } catch (e) {
+    console.error('Error migrating period_id:', e);
   }
   
   console.log('🎉 Database initialization completed!');

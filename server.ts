@@ -24,7 +24,7 @@ app.set('trust proxy', 1); // Trust first proxy for express-rate-limit
 // ⚠️ توجه: به‌طور عمدی هیچ handler سراسری uncaughtException/unhandledRejection ثبت نمی‌شود
 // تا خطاهای راه‌اندازی (مانند اشغال بودن پورت) باعث خروج تمیز و شفاف پروسه شوند.
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = 3000;
 
 const currentDir = process.cwd();
 

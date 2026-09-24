@@ -192,6 +192,7 @@ export const knowledgeAssets = sqliteTable('knowledge_assets', {
 // ۳-۱. شکاف‌های دانشی
 export const gaps = sqliteTable('gaps', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  periodId: integer('period_id').references(() => periods.id),
   requiredNodeId: integer('required_node_id').references(() => treeNodes.id, { onDelete: 'cascade' }).notNull(),
   producedNodeId: integer('produced_node_id').references(() => treeNodes.id, { onDelete: 'cascade' }),
   status: text('status').notNull().default('open'),
@@ -203,6 +204,7 @@ export const gaps = sqliteTable('gaps', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (table) => ({
+  gapPeriodIdx: index('gaps_period_idx').on(table.periodId),
   gapRequiredIdx: index('gaps_required_idx').on(table.requiredNodeId),
   gapStatusIdx: index('gaps_status_idx').on(table.status),
 }));
@@ -273,6 +275,7 @@ export const gapReviews = sqliteTable('gap_reviews', {
 
 export const issues = sqliteTable('issues', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  periodId: integer('period_id').references(() => periods.id),
   researchItemId: integer('research_item_id').references(() => researchItems.id),
   
   domainNodeId: integer('domain_node_id').references(() => treeNodes.id),
@@ -323,6 +326,7 @@ export const issues = sqliteTable('issues', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (table) => ({
+  issuePeriodIdx: index('issues_period_idx').on(table.periodId),
   issueResearchIdx: index('issues_research_idx').on(table.researchItemId),
   issueStatusIdx: index('issues_status_idx').on(table.status),
 }));
@@ -581,6 +585,10 @@ export const templateInstancesRelations = relations(templateInstances, ({ one })
 }));
 
 export const gapsRelations = relations(gaps, ({ one }) => ({
+  period: one(periods, {
+    fields: [gaps.periodId],
+    references: [periods.id],
+  }),
   requiredNode: one(treeNodes, {
     fields: [gaps.requiredNodeId],
     references: [treeNodes.id],
@@ -594,6 +602,10 @@ export const gapsRelations = relations(gaps, ({ one }) => ({
 }));
 
 export const issuesRelations = relations(issues, ({ one, many }) => ({
+  period: one(periods, {
+    fields: [issues.periodId],
+    references: [periods.id],
+  }),
   researchItem: one(researchItems, {
     fields: [issues.researchItemId],
     references: [researchItems.id],

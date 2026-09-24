@@ -13,7 +13,7 @@ import {
   treeNodes,
   knowledgeTrees,
   templates,
-  users, gaps,
+  users, gaps, periods,
 } from '../../src/db/schema.js';
 import { eq, and, or, like, isNull, not, desc, inArray, sql } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
@@ -130,23 +130,26 @@ issueRoutes.get('/', async (req, res) => {
        } else {
           conditions.push(eq(issues.domainNodeId, -1));
        }
-    } else if (periodId) {
+    } else if (periodId && periodId !== 'all') {
+       const parsedPeriodId = parseInt(periodId as string);
        const treesInPeriod = await db.select({ id: knowledgeTrees.id })
           .from(knowledgeTrees)
-          .where(eq(knowledgeTrees.periodId, parseInt(periodId as string)));
+          .where(eq(knowledgeTrees.periodId, parsedPeriodId));
        const treeIds = treesInPeriod.map(t => t.id);
+       let nodeIds: number[] = [];
        if (treeIds.length > 0) {
           const nodesInPeriod = await db.select({ id: treeNodes.id })
              .from(treeNodes)
              .where(inArray(treeNodes.treeId, treeIds));
-          const nodeIds = nodesInPeriod.map(n => n.id);
-          if (nodeIds.length > 0) {
-             conditions.push(inArray(issues.domainNodeId, nodeIds));
-          } else {
-             conditions.push(eq(issues.domainNodeId, -1));
-          }
+          nodeIds = nodesInPeriod.map(n => n.id);
+       }
+       if (nodeIds.length > 0) {
+          conditions.push(or(
+             eq(issues.periodId, parsedPeriodId),
+             inArray(issues.domainNodeId, nodeIds)
+          ));
        } else {
-          conditions.push(eq(issues.domainNodeId, -1));
+          conditions.push(eq(issues.periodId, parsedPeriodId));
        }
     }
     
@@ -396,10 +399,14 @@ issueRoutes.post('/', async (req, res) => {
     // Fix Mass Assignment Vulnerability
     const rawData = req.body;
     const allowedFields = [
-      'domainNodeId', 'researchItemId', 'title', 'solutionDirection', 'responsibleUnit', 
-      'confidentialityLevel', 'actionPriority', 'knowledgeType', 'projectLevel', 
-      'approvalAuthority', 'researchProjectType', 'knowledgeProjectType', 'expectedMonths', 
-      'requiredBudget', 'status', 'gapId', 'needStatement', 'templateIds'
+      'periodId', 'domainNodeId', 'researchItemId', 'title', 'solutionDirection', 'responsibleUnit', 
+      'confidentialityLevel', 'actionPriority', 'approvalDate', 'knowledgeType', 'projectLevel', 
+      'approvalAuthority', 'researchProjectType', 'knowledgeProjectType', 'events', 'macroProject',
+      'scientificDiplomacy', 'collaborators', 'collaborationNetwork', 'referenceDocument',
+      'requiredBudget', 'approvedBudget', 'assignedBudget', 'expectedMonths', 'completionPercent',
+      'actionsTaken', 'bottlenecks', 'orders', 'issueResolutionTeam', 'needStatement', 'contract',
+      'executiveContract', 'stage20', 'stage50', 'stage100', 'application', 'status', 'gapId',
+      'templateIds', 'metadata'
     ];
     const data: any = {};
     for (const field of allowedFields) {
@@ -466,9 +473,32 @@ issueRoutes.post('/', async (req, res) => {
       templateIds = (Array.isArray(node.templateIds) ? node.templateIds : (node.templateIds ? String(node.templateIds).split(',').filter(Boolean) : []));
     }
 
+    // انتساب شناسه دوره زمانی (دوره مشخص‌شده > دوره درخت > دوره فعال سامانه)
+    let issuePeriodId = data.periodId ? parseInt(data.periodId) : null;
+    if (!issuePeriodId && data.domainNodeId) {
+      const nodeObj = await db.query.treeNodes.findFirst({
+        where: eq(treeNodes.id, parseInt(data.domainNodeId)),
+      });
+      if (nodeObj) {
+        const treeObj = await db.query.knowledgeTrees.findFirst({
+          where: eq(knowledgeTrees.id, nodeObj.treeId),
+        });
+        if (treeObj?.periodId) {
+          issuePeriodId = treeObj.periodId;
+        }
+      }
+    }
+    if (!issuePeriodId) {
+      const activeP = await db.query.periods.findFirst({
+        where: eq(periods.isActive, 1),
+      });
+      issuePeriodId = activeP?.id || 1;
+    }
+
     // ایجاد مسئله درون تراکنش
     const result = db.transaction((tx) => {
       const newIssue = tx.insert(issues).values({
+        periodId: issuePeriodId,
         researchItemId: data.researchItemId ? parseInt(data.researchItemId) : null,
         domainNodeId: parseInt(data.domainNodeId),
         title: data.title,
@@ -563,10 +593,14 @@ issueRoutes.put('/:id', async (req, res) => {
     // Fix Mass Assignment Vulnerability
     const rawData = req.body;
     const allowedFields = [
-      'domainNodeId', 'researchItemId', 'title', 'solutionDirection', 'responsibleUnit', 
-      'confidentialityLevel', 'actionPriority', 'knowledgeType', 'projectLevel', 
-      'approvalAuthority', 'researchProjectType', 'knowledgeProjectType', 'expectedMonths', 
-      'requiredBudget', 'status', 'gapId', 'needStatement', 'templateIds'
+      'periodId', 'domainNodeId', 'researchItemId', 'title', 'solutionDirection', 'responsibleUnit', 
+      'confidentialityLevel', 'actionPriority', 'approvalDate', 'knowledgeType', 'projectLevel', 
+      'approvalAuthority', 'researchProjectType', 'knowledgeProjectType', 'events', 'macroProject',
+      'scientificDiplomacy', 'collaborators', 'collaborationNetwork', 'referenceDocument',
+      'requiredBudget', 'approvedBudget', 'assignedBudget', 'expectedMonths', 'completionPercent',
+      'actionsTaken', 'bottlenecks', 'orders', 'issueResolutionTeam', 'needStatement', 'contract',
+      'executiveContract', 'stage20', 'stage50', 'stage100', 'application', 'status', 'gapId',
+      'templateIds', 'metadata'
     ];
     const data: any = {};
     for (const field of allowedFields) {
@@ -602,6 +636,7 @@ issueRoutes.put('/:id', async (req, res) => {
 
     // به‌روزرسانی
     const updateData: any = {
+      periodId: data.periodId !== undefined ? parseInt(data.periodId) : oldData.periodId,
       domainNodeId: data.domainNodeId !== undefined ? parseInt(data.domainNodeId) : oldData.domainNodeId,
       title: data.title !== undefined && data.title !== null ? data.title : oldData.title,
       solutionDirection: data.solutionDirection !== undefined ? data.solutionDirection : oldData.solutionDirection,
@@ -689,6 +724,200 @@ issueRoutes.put('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error updating issue:', error);
     res.status(500).json({ error: 'خطا در ویرایش مسئله' });
+  }
+});
+
+// ============================================
+// ۴-الف. انتقال مسائل باز به دوره زمانی جدید (Period Rollover & Snapshot)
+// ============================================
+issueRoutes.post('/carry-over', async (req, res) => {
+  try {
+    const { sourcePeriodId, targetPeriodId, mode = 'open_only', issueIds } = req.body;
+    if (!sourcePeriodId || !targetPeriodId) {
+      return res.status(400).json({ error: 'شناسه دوره مبدأ و مقصد الزامی است' });
+    }
+    if (parseInt(sourcePeriodId) === parseInt(targetPeriodId)) {
+      return res.status(400).json({ error: 'دوره مبدأ و مقصد نمی‌توانند یکسان باشند' });
+    }
+
+    const now = new Date().toISOString();
+    const userId = (req as AuthRequest).user?.id || null;
+
+    let conditions: any[] = [eq(issues.periodId, parseInt(sourcePeriodId))];
+    if (mode === 'open_only') {
+      conditions.push(inArray(issues.status, ['pending', 'in_progress', 'on_hold']));
+    } else if (mode === 'selected' && Array.isArray(issueIds) && issueIds.length > 0) {
+      conditions.push(inArray(issues.id, issueIds));
+    }
+
+    const sourceIssues = await db.select().from(issues).where(and(...conditions));
+    if (sourceIssues.length === 0) {
+      return res.json({ message: 'مسئله‌ای برای انتقال در دوره مبدأ یافت نشد', count: 0, issues: [] });
+    }
+
+    const copiedIssues: any[] = [];
+    db.transaction((tx) => {
+      for (const s of sourceIssues) {
+        const newIssue = tx.insert(issues).values({
+          periodId: parseInt(targetPeriodId),
+          researchItemId: s.researchItemId,
+          domainNodeId: s.domainNodeId,
+          title: s.title,
+          solutionDirection: s.solutionDirection,
+          responsibleUnit: s.responsibleUnit,
+          confidentialityLevel: s.confidentialityLevel,
+          actionPriority: s.actionPriority,
+          approvalDate: s.approvalDate,
+          knowledgeType: s.knowledgeType,
+          projectLevel: s.projectLevel,
+          approvalAuthority: s.approvalAuthority,
+          researchProjectType: s.researchProjectType,
+          knowledgeProjectType: s.knowledgeProjectType,
+          events: s.events,
+          macroProject: s.macroProject,
+          scientificDiplomacy: s.scientificDiplomacy,
+          collaborators: s.collaborators,
+          collaborationNetwork: s.collaborationNetwork,
+          referenceDocument: s.referenceDocument,
+          requiredBudget: s.requiredBudget,
+          approvedBudget: s.approvedBudget,
+          assignedBudget: s.assignedBudget,
+          expectedMonths: s.expectedMonths,
+          completionPercent: s.completionPercent,
+          actionsTaken: s.actionsTaken,
+          bottlenecks: s.bottlenecks,
+          orders: s.orders,
+          issueResolutionTeam: s.issueResolutionTeam,
+          needStatement: s.needStatement,
+          contract: s.contract,
+          executiveContract: s.executiveContract,
+          stage20: s.stage20,
+          stage50: s.stage50,
+          stage100: s.stage100,
+          application: s.application,
+          status: s.status,
+          metadata: {
+            snapshotSource: {
+              periodId: sourcePeriodId,
+              issueId: s.id,
+              date: now
+            }
+          },
+          createdAt: now,
+          updatedAt: now,
+        }).returning().get();
+
+        const oldTemplates = tx.select().from(issueTemplates).where(eq(issueTemplates.issueId, s.id)).all();
+        for (const it of oldTemplates) {
+          tx.insert(issueTemplates).values({
+            issueId: newIssue.id,
+            templateId: it.templateId,
+          }).run();
+        }
+
+        copiedIssues.push(newIssue);
+      }
+    });
+
+    logAudit({
+      userId,
+      action: 'ROLLOVER',
+      entityName: 'نظام مسائل',
+      entityId: parseInt(targetPeriodId),
+      changes: { count: copiedIssues.length, fromPeriod: sourcePeriodId, toPeriod: targetPeriodId },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({
+      message: `تعداد ${copiedIssues.length} مسئله با موفقیت به عنوان نسخه مستقل به دوره جدید انتقال یافتند`,
+      count: copiedIssues.length,
+      issues: copiedIssues,
+    });
+  } catch (error) {
+    console.error('Error rolling over issues:', error);
+    res.status(500).json({ error: 'خطا در انتقال مسائل به دوره جدید' });
+  }
+});
+
+// ============================================
+// ۴-ب. بارگذاری و به‌روزرسانی گروهی مسائل در دوره جدید (از روی سی‌دی یا فایل)
+// ============================================
+issueRoutes.post('/batch-import', async (req, res) => {
+  try {
+    const { targetPeriodId, issuesList, updateExistingByTitle = true } = req.body;
+    if (!targetPeriodId || !Array.isArray(issuesList)) {
+      return res.status(400).json({ error: 'شناسه دوره و لیست مسائل الزامی است' });
+    }
+
+    const now = new Date().toISOString();
+    const userId = (req as AuthRequest).user?.id || null;
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    db.transaction((tx) => {
+      for (const item of issuesList) {
+        if (!item.title) continue;
+
+        const existingInPeriod = tx.select().from(issues).where(and(
+          eq(issues.periodId, parseInt(targetPeriodId)),
+          eq(issues.title, item.title.trim())
+        )).get();
+
+        if (existingInPeriod && updateExistingByTitle) {
+          tx.update(issues).set({
+            completionPercent: item.completionPercent !== undefined ? parseInt(item.completionPercent) : existingInPeriod.completionPercent,
+            status: item.status || existingInPeriod.status,
+            requiredBudget: item.requiredBudget !== undefined ? parseFloat(item.requiredBudget) : existingInPeriod.requiredBudget,
+            approvedBudget: item.approvedBudget !== undefined ? parseFloat(item.approvedBudget) : existingInPeriod.approvedBudget,
+            assignedBudget: item.assignedBudget !== undefined ? parseFloat(item.assignedBudget) : existingInPeriod.assignedBudget,
+            actionsTaken: item.actionsTaken !== undefined ? item.actionsTaken : existingInPeriod.actionsTaken,
+            bottlenecks: item.bottlenecks !== undefined ? item.bottlenecks : existingInPeriod.bottlenecks,
+            orders: item.orders !== undefined ? item.orders : existingInPeriod.orders,
+            solutionDirection: item.solutionDirection !== undefined ? item.solutionDirection : existingInPeriod.solutionDirection,
+            responsibleUnit: item.responsibleUnit !== undefined ? item.responsibleUnit : existingInPeriod.responsibleUnit,
+            actionPriority: item.actionPriority !== undefined ? item.actionPriority : existingInPeriod.actionPriority,
+            updatedAt: now,
+          }).where(eq(issues.id, existingInPeriod.id)).run();
+          updatedCount++;
+        } else {
+          tx.insert(issues).values({
+            periodId: parseInt(targetPeriodId),
+            domainNodeId: item.domainNodeId ? parseInt(item.domainNodeId) : null,
+            title: item.title.trim(),
+            solutionDirection: item.solutionDirection || '',
+            responsibleUnit: item.responsibleUnit || '',
+            confidentialityLevel: item.confidentialityLevel || 'عمومی',
+            actionPriority: item.actionPriority || 'متوسط',
+            approvalDate: item.approvalDate || now,
+            knowledgeType: item.knowledgeType || 'نظریه',
+            projectLevel: item.projectLevel || 'سطح1',
+            approvalAuthority: item.approvalAuthority || 'نهاجا',
+            requiredBudget: item.requiredBudget ? parseFloat(item.requiredBudget) : 0,
+            approvedBudget: item.approvedBudget ? parseFloat(item.approvedBudget) : 0,
+            assignedBudget: item.assignedBudget ? parseFloat(item.assignedBudget) : 0,
+            expectedMonths: item.expectedMonths ? parseInt(item.expectedMonths) : 0,
+            completionPercent: item.completionPercent ? parseInt(item.completionPercent) : 0,
+            actionsTaken: item.actionsTaken || '',
+            bottlenecks: item.bottlenecks || '',
+            orders: item.orders || '',
+            status: item.status || 'pending',
+            createdAt: now,
+            updatedAt: now,
+          }).run();
+          addedCount++;
+        }
+      }
+    });
+
+    res.json({
+      message: `پردازش موفق: ${addedCount} مسئله جدید افزوده و ${updatedCount} مسئله به‌روزرسانی شد`,
+      addedCount,
+      updatedCount,
+    });
+  } catch (error) {
+    console.error('Error batch importing issues:', error);
+    res.status(500).json({ error: 'خطا در بارگذاری گروهی مسائل' });
   }
 });
 

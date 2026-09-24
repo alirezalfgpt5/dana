@@ -21,20 +21,23 @@ sqlite.transaction(() => {
         approvalDate: string,
         budget: string,
         months: number,
-        percent: number
+        percent: number,
+        customPeriodId?: number
     ) => {
         if (!nodeId) return;
         const exists = sqlite.prepare("SELECT id FROM issues WHERE title = ?").get(title);
         if (exists) return;
+        const treeInfo = sqlite.prepare("SELECT period_id FROM knowledge_trees kt JOIN tree_nodes tn ON kt.id = tn.tree_id WHERE tn.id = ?").get(nodeId) as any;
+        const periodId = customPeriodId || treeInfo?.period_id || 1;
         sqlite.prepare(`
             INSERT INTO issues (
-                domain_node_id, title, solution_direction, responsible_unit, 
+                domain_node_id, period_id, title, solution_direction, responsible_unit, 
                 confidentiality_level, action_priority, approval_date,
                 required_budget, expected_months, completion_percent,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
-            nodeId, title, solution, unit, confidentiality, priority,
+            nodeId, periodId, title, solution, unit, confidentiality, priority,
             approvalDate, budget, months, percent,
             new Date().toISOString(), new Date().toISOString()
         );

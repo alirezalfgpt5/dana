@@ -6,13 +6,15 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useIssues } from '../../hooks/useIssues';
 import { useTree } from '../../hooks/useTree';
+import { useUIStore } from '../../store';
+import { PeriodRolloverModal } from '../../components/issues/PeriodRolloverModal';
 import { IssueFormTabs } from '../../components/issues/IssueFormTabs';
 import { 
   FileText, Plus, RefreshCw, Search, X,
   CheckCircle, AlertCircle, Clock,
   Filter, Edit, Trash2, ChevronDown,
   ChevronUp, DollarSign,
-  HelpCircle, TrendingUp
+  HelpCircle, TrendingUp, Calendar, ArrowLeftRight
 } from 'lucide-react';
 import { AdvancedQueryBuilder, FilterGroup } from '../../components/ui/AdvancedQueryBuilder';
 import { format } from 'date-fns-jalali';
@@ -22,6 +24,7 @@ import toast from 'react-hot-toast';
 export function IssueSystem() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { activePeriod, periods } = useUIStore();
   
   const {
     issues,
@@ -38,6 +41,8 @@ export function IssueSystem() {
     deleteIssue,
     getIssueStats,
     uploadAttachment,
+    carryOverIssues,
+    batchImportIssues,
   } = useIssues();
 
   const { templates, fetchTemplates } = useTree();
@@ -50,22 +55,33 @@ export function IssueSystem() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [timeFrameFilter, setTimeFrameFilter] = useState('all');
+  const [filterByPeriod, setFilterByPeriod] = useState<boolean>(true);
+  const [showRolloverModal, setShowRolloverModal] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [advancedFilter, setAdvancedFilter] = useState<FilterGroup | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid' | 'kanban'>('grid');
+
+  const loadIssuesData = (page = 1) => {
+    fetchIssues({
+      page,
+      limit: pagination.limit || 20,
+      periodId: filterByPeriod && activePeriod ? activePeriod.id : undefined,
+      timeFrame: timeFrameFilter !== 'all' ? timeFrameFilter : undefined,
+      search: searchTerm || undefined,
+      advancedFilter: advancedFilter ? JSON.stringify(advancedFilter) : undefined
+    });
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const q = params.get('q');
     if (q) {
       setSearchTerm(q);
-      fetchIssues({ page: 1, limit: 20, search: q, timeFrame: timeFrameFilter !== 'all' ? timeFrameFilter : undefined, advancedFilter: advancedFilter ? JSON.stringify(advancedFilter) : undefined });
-    } else {
-      fetchIssues({ page: 1, limit: 20, timeFrame: timeFrameFilter !== 'all' ? timeFrameFilter : undefined, advancedFilter: advancedFilter ? JSON.stringify(advancedFilter) : undefined });
     }
+    loadIssuesData(1);
     fetchTemplates();
-  }, [location.search]);
+  }, [location.search, activePeriod?.id, filterByPeriod, timeFrameFilter]);
 
   // Handle initialization from routing state (e.g. from Gap Analysis or Research Tree)
   useEffect(() => {
@@ -99,21 +115,30 @@ export function IssueSystem() {
 
   const handleSave = async (data: any) => {
     try {
+      const issuePayload = {
+        ...data,
+        periodId: data.periodId || (editingIssue?.periodId) || (activePeriod?.id) || null,
+      };
       let saved;
       if (editingIssue && editingIssue.id) {
-        saved = await updateIssue(editingIssue.id, data);
+        saved = await updateIssue(editingIssue.id, issuePayload);
         toast.success('✅ مسئله با موفقیت ویرایش شد');
       } else {
-        saved = await createIssue(data);
+        saved = await createIssue(issuePayload);
         toast.success('✅ مسئله با موفقیت ایجاد شد');
       }
       setShowForm(false);
       setEditingIssue(null);
-      fetchIssues({ page: pagination.page, limit: pagination.limit, timeFrame: timeFrameFilter !== 'all' ? timeFrameFilter : undefined });
+      loadIssuesData(pagination.page);
       return saved;
     } catch (error) {
       // خطا قبلاً در هوک مدیریت شده
     }
+  };
+
+  const handleRefresh = () => {
+    loadIssuesData(pagination.page);
+    toast.success('فهرست مسائل بروزرسانی شد');
   };
 
   
@@ -146,11 +171,6 @@ export function IssueSystem() {
       await deleteIssue(issueId);
       toast.success('🗑️ مسئله با موفقیت حذف شد');
     }
-  };
-
-  const handleRefresh = () => {
-    fetchIssues({ page: pagination.page, limit: pagination.limit, timeFrame: timeFrameFilter !== 'all' ? timeFrameFilter : undefined });
-    toast('🔄 لیست مسائل بروزرسانی شد', { icon: 'ℹ️' });
   };
 
   // فیلتر کردن
@@ -222,8 +242,24 @@ export function IssueSystem() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-800">🎯 نظام مسائل</h1>
-              <div className="flex items-center gap-3 mt-0.5">
-                <p className="text-gray-500 text-sm">مدیریت و پیگیری مسائل دانشی و پژوهشی</p>
+              <div className="flex flex-wrap items-center gap-3 mt-1">
+                <p className="text-gray-500 text-sm">مدیریت، پیگیری و به‌روزرسانی مسائل دانشی و پژوهشی</p>
+                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                  <Calendar size={13} />
+                  <span>دوره: {activePeriod ? activePeriod.name : 'همه دوره‌ها'}</span>
+                </div>
+                {activePeriod && (
+                  <button
+                    onClick={() => setFilterByPeriod(!filterByPeriod)}
+                    className={`text-xs px-2.5 py-0.5 rounded-md border transition-all ${
+                      filterByPeriod 
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs' 
+                        : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                    }`}
+                  >
+                    {filterByPeriod ? 'فقط این دوره (فیلتر فعال)' : 'نمایش همه دوره‌ها'}
+                  </button>
+                )}
                 <button 
                   onClick={() => setShowHelp(!showHelp)}
                   className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1"
@@ -236,6 +272,16 @@ export function IssueSystem() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* دکمه عملیات انتقال و ورود اطلاعات دوره‌ای */}
+          <button
+            onClick={() => setShowRolloverModal(true)}
+            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-xs"
+            title="انتقال مسائل بین‌دوره‌ای، فریز سوابق و ورود اطلاعات سی‌دی"
+          >
+            <ArrowLeftRight size={17} className="text-indigo-600" />
+            <span>عملیات دوره‌ای / سی‌دی</span>
+          </button>
+
           <button
             onClick={() => {
               setEditingIssue(null);
@@ -748,6 +794,16 @@ export function IssueSystem() {
           </div>
         </div>
       )}
+      {/* Period Rollover & CD Batch Import Modal */}
+      <PeriodRolloverModal
+        isOpen={showRolloverModal}
+        onClose={() => setShowRolloverModal(false)}
+        periods={periods}
+        activePeriod={activePeriod}
+        onCarryOver={carryOverIssues}
+        onBatchImport={batchImportIssues}
+        onRefresh={() => loadIssuesData(1)}
+      />
     </div>
   );
 }

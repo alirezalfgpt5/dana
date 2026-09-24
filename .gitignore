@@ -1,6 +1,7 @@
 node_modules/
+dist/
+bun.lock
 backups/
-dana-v2-1.zip
 # SQLite runtime database files (regenerated on every run)
 database.sqlite
 database.sqlite-shm

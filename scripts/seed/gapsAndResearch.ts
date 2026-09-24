@@ -16,17 +16,20 @@ sqlite.transaction(() => {
         LIMIT 1
     `).get(treeReq?.id, treeProd?.id) as any;
 
+    const reqTreeObj = treeReq ? sqlite.prepare("SELECT period_id FROM knowledge_trees WHERE id = ?").get(treeReq.id) as any : null;
+    const periodId = reqTreeObj?.period_id || 1;
+
     if (reqOnly && reqOnly.rid && treeReq && treeProd) {
         const gapExists = sqlite.prepare(`
             SELECT id FROM gaps WHERE required_node_id = ? AND (status IS NULL OR status = 'open')
         `).get(reqOnly.rid) as any;
         if (!gapExists) {
             sqlite.prepare(`
-                INSERT INTO gaps (required_node_id, produced_node_id,
+                INSERT INTO gaps (period_id, required_node_id, produced_node_id,
                     status, gap_type, priority, description, created_at, updated_at)
-                VALUES (?, ?, 'open', 'missing', 'خیلی زیاد', ?, ?, ?)
+                VALUES (?, ?, ?, 'open', 'missing', 'خیلی زیاد', ?, ?, ?)
             `).run(
-                reqOnly.rid, null,
+                periodId, reqOnly.rid, null,
                 'گره «توزیع بار و پردازش موازی» در درختواره تولیدشده وجود ندارد — گپ کامل دانشی.',
                 new Date().toISOString(), new Date().toISOString()
             );
@@ -48,11 +51,11 @@ sqlite.transaction(() => {
         `).get(prodNoTemplate.rid, prodNoTemplate.pid) as any;
         if (!gapExists) {
             sqlite.prepare(`
-                INSERT INTO gaps (required_node_id, produced_node_id,
+                INSERT INTO gaps (period_id, required_node_id, produced_node_id,
                     status, gap_type, priority, description, created_at, updated_at)
-                VALUES (?, ?, 'partial', 'incomplete', 'زیاد', ?, ?, ?)
+                VALUES (?, ?, ?, 'partial', 'incomplete', 'زیاد', ?, ?, ?)
             `).run(
-                prodNoTemplate.rid, prodNoTemplate.pid,
+                periodId, prodNoTemplate.rid, prodNoTemplate.pid,
                 'گره در درختواره تولیدشده موجود است اما هیچ قالب دانشی به آن تخصیص نیافته — پوشش ناقص.',
                 new Date().toISOString(), new Date().toISOString()
             );

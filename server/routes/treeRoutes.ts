@@ -40,15 +40,18 @@ treeRoutes.post('/:id/clone', async (req, res) => {
     if (!sourceTree) return res.status(404).json({ error: 'درختواره یافت نشد' });
 
     const now = new Date().toISOString();
+    const targetPeriodId = req.body.targetPeriodId ? parseInt(req.body.targetPeriodId) : sourceTree.periodId;
+    const targetName = req.body.name || (sourceTree.name + (req.body.targetPeriodId ? '' : ' (نسخه ' + now.substring(0,10) + ')'));
     
     // Create new tree
     const newTree = await db.insert(knowledgeTrees).values({
-      name: sourceTree.name + ' (نسخه ' + now.substring(0,10) + ')',
+      name: targetName,
       type: sourceTree.type,
       description: sourceTree.description,
-      periodId: sourceTree.periodId,
+      periodId: targetPeriodId,
       baseId: sourceTree.baseId,
       unitId: sourceTree.unitId,
+      isActive: 1,
       createdAt: now,
       updatedAt: now,
     }).returning();

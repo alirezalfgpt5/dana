@@ -75,6 +75,7 @@ export function useGapAnalysis() {
 
   const fetchGaps = useCallback(async (filters?: {
     treeId?: number;
+    periodId?: number | string;
     status?: string;
     gapType?: string;
     priority?: string;
@@ -88,6 +89,7 @@ export function useGapAnalysis() {
     try {
       const params = new URLSearchParams();
       if (filters?.treeId) params.append('treeId', String(filters.treeId));
+      if (filters?.periodId !== undefined && filters.periodId !== 'all') params.append('periodId', String(filters.periodId));
       if (filters?.status) params.append('status', filters.status);
       if (filters?.gapType) params.append('gapType', filters.gapType);
       if (filters?.priority) params.append('priority', filters.priority);
