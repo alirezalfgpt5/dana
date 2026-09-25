@@ -20,9 +20,11 @@ export const DynamicReports: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/reports/data');
-      setData(res.data);
+      const res = await api.get('/api/reports/data') as any;
+      const responseData = res?.issues ? res : res?.data ? res.data : null;
+      setData(responseData);
     } catch (error) {
+      console.error('Error fetching reports data:', error);
       toast.error('خطا در دریافت اطلاعات گزارش‌ساز');
     } finally {
       setLoading(false);
@@ -71,23 +73,121 @@ export const DynamicReports: React.FC = () => {
     if (dataSource === 'gaps') exportData = data.gaps;
     if (dataSource === 'nodes') exportData = data.nodes;
 
-    if (exportData.length === 0) return toast.error('داده‌ای برای خروجی وجود ندارد');
+    if (!exportData || exportData.length === 0) return toast.error('داده‌ای برای خروجی وجود ندارد');
 
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('گزارش');
-    
-    // Add Headers
-    const headers = Object.keys(exportData[0]);
-    worksheet.addRow(headers);
-    
-    // Add Data
-    exportData.forEach(item => {
-      worksheet.addRow(Object.values(item));
-    });
+    workbook.creator = 'سامانه جامع دانا';
+    workbook.created = new Date();
+
+    if (dataSource === 'issues') {
+      const worksheet = workbook.addWorksheet('گزارش وضعیت مسائل', {
+        views: [{ rightToLeft: true }],
+      });
+
+      worksheet.columns = [
+        { header: 'ردیف', key: 'index', width: 8 },
+        { header: 'کد مسئله', key: 'id', width: 12 },
+        { header: 'عنوان مسئله', key: 'title', width: 35 },
+        { header: 'دسته‌بندی', key: 'category', width: 18 },
+        { header: 'حوزه دانشی', key: 'domain', width: 22 },
+        { header: 'وضعیت', key: 'status', width: 16 },
+        { header: 'اولویت اقدام', key: 'actionPriority', width: 14 },
+        { header: 'درصد پیشرفت', key: 'completionPercent', width: 14 },
+        { header: 'واحد متولی', key: 'responsibleUnit', width: 22 },
+        { header: 'نوع دانش', key: 'knowledgeType', width: 16 },
+        { header: 'سطح پروژه', key: 'projectLevel', width: 14 },
+        { header: 'بودجه مورد نیاز (ریال)', key: 'requiredBudget', width: 20 },
+        { header: 'بودجه مصوب (ریال)', key: 'approvedBudget', width: 20 },
+        { header: 'زمان انتظار (ماه)', key: 'expectedMonths', width: 16 },
+        { header: 'جهت‌گیری راه‌حل', key: 'solutionDirection', width: 30 },
+        { header: 'گلوگاه‌ها و چالش‌ها', key: 'bottlenecks', width: 30 },
+      ];
+
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 30;
+      headerRow.font = { name: 'Tahoma', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1E3A8A' }
+      };
+
+      const statusMap: Record<string, string> = {
+        pending: 'در انتظار',
+        in_progress: 'در حال اجرا',
+        completed: 'تکمیل شده',
+        canceled: 'لغو شده',
+        on_hold: 'متوقف',
+      };
+
+      exportData.forEach((issue: any, idx: number) => {
+        const row = worksheet.addRow({
+          index: idx + 1,
+          id: `ISS-${String(issue.id).padStart(4, '0')}`,
+          title: issue.title || '-',
+          category: issue.category || 'عمومی',
+          domain: issue.domain || 'نامشخص',
+          status: statusMap[issue.status] || issue.status || 'در انتظار',
+          actionPriority: issue.actionPriority || 'متوسط',
+          completionPercent: `${issue.completionPercent || 0}%`,
+          responsibleUnit: issue.responsibleUnit || '-',
+          knowledgeType: issue.knowledgeType || '-',
+          projectLevel: issue.projectLevel || '-',
+          requiredBudget: Number(issue.requiredBudget || 0).toLocaleString('fa-IR'),
+          approvedBudget: Number(issue.approvedBudget || 0).toLocaleString('fa-IR'),
+          expectedMonths: issue.expectedMonths || 0,
+          solutionDirection: issue.solutionDirection || '-',
+          bottlenecks: issue.bottlenecks || '-',
+        });
+
+        row.height = 22;
+        row.alignment = { vertical: 'middle', horizontal: 'center' };
+        row.font = { name: 'Tahoma', size: 9 };
+        row.getCell('title').alignment = { vertical: 'middle', horizontal: 'right' };
+        row.getCell('solutionDirection').alignment = { vertical: 'middle', horizontal: 'right' };
+        row.getCell('bottlenecks').alignment = { vertical: 'middle', horizontal: 'right' };
+
+        const statusCell = row.getCell('status');
+        if (issue.status === 'completed') {
+          statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+          statusCell.font = { name: 'Tahoma', size: 9, bold: true, color: { argb: 'FF166534' } };
+        } else if (issue.status === 'in_progress') {
+          statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+          statusCell.font = { name: 'Tahoma', size: 9, bold: true, color: { argb: 'FF1E40AF' } };
+        }
+
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          };
+        });
+
+        if (idx % 2 === 1) {
+          row.eachCell((cell, colNumber) => {
+            if (colNumber !== 6) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+            }
+          });
+        }
+      });
+    } else {
+      const worksheet = workbook.addWorksheet('گزارش', { views: [{ rightToLeft: true }] });
+      const headers = Object.keys(exportData[0]);
+      const headerRow = worksheet.addRow(headers);
+      headerRow.font = { bold: true };
+      exportData.forEach(item => {
+        worksheet.addRow(Object.values(item));
+      });
+    }
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    saveAs(blob, `گزارش_${dataSource}.xlsx`);
+    saveAs(blob, `گزارش_جامع_${dataSource}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    toast.success('فایل اکسل با موفقیت ایجاد شد');
   };
 
   const renderChart = () => {
@@ -136,19 +236,59 @@ export const DynamicReports: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">گزارش‌ساز پویا</h1>
+          <h1 className="text-2xl font-bold text-gray-900">گزارش‌ساز پویا و تحلیل وضعیت مسائل</h1>
           <p className="mt-1 text-sm text-gray-500">
-            ساخت نمودارها و گزارش‌های سفارشی بر اساس داده‌های سیستم
+            ساخت نمودارها و دریافت خروجی‌های فرمت‌بندی شده اکسل از وضعیت نظام مسائل
           </p>
         </div>
-        <button
-          onClick={exportToExcel}
-          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-        >
-          <Download className="w-4 h-4 ml-2" />
-          خروجی اکسل داده‌های خام
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              try {
+                toast.loading('در حال دریافت خروجی کامل اکسل از سرور...', { id: 'srv-excel' });
+                const res = await api.get('/api/reports/issues/excel', { responseType: 'blob' });
+                const blob = res instanceof Blob ? res : new Blob([res as any], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                saveAs(blob, `گزارش_رسمی_وضعیت_مسائل_${new Date().toISOString().slice(0,10)}.xlsx`);
+                toast.success('گزارش رسمی اکسل دانلود شد', { id: 'srv-excel' });
+              } catch (e) {
+                toast.error('خطا در دریافت خروجی اکسل', { id: 'srv-excel' });
+              }
+            }}
+            className="flex items-center px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 shadow-xs text-sm font-medium"
+          >
+            <Download className="w-4 h-4 ml-2" />
+            دانلود گزارش رسمی و فرمت‌بندی شده اکسل
+          </button>
+          <button
+            onClick={exportToExcel}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            <Download className="w-4 h-4 ml-2" />
+            خروجی اکسل نمودار جاری
+          </button>
+        </div>
       </div>
+
+      {dataSource === 'issues' && data?.issues && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white p-4 rounded-xl border border-gray-200">
+            <span className="text-xs text-gray-400">تعداد کل مسائل</span>
+            <p className="text-2xl font-bold text-gray-800">{data.issues.length}</p>
+          </div>
+          <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+            <span className="text-xs text-green-600 font-medium">تکمیل شده</span>
+            <p className="text-2xl font-bold text-green-700">{data.issues.filter(i => i.status === 'completed').length}</p>
+          </div>
+          <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+            <span className="text-xs text-blue-600 font-medium">در حال اجرا</span>
+            <p className="text-2xl font-bold text-blue-700">{data.issues.filter(i => i.status === 'in_progress').length}</p>
+          </div>
+          <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+            <span className="text-xs text-yellow-600 font-medium">در انتظار</span>
+            <p className="text-2xl font-bold text-yellow-700">{data.issues.filter(i => i.status === 'pending').length}</p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -177,13 +317,17 @@ export const DynamicReports: React.FC = () => {
               {dataSource === 'issues' && (
                 <>
                   <option value="status">وضعیت</option>
+                  <option value="category">دسته‌بندی مسئله</option>
                   <option value="actionPriority">اولویت اقدام</option>
                   <option value="knowledgeType">نوع دانش</option>
+                  <option value="projectLevel">سطح پروژه</option>
                 </>
               )}
               {dataSource === 'gaps' && (
                 <>
                   <option value="status">وضعیت شکاف</option>
+                  <option value="priority">اولویت شکاف</option>
+                  <option value="gapType">نوع شکاف</option>
                 </>
               )}
               {dataSource === 'nodes' && (

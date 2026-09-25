@@ -44,6 +44,7 @@ interface Issue {
   stage100: any;
   application: any;
   status: 'pending' | 'in_progress' | 'completed' | 'canceled' | 'on_hold';
+  category?: string | null;
   metadata: any;
   createdAt: string;
   updatedAt: string;
@@ -62,6 +63,7 @@ interface IssueFilters {
   projectLevel?: string;
   timeFrame?: string;
   knowledgeType?: string;
+  category?: string;
   search?: string;
   fromDate?: string;
   toDate?: string;
@@ -112,6 +114,7 @@ export function useIssues() {
       if (filters?.projectLevel) params.append('projectLevel', filters.projectLevel);
       if (filters?.timeFrame) params.append('timeFrame', filters.timeFrame);
       if (filters?.knowledgeType) params.append('knowledgeType', filters.knowledgeType);
+      if (filters?.category && filters.category !== 'all') params.append('category', filters.category);
       if (filters?.search) params.append('search', filters.search);
       if (filters?.fromDate) params.append('fromDate', filters.fromDate);
       if (filters?.toDate) params.append('toDate', filters.toDate);

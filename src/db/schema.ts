@@ -321,6 +321,7 @@ export const issues = sqliteTable('issues', {
   application: text('application', { mode: 'json' }),
   
   status: text('status').default('pending'),
+  category: text('category'),
   
   metadata: text('metadata', { mode: 'json' }),
   createdAt: text('created_at').notNull(),

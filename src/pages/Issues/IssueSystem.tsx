@@ -14,8 +14,9 @@ import {
   CheckCircle, AlertCircle, Clock,
   Filter, Edit, Trash2, ChevronDown,
   ChevronUp, DollarSign, Eye, Building2,
-  HelpCircle, TrendingUp, Calendar, ArrowLeftRight
+  HelpCircle, TrendingUp, Calendar, ArrowLeftRight, Download
 } from 'lucide-react';
+import api from '../../services/api';
 import { AdvancedQueryBuilder, FilterGroup } from '../../components/ui/AdvancedQueryBuilder';
 import { format } from 'date-fns-jalali';
 import { KanbanBoard } from '../../components/issues/KanbanBoard';
@@ -56,6 +57,7 @@ export function IssueSystem() {
   const [expandedIssue, setExpandedIssue] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [timeFrameFilter, setTimeFrameFilter] = useState('all');
   const [filterByPeriod, setFilterByPeriod] = useState<boolean>(true);
   const [showRolloverModal, setShowRolloverModal] = useState<boolean>(false);
@@ -69,10 +71,35 @@ export function IssueSystem() {
       page,
       limit: pagination.limit || 20,
       periodId: filterByPeriod && activePeriod ? activePeriod.id : undefined,
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      priority: priorityFilter !== 'all' ? priorityFilter : undefined,
+      category: categoryFilter !== 'all' ? categoryFilter : undefined,
       timeFrame: timeFrameFilter !== 'all' ? timeFrameFilter : undefined,
       search: searchTerm || undefined,
       advancedFilter: advancedFilter ? JSON.stringify(advancedFilter) : undefined
     });
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      toast.loading('در حال آماده‌سازی گزارش جامع اکسل...', { id: 'excel-toast' });
+      const res = await api.get('/api/reports/issues/excel', { responseType: 'blob' });
+      const blob = res instanceof Blob 
+        ? res 
+        : new Blob([res as any], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `گزارش_وضعیت_نظام_مسائل_${format(new Date(), 'yyyyMMdd')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('فایل اکسل با موفقیت دانلود شد', { id: 'excel-toast' });
+    } catch (e) {
+      console.error('Error downloading Excel report:', e);
+      toast.error('خطا در دریافت فایل اکسل', { id: 'excel-toast' });
+    }
   };
 
   useEffect(() => {
@@ -82,8 +109,11 @@ export function IssueSystem() {
       setSearchTerm(q);
     }
     loadIssuesData(1);
+  }, [location.search, activePeriod?.id, filterByPeriod, timeFrameFilter, statusFilter, priorityFilter, categoryFilter, searchTerm]);
+
+  useEffect(() => {
     fetchTemplates();
-  }, [location.search, activePeriod?.id, filterByPeriod, timeFrameFilter]);
+  }, []);
 
   // Handle initialization from routing state (e.g. from Gap Analysis or Research Tree)
   useEffect(() => {
@@ -282,6 +312,16 @@ export function IssueSystem() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* دکمه دانلود گزارش اکسل */}
+          <button
+            onClick={handleExportExcel}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-xs"
+            title="دانلود خروجی فرمت‌بندی شده اکسل از وضعیت تمامی مسائل"
+          >
+            <Download size={17} />
+            <span>گزارش اکسل</span>
+          </button>
+
           {/* دکمه عملیات انتقال و ورود اطلاعات دوره‌ای */}
           <button
             onClick={() => setShowRolloverModal(true)}
@@ -485,6 +525,21 @@ export function IssueSystem() {
             <option value="کم">⬇️ کم</option>
           </select>
           <select
+            value={categoryFilter}
+            onChange={e => setCategoryFilter(e.target.value)}
+            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 min-w-[140px]"
+          >
+            <option value="all">🏷️ همه دسته‌ها</option>
+            <option value="عمومی">عمومی</option>
+            <option value="فنی و مهندسی">فنی و مهندسی</option>
+            <option value="مدیریتی و سازمانی">مدیریتی و سازمانی</option>
+            <option value="فرهنگی و اجتماعی">فرهنگی و اجتماعی</option>
+            <option value="علمی و پژوهشی">علمی و پژوهشی</option>
+            <option value="اقتصادی و مالی">اقتصادی و مالی</option>
+            <option value="حقوقی و تقنینی">حقوقی و تقنینی</option>
+            <option value="زیرساختی و لجستیک">زیرساختی و لجستیک</option>
+          </select>
+          <select
             value={timeFrameFilter}
             onChange={e => setTimeFrameFilter(e.target.value)}
             className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 min-w-[140px]"
@@ -499,6 +554,7 @@ export function IssueSystem() {
               setSearchTerm('');
               setStatusFilter('all');
               setPriorityFilter('all');
+              setCategoryFilter('all');
               setTimeFrameFilter('all');
             }}
             className="px-4 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
@@ -509,7 +565,7 @@ export function IssueSystem() {
         </div>
 
         {/* فیلترهای فعال */}
-        {(searchTerm || statusFilter !== 'all' || priorityFilter !== 'all') && (
+        {(searchTerm || statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all') && (
           <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
             <span className="text-xs text-gray-400 ml-2">🔍 فیلترهای فعال:</span>
             {searchTerm && (
@@ -532,6 +588,14 @@ export function IssueSystem() {
               <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-[10px]">
                 اولویت: {priorityFilter}
                 <button onClick={() => setPriorityFilter('all')} className="hover:text-red-500">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {categoryFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px]">
+                دسته‌بندی: {categoryFilter}
+                <button onClick={() => setCategoryFilter('all')} className="hover:text-red-500">
                   <X size={12} />
                 </button>
               </span>
@@ -627,6 +691,11 @@ export function IssueSystem() {
                       {issue.templates && issue.templates.length > 0 && (
                         <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full font-medium">
                           📋 {issue.templates.length} قالب
+                        </span>
+                      )}
+                      {issue.category && (
+                        <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">
+                          🏷️ {issue.category}
                         </span>
                       )}
                     </div>
@@ -868,6 +937,11 @@ export function IssueSystem() {
                       {issue.templates && issue.templates.length > 0 && (
                         <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full">
                           📋 {issue.templates.length}
+                        </span>
+                      )}
+                      {issue.category && (
+                        <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">
+                          🏷️ {issue.category}
                         </span>
                       )}
                     </div>
