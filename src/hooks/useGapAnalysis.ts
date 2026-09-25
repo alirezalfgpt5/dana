@@ -83,6 +83,9 @@ export function useGapAnalysis() {
     page?: number;
     limit?: number;
     advancedFilter?: string;
+    baseId?: number | string;
+    unitId?: number | string;
+    mode?: string;
   }) => {
     setLoading(true);
 
@@ -97,6 +100,9 @@ export function useGapAnalysis() {
       if (filters?.page) params.append('page', String(filters.page));
       if (filters?.limit) params.append('limit', String(filters.limit));
       if (filters?.advancedFilter) params.append('advancedFilter', filters.advancedFilter);
+      if (filters?.baseId) params.append('baseId', String(filters.baseId));
+      if (filters?.unitId) params.append('unitId', String(filters.unitId));
+      if (filters?.mode) params.append('mode', filters.mode);
 
       const url = `/api/gaps${params.toString() ? '?' + params.toString() : ''}`;
       const response: PaginatedResponse = await apiClient(url);

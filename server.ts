@@ -24,7 +24,9 @@ app.set('trust proxy', 1); // Trust first proxy for express-rate-limit
 // ⚠️ توجه: به‌طور عمدی هیچ handler سراسری uncaughtException/unhandledRejection ثبت نمی‌شود
 // تا خطاهای راه‌اندازی (مانند اشغال بودن پورت) باعث خروج تمیز و شفاف پروسه شوند.
 
-const PORT = 3000;
+const portArgIndex = process.argv.indexOf('--port');
+const cliPort = portArgIndex !== -1 && process.argv[portArgIndex + 1] ? parseInt(process.argv[portArgIndex + 1], 10) : null;
+const PORT = cliPort || (process.env.PORT ? parseInt(process.env.PORT, 10) : 3000);
 
 const currentDir = process.cwd();
 
@@ -47,6 +49,7 @@ import { orgRoutes } from './server/routes/org.js';
 import { userRoutes } from './server/routes/users.js';
 import { periodRoutes } from './server/routes/periods.js';
 import { fileRoutes } from './server/routes/files.js';
+import { unitDataExchangeRoutes } from './server/routes/unitDataExchangeRoutes.js';
 import { auditRoutes } from './server/routes/audit.js';
 import { searchRoutes } from './server/routes/searchRoutes.js';
 import { reportRoutes } from './server/routes/reportRoutes.js';
@@ -221,7 +224,9 @@ app.use('/api/outputs', requireAuth, outputRoutes);
 app.use('/api/org', requireAuth, orgRoutes);
 app.use('/api/users', requireAuth, userRoutes);
 app.use('/api/periods', requireAuth, periodRoutes);
+app.use('/api/files', unitDataExchangeRoutes);
 app.use('/api/files', fileRoutes); 
+app.use('/api/data-exchange', unitDataExchangeRoutes);
 app.use('/api/audit', requireAuth, auditRoutes);
 app.use('/api/search', requireAuth, searchRoutes);
 app.use('/api/reports', requireAuth, reportRoutes);
@@ -350,7 +355,9 @@ async function startServer() {
         appType: 'spa',
       });
       app.use(vite.middlewares);
-    } catch (e) {}
+    } catch (e) {
+      console.error('❌ Failed to create Vite middleware:', e);
+    }
   } else {
     const distPath = path.join(currentDir, 'dist');
     if (fs.existsSync(distPath)) {

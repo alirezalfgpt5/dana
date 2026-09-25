@@ -32,6 +32,8 @@ import {
   type GapAnalysisEngineOptions,
 } from '../../src/utils/gapAnalysisEngine.js';
 import { bases, units } from '../../src/db/schema.js';
+import { getUserOrgScope } from '../utils/orgAccess.js';
+import { sqlite } from '../../src/db/index.js';
 
 export const gapRoutes = Router();
 
@@ -49,12 +51,47 @@ gapRoutes.get('/', async (req, res) => {
       priority,
       search,
       advancedFilter,
+      baseId,
+      unitId,
+      mode,
       page = 1,
       limit = 20
     } = req.query;
 
     let query = db.select().from(gaps);
     const conditions: any[] = [];
+
+    // کنترل دسترسی سازمانی
+    const user = (req as AuthRequest).user;
+    const orgScope = getUserOrgScope(user);
+    const isAggregate = mode === 'aggregate';
+    const effective = orgScope.getEffectiveFilter(
+      baseId ? parseInt(baseId as string) : null,
+      unitId ? parseInt(unitId as string) : null,
+      isAggregate
+    );
+
+    if (effective.unitIds && effective.unitIds.length > 0) {
+      // فقط گپ‌های مربوط به درخت‌های این یگان‌ها
+      const userTrees = await db.select({ id: knowledgeTrees.id })
+        .from(knowledgeTrees)
+        .where(inArray(knowledgeTrees.unitId, effective.unitIds));
+      const treeIds = userTrees.map(t => t.id);
+      if (treeIds.length > 0) {
+        const uNodes = await db.select({ id: treeNodes.id }).from(treeNodes).where(inArray(treeNodes.treeId, treeIds));
+        const uNodeIds = uNodes.map(n => n.id);
+        if (uNodeIds.length > 0) {
+          conditions.push(or(
+            inArray(gaps.requiredNodeId, uNodeIds),
+            inArray(gaps.producedNodeId, uNodeIds)
+          ));
+        } else {
+          conditions.push(eq(gaps.id, -1));
+        }
+      } else {
+        conditions.push(eq(gaps.id, -1));
+      }
+    }
 
     if (periodId && periodId !== 'all') {
       conditions.push(eq(gaps.periodId, parseInt(periodId as string)));

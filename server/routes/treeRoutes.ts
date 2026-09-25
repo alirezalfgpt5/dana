@@ -20,6 +20,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { requireRole } from '../middleware/rbac.js';
+import { getUserOrgScope } from '../utils/orgAccess.js';
 export const treeRoutes = Router();
 
 // ============================================
@@ -114,13 +115,15 @@ treeRoutes.post('/:id/clone', async (req, res) => {
 // Helper برای بررسی دسترسی
 async function hasTreeAccess(user: any, treeId: number) {
   if (!user) return false;
-  if (user.role === 'superadmin') return true;
+  const orgScope = getUserOrgScope(user);
+  if (orgScope.isSuperAdmin || orgScope.level === 'AJA') return true;
+
   const treeArray = await db.select().from(knowledgeTrees).where(eq(knowledgeTrees.id, treeId));
   if (treeArray.length === 0) return false;
   const tree = treeArray[0];
   
-  if (user.organizationLevel === 'NIROO' && tree.baseId !== user.baseId) return false;
-  if (user.organizationLevel === 'RADE' && tree.unitId !== user.unitId) return false;
+  if (tree.unitId && !orgScope.canAccessUnit(tree.unitId)) return false;
+  if (tree.baseId && !orgScope.canAccessBase(tree.baseId)) return false;
   
   return true;
 }
@@ -133,7 +136,7 @@ async function hasTreeAccess(user: any, treeId: number) {
 // دریافت لیست درختواره‌ها با فیلتر
 treeRoutes.get('/', async (req, res) => {
   try {
-    const { type, periodId, baseId, unitId, isActive } = req.query;
+    const { type, periodId, baseId, unitId, isActive, mode } = req.query;
     
     let query = db.select().from(knowledgeTrees);
     const conditions: any[] = [];
@@ -144,28 +147,23 @@ treeRoutes.get('/', async (req, res) => {
     if (periodId) {
       conditions.push(eq(knowledgeTrees.periodId, parseInt(periodId as string)));
     }
-    if (baseId) {
-      conditions.push(eq(knowledgeTrees.baseId, parseInt(baseId as string)));
-    }
-    if (unitId) {
-      conditions.push(eq(knowledgeTrees.unitId, parseInt(unitId as string)));
-    }
     if (isActive !== undefined) {
       conditions.push(eq(knowledgeTrees.isActive, parseInt(isActive as string)));
     }
 
-    
     const user = (req as AuthRequest).user;
-    if (user && user.role !== 'superadmin') {
-      if (user.organizationLevel === 'AJA') {
-        // Can see all maybe? The gap analysis requirement says:
-        // آجا، نیرو، رده
-        // Assuming AJA can see all, NIROO can see their base, RADE can see their unit.
-      } else if (user.organizationLevel === 'NIROO' && user.baseId) {
-        conditions.push(eq(knowledgeTrees.baseId, user.baseId));
-      } else if (user.organizationLevel === 'RADE' && user.unitId) {
-        conditions.push(eq(knowledgeTrees.unitId, user.unitId));
-      }
+    const orgScope = getUserOrgScope(user);
+    const isAggregate = mode === 'aggregate';
+    const effective = orgScope.getEffectiveFilter(
+      baseId ? parseInt(baseId as string) : null,
+      unitId ? parseInt(unitId as string) : null,
+      isAggregate
+    );
+
+    if (effective.unitIds && effective.unitIds.length > 0) {
+      conditions.push(inArray(knowledgeTrees.unitId, effective.unitIds));
+    } else if (effective.baseIds && effective.baseIds.length > 0) {
+      conditions.push(inArray(knowledgeTrees.baseId, effective.baseIds));
     }
 
     if (conditions.length > 0) {

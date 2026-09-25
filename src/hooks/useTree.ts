@@ -76,6 +76,7 @@ export function useTree() {
     baseId?: number;
     unitId?: number;
     isActive?: number;
+    mode?: string;
   }) => {
     setLoading(true);
     setError(null);
@@ -87,6 +88,7 @@ export function useTree() {
       if (filters?.baseId) params.append('baseId', String(filters.baseId));
       if (filters?.unitId) params.append('unitId', String(filters.unitId));
       if (filters?.isActive !== undefined) params.append('isActive', String(filters.isActive));
+      if (filters?.mode) params.append('mode', filters.mode);
 
       const url = `/api/trees${params.toString() ? '?' + params.toString() : ''}`;
       const data = await apiClient(url);

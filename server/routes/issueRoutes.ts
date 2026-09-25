@@ -18,6 +18,8 @@ import {
 import { eq, and, or, like, isNull, not, desc, inArray, sql } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
 import { format } from 'date-fns-jalali';
+import { getUserOrgScope } from '../utils/orgAccess.js';
+import { sqlite } from '../../src/db/index.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -72,7 +74,9 @@ export const issueRoutes = Router();
 // Helper برای بررسی دسترسی به مسئله
 async function hasIssueAccess(user: any, issueId: number) {
   if (!user) return false;
-  if (user.role === 'superadmin') return true;
+  const orgScope = getUserOrgScope(user);
+  if (orgScope.isSuperAdmin || orgScope.level === 'AJA') return true;
+
   const issueArr = await db.select().from(issues).where(eq(issues.id, issueId));
   if (issueArr.length === 0) return false;
   const issue = issueArr[0];
@@ -83,11 +87,18 @@ async function hasIssueAccess(user: any, issueId: number) {
         const treeArr = await db.select().from(knowledgeTrees).where(eq(knowledgeTrees.id, nodeArr[0].treeId));
         if (treeArr.length > 0) {
            const tree = treeArr[0];
-           if (user.organizationLevel === 'NIROO' && tree.baseId !== user.baseId) return false;
-           if (user.organizationLevel === 'RADE' && tree.unitId !== user.unitId) return false;
+           if (tree.unitId && !orgScope.canAccessUnit(tree.unitId)) return false;
+           if (tree.baseId && !orgScope.canAccessBase(tree.baseId)) return false;
         }
      }
   }
+
+  // بررسی واحد مسئول در صورت وجود
+  if (issue.responsibleUnit && orgScope.level === 'RADE' && orgScope.unitId) {
+    const u = sqlite.prepare('SELECT name FROM units WHERE id = ?').get(orgScope.unitId) as { name: string } | undefined;
+    if (u && issue.responsibleUnit !== u.name && !issue.domainNodeId) return false;
+  }
+
   return true;
 }
 
@@ -109,6 +120,9 @@ issueRoutes.get('/', async (req, res) => {
       fromDate,
       toDate,
       advancedFilter,
+      baseId,
+      unitId,
+      mode,
       page = 1,
       limit = 20 
     } = req.query;
@@ -116,6 +130,58 @@ issueRoutes.get('/', async (req, res) => {
     let query = db.select().from(issues);
     
     const conditions: any[] = [];
+    
+    // ۱. کنترل دسترسی سازمانی و ایزوله‌سازی یگان‌های موازی
+    const user = (req as AuthRequest).user;
+    const orgScope = getUserOrgScope(user);
+    const isAggregate = mode === 'aggregate';
+    const effective = orgScope.getEffectiveFilter(
+      baseId ? parseInt(baseId as string) : null,
+      unitId ? parseInt(unitId as string) : null,
+      isAggregate
+    );
+
+    if (effective.unitIds && effective.unitIds.length > 0) {
+      // استخراج درخت‌های این یگان‌ها
+      const unitTrees = await db.select({ id: knowledgeTrees.id })
+        .from(knowledgeTrees)
+        .where(inArray(knowledgeTrees.unitId, effective.unitIds));
+      const treeIds = unitTrees.map(t => t.id);
+
+      const unitNames = sqlite.prepare(`SELECT name FROM units WHERE id IN (${effective.unitIds.map(() => '?').join(',')})`).all(...effective.unitIds).map((u: any) => u.name);
+
+      let nodeIds: number[] = [];
+      if (treeIds.length > 0) {
+        const nodes = await db.select({ id: treeNodes.id }).from(treeNodes).where(inArray(treeNodes.treeId, treeIds));
+        nodeIds = nodes.map(n => n.id);
+      }
+
+      const orgConds: any[] = [];
+      if (nodeIds.length > 0) {
+        orgConds.push(inArray(issues.domainNodeId, nodeIds));
+      }
+      if (unitNames.length > 0) {
+        orgConds.push(inArray(issues.responsibleUnit, unitNames));
+      }
+
+      if (orgConds.length > 0) {
+        conditions.push(or(...orgConds));
+      } else {
+        conditions.push(eq(issues.id, -1));
+      }
+    } else if (effective.baseIds && effective.baseIds.length > 0) {
+      const baseTrees = await db.select({ id: knowledgeTrees.id })
+        .from(knowledgeTrees)
+        .where(inArray(knowledgeTrees.baseId, effective.baseIds));
+      const treeIds = baseTrees.map(t => t.id);
+      if (treeIds.length > 0) {
+        const nodes = await db.select({ id: treeNodes.id }).from(treeNodes).where(inArray(treeNodes.treeId, treeIds));
+        const nodeIds = nodes.map(n => n.id);
+        if (nodeIds.length > 0) {
+          conditions.push(inArray(issues.domainNodeId, nodeIds));
+        }
+      }
+    }
     
     const treeId = req.query.treeId;
     const periodId = req.query.periodId;
