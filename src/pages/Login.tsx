@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { useAuthStore, useUIStore } from '../store';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Building2, KeyRound, User, Shield, Eye, EyeOff } from 'lucide-react';
+import { BookOpen, Sparkles, KeyRound, User, Shield, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function Login() {
@@ -116,8 +116,9 @@ export function Login() {
                 className="w-14 h-14 rounded-2xl object-cover bg-white shadow-md border-2 border-white/40"
               />
             ) : (
-              <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center shadow-md border border-white/25">
-                <Building2 className="text-white" size={28} />
+              <div className="w-14 h-14 bg-gradient-to-tr from-white/20 to-white/10 rounded-2xl flex items-center justify-center shadow-lg border border-white/30 backdrop-blur-sm relative">
+                <BookOpen className="text-white" size={26} />
+                <Sparkles className="text-amber-300 absolute -top-1 -right-1 animate-pulse" size={14} />
               </div>
             )}
             <div className="text-right">

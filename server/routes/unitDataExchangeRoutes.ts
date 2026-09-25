@@ -760,18 +760,28 @@ unitDataExchangeRoutes.post('/template/upload-sync', requireAuth, upload.single(
           domainNodeId = nodeTitleToIdMap.get(domainNodeTitle.trim().toLowerCase()) || null;
         }
 
+        let matchedIssueId: number | null = null;
         if (issueId && Number(issueId)) {
           const idNum = Number(issueId);
-          const existingIssue = sqlite.prepare('SELECT id FROM issues WHERE id = ?').get(idNum);
+          const existingIssue = sqlite.prepare('SELECT id FROM issues WHERE id = ?').get(idNum) as { id: number } | undefined;
           if (existingIssue) {
-            updateIssueStmt.run(domainNodeId, title, solution, desc, actionPriority, projectLevel, confidentiality || 'عادی', bottlenecks, unitRow.name, now, idNum);
-            issuesUpdated++;
-            return;
+            matchedIssueId = existingIssue.id;
+          }
+        }
+        if (!matchedIssueId) {
+          const existingByTitle = sqlite.prepare('SELECT id FROM issues WHERE period_id = ? AND title = ? AND responsible_unit = ?').get(periodId, title, unitRow.name) as { id: number } | undefined;
+          if (existingByTitle) {
+            matchedIssueId = existingByTitle.id;
           }
         }
 
-        insertIssueStmt.run(periodId, domainNodeId, title, solution, desc, actionPriority, projectLevel, confidentiality || 'عادی', bottlenecks, unitRow.name, now, now);
-        issuesCreated++;
+        if (matchedIssueId) {
+          updateIssueStmt.run(domainNodeId, title, solution, desc, actionPriority, projectLevel, confidentiality || 'عادی', bottlenecks, unitRow.name, now, matchedIssueId);
+          issuesUpdated++;
+        } else {
+          insertIssueStmt.run(periodId, domainNodeId, title, solution, desc, actionPriority, projectLevel, confidentiality || 'عادی', bottlenecks, unitRow.name, now, now);
+          issuesCreated++;
+        }
       });
     }
 

@@ -174,7 +174,7 @@ treeRoutes.get('/', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error fetching trees:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'خطا در دریافت لیست درختواره‌ها' });
   }
 });
 
@@ -332,7 +332,7 @@ treeRoutes.post('/', requireRole(['admin', 'knowledge_manager']), async (req, re
     res.status(201).json(result[0]);
   } catch (error) {
     console.error('Error creating tree:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'خطا در ایجاد درختواره دانشی جدید' });
   }
 });
 
@@ -399,7 +399,7 @@ treeRoutes.put('/:id', requireRole(['admin', 'knowledge_manager']), async (req, 
     res.json(result[0]);
   } catch (error) {
     console.error('Error updating tree:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'خطا در به‌روزرسانی درختواره' });
   }
 });
 
@@ -490,7 +490,7 @@ treeRoutes.delete('/:id', requireRole(['admin', 'knowledge_manager']), async (re
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting tree:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'خطا در حذف درختواره دانشی' });
   }
 });
 
@@ -620,7 +620,7 @@ treeRoutes.post('/:treeId/nodes', requireRole(['admin', 'knowledge_manager', 'ex
     res.status(201).json(result[0]);
   } catch (error) {
     console.error('Error creating node:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'خطا در ایجاد گره دانشی' });
   }
 });
 
@@ -758,7 +758,7 @@ treeRoutes.put('/nodes/:nodeId', requireRole(['admin', 'knowledge_manager', 'exp
     res.json(result[0]);
   } catch (error) {
     console.error('Error updating node:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'خطا در ویرایش گره دانشی' });
   }
 });
 
@@ -946,7 +946,7 @@ treeRoutes.post('/:treeId/copy', async (req, res) => {
     });
   } catch (error) {
     console.error('Error copying tree:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'خطا در کپی درختواره دانشی' });
   }
 });
 
@@ -976,7 +976,7 @@ treeRoutes.get('/nodes/:nodeId/path', async (req, res) => {
     res.json({ path });
   } catch (error) {
     console.error('Error getting node path:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'خطا در محاسبه مسیر گره دانشی' });
   }
 });
 
@@ -1002,6 +1002,6 @@ treeRoutes.get('/domain-nodes/all', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error fetching domain nodes:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'خطا در دریافت گره‌های دانشی متصل به مسائل' });
   }
 });
