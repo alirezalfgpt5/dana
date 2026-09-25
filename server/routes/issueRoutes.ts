@@ -116,6 +116,7 @@ issueRoutes.get('/', async (req, res) => {
       projectLevel,
       timeFrame,
       knowledgeType,
+      category,
       search,
       fromDate,
       toDate,

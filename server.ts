@@ -26,8 +26,11 @@ app.set('trust proxy', 1); // Trust first proxy for express-rate-limit
 
 // پورت سرور برنامه باید 3000 باشد (پورت 8080 مربوط به پروکسی معکوس Nginx است)
 let targetPort = 3000;
+const portEq = process.argv.find(arg => arg.startsWith('--port='));
 const portArgIndex = process.argv.indexOf('--port');
-if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+if (portEq) {
+  targetPort = parseInt(portEq.split('=')[1], 10);
+} else if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
   targetPort = parseInt(process.argv[portArgIndex + 1], 10);
 } else {
   const numericArg = process.argv.find(arg => /^\d{4,5}$/.test(arg));

@@ -2,7 +2,7 @@
 // اتصال به پایگاه داده و مقداردهی اولیه - نسخه ۳.۱ با پشتیبانی از نمونه‌های قالب
 
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import Database from 'better-sqlite3';
+import BetterSqlite3Compat from './sqlite-adapter.js';
 import * as schema from './schema.js';
 import path from 'path';
 import fs from 'fs';
@@ -18,13 +18,13 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-export const sqlite = new Database(dbPath);
+export const sqlite = new BetterSqlite3Compat(dbPath);
 
 sqlite.exec('PRAGMA foreign_keys = ON;');
 sqlite.exec('PRAGMA journal_mode = WAL;');
 sqlite.exec('PRAGMA busy_timeout = 5000;');
 
-export const db = drizzle(sqlite, { schema });
+export const db = drizzle(sqlite as any, { schema });
 
 // ============================================
 // ۲. تابع مقداردهی اولیه پایگاه داده

@@ -1,10 +1,11 @@
 node_modules/
+build/
 dist/
-bun.lock
-backups/
-# SQLite runtime database files (regenerated on every run)
-database.sqlite
-database.sqlite-shm
-database.sqlite-wal
-database.sqlite-journal
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
 
+dana.zip
+backups/

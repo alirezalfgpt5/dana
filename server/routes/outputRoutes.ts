@@ -1089,4 +1089,308 @@ outputRoutes.post('/gaps/:treeId/excel-import', upload.single('file'), async (re
   }
 });
 
+// ============================================
+// 📥 خروجی جامع اکسل نظام مسائل و بودجه
+// ============================================
+outputRoutes.get('/issues/excel', async (req, res) => {
+  try {
+    const { periodId, category, status, priority, search, unitId, responsibleUnit } = req.query;
+    const userId = (req as AuthRequest).user?.id || null;
+
+    // بازیابی تمام مسائل بر اساس فیلترها
+    let allIssues = await db.select().from(issues);
+
+    if (periodId && periodId !== 'all') {
+      const pId = parseInt(periodId as string);
+      allIssues = allIssues.filter(i => i.periodId === pId);
+    }
+    if (status && status !== 'all') {
+      allIssues = allIssues.filter(i => i.status === status);
+    }
+    if (priority && priority !== 'all') {
+      allIssues = allIssues.filter(i => i.actionPriority === priority);
+    }
+    if (category && category !== 'all') {
+      const cat = String(category).trim().toLowerCase();
+      allIssues = allIssues.filter(i => 
+        (i.knowledgeType && i.knowledgeType.toLowerCase().includes(cat)) ||
+        (i.researchProjectType && i.researchProjectType.toLowerCase().includes(cat)) ||
+        (i.knowledgeProjectType && i.knowledgeProjectType.toLowerCase().includes(cat))
+      );
+    }
+    if (responsibleUnit) {
+      allIssues = allIssues.filter(i => i.responsibleUnit === responsibleUnit);
+    }
+    if (search) {
+      const s = String(search).trim().toLowerCase();
+      allIssues = allIssues.filter(i => 
+        (i.title && i.title.toLowerCase().includes(s)) ||
+        (i.solutionDirection && i.solutionDirection.toLowerCase().includes(s)) ||
+        (i.responsibleUnit && i.responsibleUnit.toLowerCase().includes(s))
+      );
+    }
+
+    // بازیابی اطلاعات تکمیلی: دوره‌ها و گره‌ها
+    const allPeriods = await db.select().from(periods);
+    const periodsMap = new Map(allPeriods.map(p => [p.id, p.name]));
+
+    const nodeIds = allIssues.map(i => i.domainNodeId).filter(Boolean) as number[];
+    let nodeMap = new Map<number, string>();
+    if (nodeIds.length > 0) {
+      const nodes = await db.select({ id: treeNodes.id, title: treeNodes.title })
+        .from(treeNodes)
+        .where(inArray(treeNodes.id, nodeIds));
+      nodeMap = new Map(nodes.map(n => [n.id, n.title]));
+    }
+
+    // ایجاد کتاب کار اکسل
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'سیستم مدیریت دانش (DANA)';
+    workbook.created = new Date();
+
+    // ===============================
+    // شیت ۱: فهرست جامع مسائل و بودجه
+    // ===============================
+    const sheet1 = workbook.addWorksheet('فهرست جامع مسائل', {
+      views: [{ rightToLeft: true, showGridLines: true }],
+    });
+
+    // استایل‌های فونت و حاشیه
+    const FONT_NAME = 'Vazirmatn';
+    const borderStyle: any = {
+      top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+    };
+
+    // سرستون‌های گزارش
+    sheet1.columns = [
+      { header: 'ردیف', key: 'rowNum', width: 8 },
+      { header: 'شناسه', key: 'id', width: 10 },
+      { header: 'عنوان مسئله', key: 'title', width: 35 },
+      { header: 'یگان متولی / مسئول', key: 'responsibleUnit', width: 22 },
+      { header: 'حوزه دانشی', key: 'domain', width: 24 },
+      { header: 'دوره زمانی', key: 'periodName', width: 16 },
+      { header: 'سطح پروژه', key: 'projectLevel', width: 14 },
+      { header: 'نوع دانش', key: 'knowledgeType', width: 16 },
+      { header: 'نوع پروژه پژوهشی', key: 'researchProjectType', width: 18 },
+      { header: 'وضعیت', key: 'statusLabel', width: 15 },
+      { header: 'اولویت اقدام', key: 'actionPriority', width: 14 },
+      { header: 'بودجه مورد نیاز (ریال)', key: 'requiredBudget', width: 22 },
+      { header: 'بودجه مصوب (ریال)', key: 'approvedBudget', width: 22 },
+      { header: 'بودجه واگذار شده (ریال)', key: 'assignedBudget', width: 22 },
+      { header: 'مانده بودجه (ریال)', key: 'remainingBudget', width: 22 },
+      { header: 'پیشرفت (%)', key: 'completionPercent', width: 14 },
+      { header: 'مدت (ماه)', key: 'expectedMonths', width: 12 },
+      { header: 'مرجع تصویب', key: 'approvalAuthority', width: 18 },
+      { header: 'تاریخ تصویب', key: 'approvalDate', width: 15 },
+      { header: 'جهت‌گیری راه‌کار', key: 'solutionDirection', width: 35 },
+    ];
+
+    // استایل هدر
+    const headerRow = sheet1.getRow(1);
+    headerRow.height = 30;
+    headerRow.eachCell((cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1E3A8A' }, // سرمه‌ای رسمی
+      };
+      cell.font = { name: FONT_NAME, bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      cell.border = borderStyle;
+    });
+
+    const statusMap: Record<string, string> = {
+      pending: 'در انتظار بررسی',
+      in_progress: 'در حال اجرا',
+      completed: 'تکمیل شده',
+      on_hold: 'متوقف شده',
+      canceled: 'لغو شده',
+    };
+
+    let totalReq = 0;
+    let totalApp = 0;
+    let totalAss = 0;
+
+    allIssues.forEach((issue, idx) => {
+      const reqB = Number(issue.requiredBudget || 0);
+      const appB = Number(issue.approvedBudget || 0);
+      const assB = Number(issue.assignedBudget || 0);
+      const remB = appB > 0 ? (appB - assB) : (reqB - assB);
+
+      totalReq += reqB;
+      totalApp += appB;
+      totalAss += assB;
+
+      const row = sheet1.addRow({
+        rowNum: idx + 1,
+        id: issue.id,
+        title: issue.title,
+        responsibleUnit: issue.responsibleUnit || '-',
+        domain: (issue.domainNodeId ? nodeMap.get(issue.domainNodeId) : null) || '-',
+        periodName: (issue.periodId ? periodsMap.get(issue.periodId) : null) || 'عمومی',
+        projectLevel: issue.projectLevel || '-',
+        knowledgeType: issue.knowledgeType || '-',
+        researchProjectType: issue.researchProjectType || '-',
+        statusLabel: statusMap[issue.status || 'pending'] || issue.status,
+        actionPriority: issue.actionPriority || 'متوسط',
+        requiredBudget: reqB,
+        approvedBudget: appB,
+        assignedBudget: assB,
+        remainingBudget: remB,
+        completionPercent: issue.completionPercent || 0,
+        expectedMonths: issue.expectedMonths || 0,
+        approvalAuthority: issue.approvalAuthority || '-',
+        approvalDate: issue.approvalDate || '-',
+        solutionDirection: issue.solutionDirection || '-',
+      });
+
+      row.height = 24;
+      const isEven = idx % 2 === 0;
+      row.eachCell((cell, colNum) => {
+        cell.font = { name: FONT_NAME, size: 10 };
+        cell.alignment = { vertical: 'middle', horizontal: colNum >= 12 && colNum <= 17 ? 'center' : 'right' };
+        cell.border = borderStyle;
+        if (isEven) {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF8FAFC' },
+          };
+        }
+        // فرمت اعداد بودجه با جداکننده هزارگان
+        if (colNum >= 12 && colNum <= 15) {
+          cell.numFmt = '#,##0';
+        }
+        if (colNum === 16) {
+          cell.numFmt = '0"%"';
+        }
+      });
+    });
+
+    // ردیف جمع کل (Summary Row)
+    const summaryRow = sheet1.addRow({
+      rowNum: 'مجموع',
+      id: '',
+      title: `تعداد کل مسائل: ${allIssues.length}`,
+      responsibleUnit: '',
+      domain: '',
+      periodName: '',
+      projectLevel: '',
+      knowledgeType: '',
+      researchProjectType: '',
+      statusLabel: '',
+      actionPriority: '',
+      requiredBudget: totalReq,
+      approvedBudget: totalApp,
+      assignedBudget: totalAss,
+      remainingBudget: (totalApp > 0 ? totalApp : totalReq) - totalAss,
+      completionPercent: allIssues.length > 0 ? Math.round(allIssues.reduce((a, b) => a + (b.completionPercent || 0), 0) / allIssues.length) : 0,
+      expectedMonths: '',
+      approvalAuthority: '',
+      approvalDate: '',
+      solutionDirection: '',
+    });
+    summaryRow.height = 28;
+    summaryRow.eachCell((cell, colNum) => {
+      cell.font = { name: FONT_NAME, bold: true, size: 11, color: { argb: 'FF1E293B' } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE2E8F0' },
+      };
+      cell.border = {
+        top: { style: 'medium', color: { argb: 'FF475569' } },
+        bottom: { style: 'double', color: { argb: 'FF475569' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      };
+      if (colNum >= 12 && colNum <= 15) {
+        cell.numFmt = '#,##0';
+      }
+      if (colNum === 16) {
+        cell.numFmt = '0"%"';
+      }
+    });
+
+    // ===============================
+    // شیت ۲: خلاصه وضعیت و بودجه
+    // ===============================
+    const sheet2 = workbook.addWorksheet('خلاصه آمار و بودجه', {
+      views: [{ rightToLeft: true, showGridLines: true }],
+    });
+    sheet2.columns = [
+      { header: 'شاخص', key: 'metric', width: 28 },
+      { header: 'مقدار / تعداد', key: 'count', width: 18 },
+      { header: 'مجموع بودجه مصوب (ریال)', key: 'budget', width: 26 },
+      { header: 'توضیحات', key: 'note', width: 30 },
+    ];
+    const s2Header = sheet2.getRow(1);
+    s2Header.height = 28;
+    s2Header.eachCell(c => {
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
+      c.font = { name: FONT_NAME, bold: true, color: { argb: 'FFFFFFFF' } };
+      c.alignment = { vertical: 'middle', horizontal: 'center' };
+      c.border = borderStyle;
+    });
+
+    // آمار وضعیت‌ها
+    Object.entries(statusMap).forEach(([k, label]) => {
+      const items = allIssues.filter(i => (i.status || 'pending') === k);
+      const bSum = items.reduce((sum, i) => sum + Number(i.approvedBudget || i.requiredBudget || 0), 0);
+      const r = sheet2.addRow({
+        metric: `وضعیت: ${label}`,
+        count: items.length,
+        budget: bSum,
+        note: `${Math.round((items.length / (allIssues.length || 1)) * 100)}% کل مسائل`,
+      });
+      r.getCell(2).numFmt = '#,##0';
+      r.getCell(3).numFmt = '#,##0';
+      r.eachCell(c => {
+        c.font = { name: FONT_NAME, size: 10 };
+        c.border = borderStyle;
+      });
+    });
+
+    // آمار مالی کل
+    const rSep = sheet2.addRow({ metric: '--- جمع کل شاخص‌های مالی ---', count: '', budget: '', note: '' });
+    rSep.eachCell(c => { c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }; });
+
+    const rTotReq = sheet2.addRow({ metric: 'مجموع بودجه مورد نیاز', count: `${allIssues.length} مسئله`, budget: totalReq, note: 'محاسبه خودکار کل بودجه درخواستی' });
+    rTotReq.getCell(3).numFmt = '#,##0';
+    rTotReq.eachCell(c => { c.font = { name: FONT_NAME }; c.border = borderStyle; });
+
+    const rTotApp = sheet2.addRow({ metric: 'مجموع بودجه مصوب', count: `${allIssues.length} مسئله`, budget: totalApp, note: 'کل اعتبارات مصوب' });
+    rTotApp.getCell(3).numFmt = '#,##0';
+    rTotApp.eachCell(c => { c.font = { name: FONT_NAME }; c.border = borderStyle; });
+
+    const rTotAss = sheet2.addRow({ metric: 'مجموع بودجه واگذار شده', count: `${allIssues.length} مسئله`, budget: totalAss, note: 'اعتبارات تخصیص یافته' });
+    rTotAss.getCell(3).numFmt = '#,##0';
+    rTotAss.eachCell(c => { c.font = { name: FONT_NAME }; c.border = borderStyle; });
+
+    // ثبت لاگ
+    logAudit({
+      userId,
+      entityName: 'نظام مسائل',
+      entityId: 0,
+      action: 'EXPORT',
+      changes: { format: 'excel', count: allIssues.length },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    const filename = `گزارش_جامع_نظام_مسائل_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=${encodeURIComponent(filename)}`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error('Error exporting issues excel:', error);
+    res.status(500).json({ error: 'خطا در صدور خروجی اکسل نظام مسائل' });
+  }
+});
+
 export default outputRoutes;
