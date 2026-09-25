@@ -24,9 +24,22 @@ app.set('trust proxy', 1); // Trust first proxy for express-rate-limit
 // ⚠️ توجه: به‌طور عمدی هیچ handler سراسری uncaughtException/unhandledRejection ثبت نمی‌شود
 // تا خطاهای راه‌اندازی (مانند اشغال بودن پورت) باعث خروج تمیز و شفاف پروسه شوند.
 
+// پورت سرور برنامه باید 3000 باشد (پورت 8080 مربوط به پروکسی معکوس Nginx است)
+let targetPort = 3000;
 const portArgIndex = process.argv.indexOf('--port');
-const cliPort = portArgIndex !== -1 && process.argv[portArgIndex + 1] ? parseInt(process.argv[portArgIndex + 1], 10) : null;
-const PORT = cliPort || (process.env.PORT ? parseInt(process.env.PORT, 10) : 3000);
+if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+  targetPort = parseInt(process.argv[portArgIndex + 1], 10);
+} else {
+  const numericArg = process.argv.find(arg => /^\d{4,5}$/.test(arg));
+  if (numericArg && numericArg !== '8080') {
+    targetPort = parseInt(numericArg, 10);
+  } else if (process.env.APP_PORT) {
+    targetPort = parseInt(process.env.APP_PORT, 10);
+  } else if (process.env.PORT && process.env.PORT !== '8080' && process.env.PORT !== '8000') {
+    targetPort = parseInt(process.env.PORT, 10);
+  }
+}
+const PORT = targetPort;
 
 const currentDir = process.cwd();
 

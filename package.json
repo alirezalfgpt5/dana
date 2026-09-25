@@ -10,6 +10,7 @@
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
+    "postinstall": "rm -rf node_modules/multer/node_modules 2>/dev/null || true",
     "lint": "tsc --noEmit",
     "seed:base": "tsx scripts/seed/baseDefinitions.ts",
     "seed:periods": "tsx scripts/seed/periods.ts",
