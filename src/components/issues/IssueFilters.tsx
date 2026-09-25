@@ -16,6 +16,7 @@ interface IssueFiltersProps {
     priority?: string;
     projectLevel?: string;
     knowledgeType?: string;
+    category?: string;
     search?: string;
     fromDate?: string;
     toDate?: string;
@@ -28,6 +29,7 @@ interface IssueFiltersProps {
   priorities?: string[];
   projectLevels?: string[];
   knowledgeTypes?: string[];
+  categories?: string[];
   loading?: boolean;
 }
 
@@ -41,6 +43,16 @@ export function IssueFilters({
   priorities = ['خیلی زیاد', 'زیاد', 'متوسط'],
   projectLevels = ['راهبردی', 'سطح1', 'سطح2', 'سطح3', 'سطح4'],
   knowledgeTypes = ['نظریه', 'الگو', 'راهبرد', 'راه‌کار و توصیه', 'دانش نوظهور'],
+  categories = [
+    'عمومی',
+    'فنی و مهندسی',
+    'مدیریتی و سازمانی',
+    'فرهنگی و اجتماعی',
+    'علمی و پژوهشی',
+    'اقتصادی و مالی',
+    'حقوقی و تقنینی',
+    'زیرساختی و لجستیک'
+  ],
   loading = false,
 }: IssueFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -60,6 +72,7 @@ export function IssueFilters({
   const projectLevelOptions = projectLevels.map(p => ({ value: p, label: p }));
   const knowledgeTypeOptions = knowledgeTypes.map(k => ({ value: k, label: k }));
   const domainOptions = domains.map(d => ({ value: d, label: d }));
+  const categoryOptions = categories.map(c => ({ value: c, label: c }));
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,6 +227,19 @@ export function IssueFilters({
               />
             </div>
 
+            {/* دسته‌بندی مسئله */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                دسته‌بندی مسئله
+              </label>
+              <SearchableSelect
+                options={categoryOptions}
+                value={filters.category || ''}
+                onChange={(val) => onFilterChange('category', val || '')}
+                placeholder="همه دسته‌ها"
+              />
+            </div>
+
             {/* تاریخ از - با دیت‌پیکر شمسی */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
@@ -305,6 +331,7 @@ export function IssueFilters({
                   priority: 'اولویت',
                   projectLevel: 'سطح پروژه',
                   knowledgeType: 'نوع دانش',
+                  category: 'دسته‌بندی',
                   fromDate: 'از تاریخ',
                   toDate: 'تا تاریخ',
                 }[key] || key;

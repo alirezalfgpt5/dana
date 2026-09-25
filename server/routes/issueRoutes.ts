@@ -245,10 +245,18 @@ issueRoutes.get('/', async (req, res) => {
     if (knowledgeType) {
       conditions.push(eq(issues.knowledgeType, knowledgeType as string));
     }
+    if (category && category !== 'all') {
+      conditions.push(eq(issues.category, category as string));
+    }
     if (search) {
       conditions.push(or(
         like(issues.title, `%${search}%`),
-        like(issues.solutionDirection, `%${search}%`)
+        like(issues.solutionDirection, `%${search}%`),
+        like(issues.responsibleUnit, `%${search}%`),
+        like(issues.referenceDocument, `%${search}%`),
+        like(issues.category, `%${search}%`),
+        like(issues.bottlenecks, `%${search}%`),
+        like(issues.actionsTaken, `%${search}%`)
       ));
     }
     if (fromDate) {
@@ -406,11 +414,13 @@ issueRoutes.get('/:id', async (req, res) => {
     }
 
     // دریافت اطلاعات مرتبط
-    const researchItem = await db.query.researchItems.findFirst({
-      where: issue.researchItemId ? eq(researchItems.id, issue.researchItemId as number) : undefined,
-    });
+    const researchItem = issue.researchItemId
+      ? await db.query.researchItems.findFirst({
+          where: eq(researchItems.id, issue.researchItemId as number),
+        })
+      : null;
 
-    const node = researchItem 
+    const node = researchItem && researchItem.nodeId
       ? await db.query.treeNodes.findFirst({
           where: eq(treeNodes.id, researchItem.nodeId),
         })
@@ -443,11 +453,12 @@ issueRoutes.get('/:id', async (req, res) => {
 
     res.json({
       ...issue,
-      domain: domainNode?.title || 'نامشخص',
+      domain: domainNode?.title || (issue as any).domain || 'نامشخص',
       domainNode,
       researchItem,
       node,
       templates: templatesList,
+      templateIds: templateIds.map(String),
       attachments,
       history,
     });
@@ -473,7 +484,7 @@ issueRoutes.post('/', async (req, res) => {
       'requiredBudget', 'approvedBudget', 'assignedBudget', 'expectedMonths', 'completionPercent',
       'actionsTaken', 'bottlenecks', 'orders', 'issueResolutionTeam', 'needStatement', 'contract',
       'executiveContract', 'stage20', 'stage50', 'stage100', 'application', 'status', 'gapId',
-      'templateIds', 'metadata'
+      'templateIds', 'metadata', 'category'
     ];
     const data: any = {};
     for (const field of allowedFields) {
@@ -602,6 +613,7 @@ issueRoutes.post('/', async (req, res) => {
         stage100: data.stage100 || null,
         application: data.application || null,
         status: data.status || 'pending',
+        category: data.category || '',
         createdAt: now,
         updatedAt: now,
       }).returning().get();
@@ -667,7 +679,7 @@ issueRoutes.put('/:id', async (req, res) => {
       'requiredBudget', 'approvedBudget', 'assignedBudget', 'expectedMonths', 'completionPercent',
       'actionsTaken', 'bottlenecks', 'orders', 'issueResolutionTeam', 'needStatement', 'contract',
       'executiveContract', 'stage20', 'stage50', 'stage100', 'application', 'status', 'gapId',
-      'templateIds', 'metadata'
+      'templateIds', 'metadata', 'category'
     ];
     const data: any = {};
     for (const field of allowedFields) {
@@ -739,6 +751,7 @@ issueRoutes.put('/:id', async (req, res) => {
       stage100: data.stage100 !== undefined ? data.stage100 : oldData.stage100,
       application: data.application !== undefined ? data.application : oldData.application,
       status: data.status !== undefined && data.status !== null ? data.status : oldData.status,
+      category: data.category !== undefined ? data.category : oldData.category,
       updatedAt: now,
     };
 

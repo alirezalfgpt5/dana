@@ -56,6 +56,7 @@ export function IssueFormTabs({
   const [formData, setFormData] = useState<any>({
     domainNodeId: '',
     title: '',
+    category: '',
     solutionDirection: '',
     responsibleUnit: '',
     confidentialityLevel: 'عمومی',
@@ -90,6 +91,45 @@ export function IssueFormTabs({
     status: 'pending',
     templateIds: [],
   });
+
+  // تبدیل امن مقادیر تاریخ به شیء قابل خواندن برای DatePicker
+  const safeDateForPicker = (val: any) => {
+    if (!val) return null;
+    if (typeof val === 'string') {
+      if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(val)) {
+        return val;
+      }
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) return d;
+      return val;
+    }
+    return val;
+  };
+
+  // قالب‌بندی امن خروجی انتخاب تاریخ به رشته جلالی
+  const formatPickerDate = (date: any) => {
+    if (!date) return '';
+    if (date.format) return date.format('YYYY/MM/DD');
+    if (date.toDate) {
+      try {
+        const d = date.toDate();
+        if (!isNaN(d.getTime())) return d.toISOString();
+      } catch {}
+    }
+    return String(date);
+  };
+
+  const issueCategories = [
+    'فنی و مهندسی',
+    'عملیاتی و رزمی',
+    'آموزشی و مهارتی',
+    'فاوا و فناوری اطلاعات',
+    'ساختاری و سازمانی',
+    'پژوهشی و مطالعاتی',
+    'پشتیبانی و لجستیک',
+    'نوآوری و فناوری‌های نوظهور',
+    'عمومی و سایر'
+  ];
 
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [needStatementData, setNeedStatementData] = useState<any>({
@@ -250,86 +290,102 @@ export function IssueFormTabs({
 
       setFormData({
         ...initialData,
+        category: initialData.category || '',
         templateIds: initialTemplateIds,
       });
       
       const safeParse = (data: any, defaultVal: any = null) => {
         if (!data) return defaultVal;
         if (typeof data === 'string') {
-          try { return JSON.parse(data); } catch { return defaultVal; }
+          try {
+            const parsed = JSON.parse(data);
+            return parsed !== null && parsed !== undefined ? parsed : defaultVal;
+          } catch {
+            return defaultVal;
+          }
         }
         return data;
       };
 
-      setTeamMembers(safeParse(initialData.issueResolutionTeam, []));
-      setNeedStatementData(safeParse(initialData.needStatement, {
-        user: '',
-        problem: '',
-        suggestedBudget: 0,
-        level: '',
-        file: null,
-        approvalStatus: 'pending',
-        approvalDate: '',
-        approvedAmount: 0,
-      }));
-      setContractData(safeParse(initialData.contract, {
-        number: '',
-        executor: '',
-        collaborators: [],
-        agents: [],
-        date: '',
-        duration: 0,
-        startDate: '',
-        amount: 0,
-        file: null,
-      }));
-      setExecutiveContractData(safeParse(initialData.executiveContract, {
-        file: null,
-        minutes: '',
-      }));
-      setStage20Data(safeParse(initialData.stage20, {
-        proposal: '',
-        file: null,
-        defenseDate: '',
-        minutes: '',
-        minutesFile: null,
-        recordsFiles: [],
-        paidAmount: 0,
-        paymentDate: '',
-      }));
-      setStage50Data(safeParse(initialData.stage50, {
-        proposal: '',
-        file: null,
-        defenseDate: '',
-        minutes: '',
-        minutesFile: null,
-        recordsFiles: [],
-        paidAmount: 0,
-        paymentDate: '',
-      }));
-      setStage100Data(safeParse(initialData.stage100, {
-        proposal: '',
-        file: null,
-        defenseDate: '',
-        minutes: '',
-        minutesFile: null,
-        recordsFiles: [],
-        paidAmount: 0,
-        paymentDate: '',
-      }));
-      setApplicationData(safeParse(initialData.application, {
-        resultReflection: '',
-        applicationType: '',
-        applicationDate: '',
-        minutes: '',
-        minutesFile: null,
-        recordsFiles: [],
-        workingGroup: '',
-      }));
+      const parsedTeam = safeParse(initialData.issueResolutionTeam, []);
+      setTeamMembers(Array.isArray(parsedTeam) ? parsedTeam : []);
+
+      const parsedNeed = safeParse(initialData.needStatement, {});
+      setNeedStatementData({
+        user: parsedNeed?.user || '',
+        problem: parsedNeed?.problem || '',
+        suggestedBudget: Number(parsedNeed?.suggestedBudget) || 0,
+        level: parsedNeed?.level || '',
+        file: parsedNeed?.file || null,
+        approvalStatus: parsedNeed?.approvalStatus || 'pending',
+        approvalDate: parsedNeed?.approvalDate || '',
+        approvedAmount: Number(parsedNeed?.approvedAmount) || 0,
+      });
+
+      const parsedContract = safeParse(initialData.contract, {});
+      let rawCollabs = parsedContract?.collaborators;
+      if (typeof rawCollabs === 'string') {
+        rawCollabs = rawCollabs.split(',').map((s: string) => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(rawCollabs)) {
+        rawCollabs = [];
+      }
+      let rawAgents = parsedContract?.agents;
+      if (typeof rawAgents === 'string') {
+        rawAgents = rawAgents.split(',').map((s: string) => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(rawAgents)) {
+        rawAgents = [];
+      }
+      setContractData({
+        number: parsedContract?.number || '',
+        executor: parsedContract?.executor || '',
+        collaborators: rawCollabs,
+        agents: rawAgents,
+        date: parsedContract?.date || '',
+        duration: Number(parsedContract?.duration) || 0,
+        startDate: parsedContract?.startDate || '',
+        amount: Number(parsedContract?.amount) || 0,
+        file: parsedContract?.file || null,
+      });
+
+      const parsedExec = safeParse(initialData.executiveContract, {});
+      setExecutiveContractData({
+        file: parsedExec?.file || null,
+        minutes: parsedExec?.minutes || '',
+      });
+
+      const parseStage = (stageObj: any) => {
+        const p = safeParse(stageObj, {});
+        return {
+          proposal: p?.proposal || '',
+          file: p?.file || null,
+          defenseDate: p?.defenseDate || '',
+          minutes: p?.minutes || '',
+          minutesFile: p?.minutesFile || null,
+          recordsFiles: Array.isArray(p?.recordsFiles) ? p.recordsFiles : [],
+          paidAmount: Number(p?.paidAmount) || 0,
+          paymentDate: p?.paymentDate || '',
+        };
+      };
+
+      setStage20Data(parseStage(initialData.stage20));
+      setStage50Data(parseStage(initialData.stage50));
+      setStage100Data(parseStage(initialData.stage100));
+
+      const parsedApp = safeParse(initialData.application, {});
+      setApplicationData({
+        resultReflection: parsedApp?.resultReflection || '',
+        applicationType: parsedApp?.applicationType || '',
+        applicationDate: parsedApp?.applicationDate || '',
+        minutes: parsedApp?.minutes || '',
+        minutesFile: parsedApp?.minutesFile || null,
+        recordsFiles: Array.isArray(parsedApp?.recordsFiles) ? parsedApp.recordsFiles : [],
+        workingGroup: parsedApp?.workingGroup || '',
+      });
     } else {
       setFormData({
         domainNodeId: '',
         title: '',
+        category: '',
         solutionDirection: '',
         responsibleUnit: '',
         confidentialityLevel: 'عمومی',
@@ -455,6 +511,14 @@ export function IssueFormTabs({
 
     const submitData = {
       ...formData,
+      category: formData.category || 'عمومی',
+      domainNodeId: parseInt(formData.domainNodeId),
+      researchItemId: formData.researchItemId ? parseInt(formData.researchItemId) : null,
+      requiredBudget: parseFloat(formData.requiredBudget) || 0,
+      approvedBudget: parseFloat(formData.approvedBudget) || 0,
+      assignedBudget: parseFloat(formData.assignedBudget) || 0,
+      expectedMonths: parseInt(formData.expectedMonths) || 0,
+      completionPercent: parseInt(formData.completionPercent) || 0,
       issueResolutionTeam: teamMembers.length > 0 ? teamMembers : null,
       needStatement: prepareJson(needStatementData),
       contract: prepareJson(contractData),
@@ -601,6 +665,17 @@ export function IssueFormTabs({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            🏷️ دسته‌بندی مسئله
+          </label>
+          <SearchableSelect
+            options={issueCategories.map(cat => ({ value: cat, label: cat }))}
+            value={formData.category || ''}
+            onChange={(val) => handleChange('category', val || '')}
+            placeholder="انتخاب دسته‌بندی مسئله..."
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
             🏢 دستگاه یا یگان مسئول
           </label>
           <input
@@ -611,6 +686,9 @@ export function IssueFormTabs({
             placeholder="واحد متولی اجرا..."
           />
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             🔒 سطح محرمانگی
@@ -622,9 +700,6 @@ export function IssueFormTabs({
             placeholder="انتخاب سطح محرمانگی..."
           />
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             🎯 اولویت اقدام
@@ -636,14 +711,17 @@ export function IssueFormTabs({
             placeholder="انتخاب اولویت..."
           />
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             📅 تاریخ تصویب
           </label>
           <div className="relative">
             <DatePicker
-              value={formData.approvalDate ? new Date(formData.approvalDate) : null}
-              onChange={(date: any) => handleChange('approvalDate', date?.toDate?.()?.toISOString() || '')}
+              value={safeDateForPicker(formData.approvalDate)}
+              onChange={(date: any) => handleChange('approvalDate', formatPickerDate(date))}
               calendar={persian}
               locale={persian_fa}
               animations={[transition()]}
@@ -654,6 +732,17 @@ export function IssueFormTabs({
             />
             <Calendar size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            🏛️ مرجع تصویب
+          </label>
+          <SearchableSelect
+            options={dynamicApprovalAuthorities.map(a => ({ value: a, label: a }))}
+            value={formData.approvalAuthority}
+            onChange={(val) => handleChange('approvalAuthority', val || '')}
+            placeholder="انتخاب مرجع تصویب..."
+          />
         </div>
       </div>
 
@@ -680,18 +769,6 @@ export function IssueFormTabs({
             placeholder="انتخاب سطح پروژه..."
           />
         </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          🏛️ مرجع تصویب
-        </label>
-        <SearchableSelect
-          options={dynamicApprovalAuthorities.map(a => ({ value: a, label: a }))}
-          value={formData.approvalAuthority}
-          onChange={(val) => handleChange('approvalAuthority', val || '')}
-          placeholder="انتخاب مرجع تصویب..."
-        />
       </div>
 
       <div>
@@ -1225,8 +1302,8 @@ export function IssueFormTabs({
           <label className="block text-sm font-medium text-gray-700 mb-1.5">📅 تاریخ تصویب</label>
           <div className="relative">
             <DatePicker
-              value={needStatementData?.approvalDate ? new Date(needStatementData.approvalDate) : null}
-              onChange={(date: any) => setNeedStatementData({...needStatementData, approvalDate: date?.toDate?.()?.toISOString() || ''})}
+              value={safeDateForPicker(needStatementData?.approvalDate)}
+              onChange={(date: any) => setNeedStatementData({...needStatementData, approvalDate: formatPickerDate(date)})}
               calendar={persian}
               locale={persian_fa}
               format="YYYY/MM/DD"
@@ -1309,8 +1386,8 @@ export function IssueFormTabs({
         <label className="block text-sm font-medium text-gray-700 mb-1.5">🤝 همکاران مجری</label>
         <input
           type="text"
-          value={contractData?.collaborators?.join(', ') || ''}
-          onChange={e => setContractData({...contractData, collaborators: e.target.value.split(',').map(s => s.trim())})}
+          value={Array.isArray(contractData?.collaborators) ? contractData.collaborators.join(', ') : (contractData?.collaborators || '')}
+          onChange={e => setContractData({...contractData, collaborators: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})}
           className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
           placeholder="نام همکاران (با کاما جدا کنید)..."
         />
@@ -1320,8 +1397,8 @@ export function IssueFormTabs({
         <label className="block text-sm font-medium text-gray-700 mb-1.5">🧑‍🏫 عوامل (استاد راهنما، ارزیاب، مشاور)</label>
         <input
           type="text"
-          value={contractData?.agents?.join(', ') || ''}
-          onChange={e => setContractData({...contractData, agents: e.target.value.split(',').map(s => s.trim())})}
+          value={Array.isArray(contractData?.agents) ? contractData.agents.join(', ') : (contractData?.agents || '')}
+          onChange={e => setContractData({...contractData, agents: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})}
           className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
           placeholder="استاد راهنما، ارزیاب، مشاور..."
         />
@@ -1332,8 +1409,8 @@ export function IssueFormTabs({
           <label className="block text-sm font-medium text-gray-700 mb-1.5">📅 تاریخ قرارداد</label>
           <div className="relative">
             <DatePicker
-              value={contractData?.date ? new Date(contractData.date) : null}
-              onChange={(date: any) => setContractData({...contractData, date: date?.toDate?.()?.toISOString() || ''})}
+              value={safeDateForPicker(contractData?.date)}
+              onChange={(date: any) => setContractData({...contractData, date: formatPickerDate(date)})}
               calendar={persian}
               locale={persian_fa}
               format="YYYY/MM/DD"
@@ -1348,8 +1425,8 @@ export function IssueFormTabs({
           <label className="block text-sm font-medium text-gray-700 mb-1.5">📅 تاریخ شروع</label>
           <div className="relative">
             <DatePicker
-              value={contractData?.startDate ? new Date(contractData.startDate) : null}
-              onChange={(date: any) => setContractData({...contractData, startDate: date?.toDate?.()?.toISOString() || ''})}
+              value={safeDateForPicker(contractData?.startDate)}
+              onChange={(date: any) => setContractData({...contractData, startDate: formatPickerDate(date)})}
               calendar={persian}
               locale={persian_fa}
               format="YYYY/MM/DD"
@@ -1425,8 +1502,8 @@ export function IssueFormTabs({
             <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ دفاع</label>
             <div className="relative">
               <DatePicker
-                value={stage20Data?.defenseDate ? new Date(stage20Data.defenseDate) : null}
-                onChange={(date: any) => setStage20Data({...stage20Data, defenseDate: date?.toDate?.()?.toISOString() || ''})}
+                value={safeDateForPicker(stage20Data?.defenseDate)}
+                onChange={(date: any) => setStage20Data({...stage20Data, defenseDate: formatPickerDate(date)})}
                 calendar={persian}
                 locale={persian_fa}
                 format="YYYY/MM/DD"
@@ -1462,8 +1539,8 @@ export function IssueFormTabs({
             <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ پرداخت</label>
             <div className="relative">
               <DatePicker
-                value={stage20Data?.paymentDate ? new Date(stage20Data.paymentDate) : null}
-                onChange={(date: any) => setStage20Data({...stage20Data, paymentDate: date?.toDate?.()?.toISOString() || ''})}
+                value={safeDateForPicker(stage20Data?.paymentDate)}
+                onChange={(date: any) => setStage20Data({...stage20Data, paymentDate: formatPickerDate(date)})}
                 calendar={persian}
                 locale={persian_fa}
                 format="YYYY/MM/DD"
@@ -1499,8 +1576,8 @@ export function IssueFormTabs({
             <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ دفاع</label>
             <div className="relative">
               <DatePicker
-                value={stage50Data?.defenseDate ? new Date(stage50Data.defenseDate) : null}
-                onChange={(date: any) => setStage50Data({...stage50Data, defenseDate: date?.toDate?.()?.toISOString() || ''})}
+                value={safeDateForPicker(stage50Data?.defenseDate)}
+                onChange={(date: any) => setStage50Data({...stage50Data, defenseDate: formatPickerDate(date)})}
                 calendar={persian}
                 locale={persian_fa}
                 format="YYYY/MM/DD"
@@ -1536,8 +1613,8 @@ export function IssueFormTabs({
             <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ پرداخت</label>
             <div className="relative">
               <DatePicker
-                value={stage50Data?.paymentDate ? new Date(stage50Data.paymentDate) : null}
-                onChange={(date: any) => setStage50Data({...stage50Data, paymentDate: date?.toDate?.()?.toISOString() || ''})}
+                value={safeDateForPicker(stage50Data?.paymentDate)}
+                onChange={(date: any) => setStage50Data({...stage50Data, paymentDate: formatPickerDate(date)})}
                 calendar={persian}
                 locale={persian_fa}
                 format="YYYY/MM/DD"
@@ -1573,8 +1650,8 @@ export function IssueFormTabs({
             <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ دفاع</label>
             <div className="relative">
               <DatePicker
-                value={stage100Data?.defenseDate ? new Date(stage100Data.defenseDate) : null}
-                onChange={(date: any) => setStage100Data({...stage100Data, defenseDate: date?.toDate?.()?.toISOString() || ''})}
+                value={safeDateForPicker(stage100Data?.defenseDate)}
+                onChange={(date: any) => setStage100Data({...stage100Data, defenseDate: formatPickerDate(date)})}
                 calendar={persian}
                 locale={persian_fa}
                 format="YYYY/MM/DD"
@@ -1610,8 +1687,8 @@ export function IssueFormTabs({
             <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ پرداخت</label>
             <div className="relative">
               <DatePicker
-                value={stage100Data?.paymentDate ? new Date(stage100Data.paymentDate) : null}
-                onChange={(date: any) => setStage100Data({...stage100Data, paymentDate: date?.toDate?.()?.toISOString() || ''})}
+                value={safeDateForPicker(stage100Data?.paymentDate)}
+                onChange={(date: any) => setStage100Data({...stage100Data, paymentDate: formatPickerDate(date)})}
                 calendar={persian}
                 locale={persian_fa}
                 format="YYYY/MM/DD"
@@ -1656,8 +1733,8 @@ export function IssueFormTabs({
           <label className="block text-sm font-medium text-gray-700 mb-1.5">📅 تاریخ کاربست</label>
           <div className="relative">
             <DatePicker
-              value={applicationData?.applicationDate ? new Date(applicationData.applicationDate) : null}
-              onChange={(date: any) => setApplicationData({...applicationData, applicationDate: date?.toDate?.()?.toISOString() || ''})}
+              value={safeDateForPicker(applicationData?.applicationDate)}
+              onChange={(date: any) => setApplicationData({...applicationData, applicationDate: formatPickerDate(date)})}
               calendar={persian}
               locale={persian_fa}
               format="YYYY/MM/DD"
