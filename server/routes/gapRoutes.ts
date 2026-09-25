@@ -189,7 +189,16 @@ gapRoutes.get('/', async (req, res) => {
       conditions.push(eq(gaps.priority, priority as string));
     }
     if (search) {
-      conditions.push(like(gaps.description, `%${search}%`));
+      const rawSearch = (search as string).trim();
+      const normSearch = normalizePersianText(rawSearch);
+      if (normSearch && normSearch !== rawSearch) {
+        conditions.push(or(
+          like(gaps.description, `%${rawSearch}%`),
+          like(gaps.description, `%${normSearch}%`)
+        ));
+      } else {
+        conditions.push(like(gaps.description, `%${rawSearch}%`));
+      }
     }
 
     if (advancedFilter) {

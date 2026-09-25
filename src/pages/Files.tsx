@@ -157,7 +157,7 @@ export function FilesManagement() {
         params.append('mode', 'aggregate');
       }
 
-      const res = await (window.customFetch || window.fetch)(`/api/files/unit-stats?${params.toString()}`);
+      const res = await (window.customFetch || window.fetch)(`/api/data-exchange/unit-stats?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setUnitStats(data.units || []);
@@ -184,7 +184,7 @@ export function FilesManagement() {
 
     setIsDownloadingTemplate(true);
     try {
-      const url = `/api/files/template/download?unitId=${selectedUnitId}&periodId=${selectedPeriodId}`;
+      const url = `/api/data-exchange/template/download?unitId=${selectedUnitId}&periodId=${selectedPeriodId}`;
       const res = await (window.customFetch || window.fetch)(url);
       if (!res.ok) {
         const err = await res.json();
@@ -236,7 +236,7 @@ export function FilesManagement() {
       if (selectedUnitId) formData.append('unitId', selectedUnitId);
       if (selectedPeriodId) formData.append('periodId', selectedPeriodId);
 
-      const res = await (window.customFetch || window.fetch)('/api/files/template/preview', {
+      const res = await (window.customFetch || window.fetch)('/api/data-exchange/template/preview', {
         method: 'POST',
         body: formData,
       });
@@ -273,7 +273,7 @@ export function FilesManagement() {
       if (selectedUnitId) formData.append('unitId', selectedUnitId);
       if (selectedPeriodId) formData.append('periodId', selectedPeriodId);
 
-      const res = await (window.customFetch || window.fetch)('/api/files/template/upload-sync', {
+      const res = await (window.customFetch || window.fetch)('/api/data-exchange/template/upload-sync', {
         method: 'POST',
         body: formData,
       });

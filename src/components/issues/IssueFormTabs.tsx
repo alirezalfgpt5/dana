@@ -16,7 +16,7 @@ import rawTransition from 'react-element-popper/animations/transition';
 import toast from 'react-hot-toast';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { api } from '../../services/api';
-import { formatCurrency } from '../../utils/numberFormat';
+import { formatCurrency, parseNumberInput, formatNumber } from '../../utils/numberFormat';
 
 // Safe extraction of CJS/ESM exports for react-multi-date-picker and plugins
 const resolveComponent = (comp: any) => {
@@ -1056,12 +1056,12 @@ export function IssueFormTabs({
           <div className="relative">
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">ریال</span>
             <input
-              type="number"
-              value={formData.requiredBudget || 0}
-              onChange={e => handleChange('requiredBudget', parseFloat(e.target.value) || 0)}
+              type="text"
+              inputMode="numeric"
+              value={formData.requiredBudget !== undefined && formData.requiredBudget !== null ? formatNumber(formData.requiredBudget) : ''}
+              onChange={e => handleChange('requiredBudget', parseNumberInput(e.target.value))}
               className="w-full px-4 pr-12 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
               placeholder="۰"
-              min="0"
             />
           </div>
           {Number(formData.requiredBudget) > 0 && (
@@ -1077,12 +1077,12 @@ export function IssueFormTabs({
           <div className="relative">
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">ریال</span>
             <input
-              type="number"
-              value={formData.approvedBudget || 0}
-              onChange={e => handleChange('approvedBudget', parseFloat(e.target.value) || 0)}
+              type="text"
+              inputMode="numeric"
+              value={formData.approvedBudget !== undefined && formData.approvedBudget !== null ? formatNumber(formData.approvedBudget) : ''}
+              onChange={e => handleChange('approvedBudget', parseNumberInput(e.target.value))}
               className="w-full px-4 pr-12 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
               placeholder="۰"
-              min="0"
             />
           </div>
           {Number(formData.approvedBudget) > 0 && (
@@ -1098,12 +1098,12 @@ export function IssueFormTabs({
           <div className="relative">
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">ریال</span>
             <input
-              type="number"
-              value={formData.assignedBudget || 0}
-              onChange={e => handleChange('assignedBudget', parseFloat(e.target.value) || 0)}
+              type="text"
+              inputMode="numeric"
+              value={formData.assignedBudget !== undefined && formData.assignedBudget !== null ? formatNumber(formData.assignedBudget) : ''}
+              onChange={e => handleChange('assignedBudget', parseNumberInput(e.target.value))}
               className="w-full px-4 pr-12 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
               placeholder="۰"
-              min="0"
             />
           </div>
           {Number(formData.assignedBudget) > 0 && (
@@ -1297,14 +1297,14 @@ export function IssueFormTabs({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">💰 اعتبار پیشنهادی</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">💰 اعتبار پیشنهادی (ریال)</label>
           <input
-            type="number"
-            value={needStatementData?.suggestedBudget || 0}
-            onChange={e => setNeedStatementData({...needStatementData, suggestedBudget: parseFloat(e.target.value) || 0})}
+            type="text"
+            inputMode="numeric"
+            value={needStatementData?.suggestedBudget !== undefined && needStatementData?.suggestedBudget !== null ? formatNumber(needStatementData.suggestedBudget) : ''}
+            onChange={e => setNeedStatementData({...needStatementData, suggestedBudget: parseNumberInput(e.target.value)})}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
             placeholder="۰"
-            min="0"
           />
         </div>
         <div>
@@ -1351,14 +1351,14 @@ export function IssueFormTabs({
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">💰 مبلغ تصویب</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">💰 مبلغ تصویب (ریال)</label>
           <input
-            type="number"
-            value={needStatementData?.approvedAmount || 0}
-            onChange={e => setNeedStatementData({...needStatementData, approvedAmount: parseFloat(e.target.value) || 0})}
+            type="text"
+            inputMode="numeric"
+            value={needStatementData?.approvedAmount !== undefined && needStatementData?.approvedAmount !== null ? formatNumber(needStatementData.approvedAmount) : ''}
+            onChange={e => setNeedStatementData({...needStatementData, approvedAmount: parseNumberInput(e.target.value)})}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
             placeholder="۰"
-            min="0"
           />
         </div>
       </div>
@@ -1488,14 +1488,14 @@ export function IssueFormTabs({
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">💰 مبلغ قرارداد</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">💰 مبلغ قرارداد (ریال)</label>
           <input
-            type="number"
-            value={contractData?.amount || 0}
-            onChange={e => setContractData({...contractData, amount: parseFloat(e.target.value) || 0})}
+            type="text"
+            inputMode="numeric"
+            value={contractData?.amount !== undefined && contractData?.amount !== null ? formatNumber(contractData.amount) : ''}
+            onChange={e => setContractData({...contractData, amount: parseNumberInput(e.target.value)})}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
             placeholder="۰"
-            min="0"
           />
         </div>
       </div>
@@ -1561,14 +1561,14 @@ export function IssueFormTabs({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">💰 اعتبار پرداختی</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">💰 اعتبار پرداختی (ریال)</label>
             <input
-              type="number"
-              value={stage20Data?.paidAmount || 0}
-              onChange={e => setStage20Data({...stage20Data, paidAmount: parseFloat(e.target.value) || 0})}
+              type="text"
+              inputMode="numeric"
+              value={stage20Data?.paidAmount !== undefined && stage20Data?.paidAmount !== null ? formatNumber(stage20Data.paidAmount) : ''}
+              onChange={e => setStage20Data({...stage20Data, paidAmount: parseNumberInput(e.target.value)})}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
               placeholder="۰"
-              min="0"
             />
           </div>
           <div>
@@ -1635,14 +1635,14 @@ export function IssueFormTabs({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">💰 اعتبار پرداختی</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">💰 اعتبار پرداختی (ریال)</label>
             <input
-              type="number"
-              value={stage50Data?.paidAmount || 0}
-              onChange={e => setStage50Data({...stage50Data, paidAmount: parseFloat(e.target.value) || 0})}
+              type="text"
+              inputMode="numeric"
+              value={stage50Data?.paidAmount !== undefined && stage50Data?.paidAmount !== null ? formatNumber(stage50Data.paidAmount) : ''}
+              onChange={e => setStage50Data({...stage50Data, paidAmount: parseNumberInput(e.target.value)})}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white text-sm"
               placeholder="۰"
-              min="0"
             />
           </div>
           <div>
@@ -1709,14 +1709,14 @@ export function IssueFormTabs({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">💰 اعتبار پرداختی</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">💰 اعتبار پرداختی (ریال)</label>
             <input
-              type="number"
-              value={stage100Data?.paidAmount || 0}
-              onChange={e => setStage100Data({...stage100Data, paidAmount: parseFloat(e.target.value) || 0})}
+              type="text"
+              inputMode="numeric"
+              value={stage100Data?.paidAmount !== undefined && stage100Data?.paidAmount !== null ? formatNumber(stage100Data.paidAmount) : ''}
+              onChange={e => setStage100Data({...stage100Data, paidAmount: parseNumberInput(e.target.value)})}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none bg-white text-sm"
               placeholder="۰"
-              min="0"
             />
           </div>
           <div>

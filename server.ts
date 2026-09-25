@@ -228,9 +228,9 @@ app.post('/api/backup/create', requireAuth, async (req, res) => {
   }
 });
 
-app.use('/api/metadata', metadataRoutes);
+app.use('/api/metadata', requireAuth, metadataRoutes);
 app.use('/api/trees', requireAuth, treeRoutes);
-app.use('/api/templates',requireAuth , templateRoutes);
+app.use('/api/templates', requireAuth, templateRoutes);
 app.use('/api/roles', requireAuth, roleRoutes);
 app.use('/api/levels', requireAuth, levelRoutes);
 app.use('/api/assets', requireAuth, assetRoutes);
@@ -242,9 +242,13 @@ app.use('/api/outputs', requireAuth, outputRoutes);
 app.use('/api/org', requireAuth, orgRoutes);
 app.use('/api/users', requireAuth, userRoutes);
 app.use('/api/periods', requireAuth, periodRoutes);
-app.use('/api/files', unitDataExchangeRoutes);
-app.use('/api/files', fileRoutes); 
+// مسیر تبادل اطلاعات یگان‌ها (بدون تداخل با روت فایل‌ها)
 app.use('/api/data-exchange', unitDataExchangeRoutes);
+// روت‌های سازگاری به عقب برای فراخوانی‌های احتمالی قدیمی اکسل یگان
+app.use('/api/files/template', unitDataExchangeRoutes);
+app.use('/api/files/unit-stats', unitDataExchangeRoutes);
+// روت اصلی مدیریت فایل‌ها و پیوست‌ها
+app.use('/api/files', fileRoutes);
 app.use('/api/audit', requireAuth, auditRoutes);
 app.use('/api/search', requireAuth, searchRoutes);
 app.use('/api/reports', requireAuth, reportRoutes);

@@ -278,7 +278,7 @@ export const issues = sqliteTable('issues', {
   periodId: integer('period_id').references(() => periods.id),
   researchItemId: integer('research_item_id').references(() => researchItems.id),
   
-  domainNodeId: integer('domain_node_id').references(() => treeNodes.id),
+  domainNodeId: integer('domain_node_id').references(() => treeNodes.id, { onDelete: 'set null' }),
   title: text('title').notNull(),
   solutionDirection: text('solution_direction'),
   responsibleUnit: text('responsible_unit'),

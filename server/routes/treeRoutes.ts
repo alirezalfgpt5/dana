@@ -438,6 +438,8 @@ treeRoutes.delete('/:id', requireRole(['admin', 'knowledge_manager']), async (re
     db.transaction((tx) => {
       if (nodeIds.length > 0) {
         for (const nid of nodeIds) {
+          // آزادسازی ارتباط مسائل با گره‌های حذف شده (Set Null)
+          tx.update(issues).set({ domainNodeId: null }).where(eq(issues.domainNodeId, nid)).run();
           const items = tx.select({ id: researchItems.id }).from(researchItems).where(eq(researchItems.nodeId, nid)).all();
           if (items.length > 0) {
             const itemIds = items.map(i => i.id);
@@ -828,6 +830,9 @@ treeRoutes.delete('/nodes/:nodeId', requireRole(['admin', 'knowledge_manager', '
       
       // حذف دارایی‌های دانشی
       tx.delete(knowledgeAssets).where(eq(knowledgeAssets.nodeId, nodeIdNum)).run();
+
+      // آزادسازی ارتباط مسائل با گره حذف شده (Set Null)
+      tx.update(issues).set({ domainNodeId: null }).where(eq(issues.domainNodeId, nodeIdNum)).run();
 
       // حذف گره
       tx.delete(treeNodes).where(eq(treeNodes.id, nodeIdNum)).run();
