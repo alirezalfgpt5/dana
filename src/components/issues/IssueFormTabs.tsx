@@ -20,9 +20,9 @@ import { api } from '../../services/api';
 // Safe extraction of CJS/ESM exports for react-multi-date-picker and plugins
 const resolveComponent = (comp: any) => {
   if (!comp) return null;
-  if (comp.$typeof || typeof comp === 'function') return comp;
-  if (comp.default?.$typeof || typeof comp.default === 'function') return comp.default;
-  if (comp.default?.default?.$typeof || typeof comp.default?.default === 'function') return comp.default.default;
+  if (comp.$$typeof || typeof comp === 'function') return comp;
+  if (comp.default?.$$typeof || typeof comp.default === 'function') return comp.default;
+  if (comp.default?.default?.$$typeof || typeof comp.default?.default === 'function') return comp.default.default;
   return comp.default || comp;
 };
 
