@@ -21,12 +21,31 @@ import {
   LayoutGrid,
   List
 } from 'lucide-react';
-import DatePicker from 'react-multi-date-picker';
-import persian from 'react-date-object/calendars/persian';
-import persian_fa from 'react-date-object/locales/persian_fa';
+import RawDatePicker from 'react-multi-date-picker';
+import rawPersian from 'react-date-object/calendars/persian';
+import rawPersianFa from 'react-date-object/locales/persian_fa';
 // @ts-ignore
-import transition from 'react-element-popper/animations/transition';
+import rawTransition from 'react-element-popper/animations/transition';
 import toast from 'react-hot-toast';
+
+const resolveComponent = (comp: any) => {
+  if (!comp) return null;
+  if (comp.$$typeof || typeof comp === 'function') return comp;
+  if (comp.default?.$$typeof || typeof comp.default === 'function') return comp.default;
+  if (comp.default?.default?.$$typeof || typeof comp.default?.default === 'function') return comp.default.default;
+  return comp.default || comp;
+};
+
+const DatePicker: any = resolveComponent(RawDatePicker);
+const persian: any = (rawPersian as any)?.default || rawPersian;
+const persian_fa: any = (rawPersianFa as any)?.default || rawPersianFa;
+const transition: any = () => {
+  try {
+    const fn = (rawTransition as any)?.default || rawTransition;
+    if (typeof fn === 'function') return fn();
+  } catch {}
+  return undefined;
+};
 
 interface Period {
   id: number;

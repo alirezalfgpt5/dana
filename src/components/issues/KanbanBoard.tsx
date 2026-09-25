@@ -3,8 +3,9 @@
 
 import React from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Edit, Trash2, Building2, Folder, DollarSign, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Edit, Trash2, Building2, Folder, Coins, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api';
+import { formatCurrency, formatNumber } from '../../utils/numberFormat';
 import toast from 'react-hot-toast';
 
 interface KanbanBoardProps {
@@ -101,13 +102,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       default:
         return 'bg-gray-100 text-gray-700 border-gray-200';
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    if (!amount) return '۰';
-    if (amount >= 1000000000) return `${(amount / 1000000000).toFixed(1)} میلیارد`;
-    if (amount >= 1000000) return `${(amount / 1000000).toFixed(0)} میلیون`;
-    return amount.toLocaleString('fa-IR');
   };
 
   return (
@@ -231,8 +225,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                               {/* فوتر کارت: بودجه و دکمه‌های عملیات */}
                               <div className="flex justify-between items-center pt-2.5 border-t border-gray-100 text-xs">
                                 <div className="flex items-center gap-1 text-emerald-700 font-medium text-[11px]">
-                                  <DollarSign size={13} className="text-emerald-600" />
-                                  <span>{formatCurrency(issue.requiredBudget || 0)} ریال</span>
+                                  <Coins size={13} className="text-emerald-600" />
+                                  <span>{formatCurrency(issue.requiredBudget || 0, true)}</span>
                                 </div>
 
                                 <div className="flex items-center gap-1">

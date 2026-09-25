@@ -13,7 +13,7 @@ import {
   FileText, Plus, RefreshCw, Search, X,
   CheckCircle, AlertCircle, Clock,
   Filter, Edit, Trash2, ChevronDown,
-  ChevronUp, DollarSign, Eye, Building2,
+  ChevronUp, Coins, Eye, Building2,
   HelpCircle, TrendingUp, Calendar, ArrowLeftRight, Download
 } from 'lucide-react';
 import api from '../../services/api';
@@ -21,6 +21,7 @@ import { AdvancedQueryBuilder, FilterGroup } from '../../components/ui/AdvancedQ
 import { format } from 'date-fns-jalali';
 import { KanbanBoard } from '../../components/issues/KanbanBoard';
 import { IssueDetailsModal } from '../../components/issues/IssueDetailsModal';
+import { formatCurrency, formatNumber } from '../../utils/numberFormat';
 import toast from 'react-hot-toast';
 
 export function IssueSystem() {
@@ -248,11 +249,6 @@ export function IssueSystem() {
     return config[priority] || config['متوسط'];
   };
 
-  const formatCurrency = (value: number) => {
-    if (!value) return '۰';
-    return new Intl.NumberFormat('fa-IR').format(value);
-  };
-
   if (showForm) {
     return (
       <div className="space-y-6">
@@ -460,13 +456,16 @@ export function IssueSystem() {
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4 flex items-center gap-4">
           <div className="p-3 bg-amber-50 rounded-lg">
-            <DollarSign size={20} className="text-amber-600" />
+            <Coins size={20} className="text-amber-600" />
           </div>
           <div>
-            <p className="text-xs text-gray-400">بودجه کل</p>
-            <p className="text-2xl font-bold text-amber-600">
-              {(stats.totalBudget / 1000000000).toFixed(1)}B
-            </p>
+            <p className="text-xs text-gray-500 font-medium">جمع اعتبارات</p>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-xl font-bold text-amber-600" title={formatCurrency(stats.totalBudget, true)}>
+                {formatNumber(stats.totalBudget)}
+              </span>
+              <span className="text-xs text-amber-700 font-medium">ریال</span>
+            </div>
           </div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 flex items-center gap-4">

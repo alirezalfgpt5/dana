@@ -42,6 +42,7 @@ interface ExportOptions {
   periodId?: string;
   fromDate?: string;
   toDate?: string;
+  responsibleUnit?: string;
 }
 
 export function useOutputs() {
@@ -129,6 +130,7 @@ export function useOutputs() {
       if (options?.periodId) params.append('periodId', options.periodId);
       if (options?.fromDate) params.append('fromDate', options.fromDate);
       if (options?.toDate) params.append('toDate', options.toDate);
+      if (options?.responsibleUnit) params.append('responsibleUnit', options.responsibleUnit);
 
       const url = `/api/outputs/gaps/${treeId}/excel${params.toString() ? '?' + params.toString() : ''}`;
       const response = await(window.customFetch || window.fetch)(url);
@@ -172,6 +174,7 @@ export function useOutputs() {
       if (options?.periodId) params.append('periodId', options.periodId);
       if (options?.fromDate) params.append('fromDate', options.fromDate);
       if (options?.toDate) params.append('toDate', options.toDate);
+      if (options?.responsibleUnit) params.append('responsibleUnit', options.responsibleUnit);
 
       const url = `/api/outputs/research/${treeId}/excel${params.toString() ? '?' + params.toString() : ''}`;
       const response = await(window.customFetch || window.fetch)(url);
@@ -215,6 +218,7 @@ export function useOutputs() {
       if (options?.periodId) params.append('periodId', options.periodId);
       if (options?.fromDate) params.append('fromDate', options.fromDate);
       if (options?.toDate) params.append('toDate', options.toDate);
+      if (options?.responsibleUnit) params.append('responsibleUnit', options.responsibleUnit);
 
       const url = `/api/outputs/issues/excel${params.toString() ? '?' + params.toString() : ''}`;
       const response = await(window.customFetch || window.fetch)(url);
@@ -259,6 +263,7 @@ export function useOutputs() {
       if (options?.periodId) params.append('periodId', options.periodId);
       if (options?.fromDate) params.append('fromDate', options.fromDate);
       if (options?.toDate) params.append('toDate', options.toDate);
+      if (options?.responsibleUnit) params.append('responsibleUnit', options.responsibleUnit);
 
       const url = `/api/outputs/full-report${params.toString() ? '?' + params.toString() : ''}`;
       const response = await(window.customFetch || window.fetch)(url);

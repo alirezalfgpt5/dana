@@ -812,7 +812,7 @@ issueRoutes.put('/:id', async (req, res) => {
 // ============================================
 issueRoutes.post('/carry-over', async (req, res) => {
   try {
-    const { sourcePeriodId, targetPeriodId, mode = 'open_only', issueIds } = req.body;
+    const { sourcePeriodId, targetPeriodId, mode = 'open_only', issueIds, responsibleUnit } = req.body;
     if (!sourcePeriodId || !targetPeriodId) {
       return res.status(400).json({ error: 'شناسه دوره مبدأ و مقصد الزامی است' });
     }
@@ -828,6 +828,9 @@ issueRoutes.post('/carry-over', async (req, res) => {
       conditions.push(inArray(issues.status, ['pending', 'in_progress', 'on_hold']));
     } else if (mode === 'selected' && Array.isArray(issueIds) && issueIds.length > 0) {
       conditions.push(inArray(issues.id, issueIds));
+    }
+    if (responsibleUnit && responsibleUnit !== 'all') {
+      conditions.push(eq(issues.responsibleUnit, responsibleUnit));
     }
 
     const sourceIssues = await db.select().from(issues).where(and(...conditions));
@@ -925,7 +928,7 @@ issueRoutes.post('/carry-over', async (req, res) => {
 // ============================================
 issueRoutes.post('/batch-import', async (req, res) => {
   try {
-    const { targetPeriodId, issuesList, updateExistingByTitle = true } = req.body;
+    const { targetPeriodId, issuesList, updateExistingByTitle = true, responsibleUnit } = req.body;
     if (!targetPeriodId || !Array.isArray(issuesList)) {
       return res.status(400).json({ error: 'شناسه دوره و لیست مسائل الزامی است' });
     }
@@ -955,7 +958,7 @@ issueRoutes.post('/batch-import', async (req, res) => {
             bottlenecks: item.bottlenecks !== undefined ? item.bottlenecks : existingInPeriod.bottlenecks,
             orders: item.orders !== undefined ? item.orders : existingInPeriod.orders,
             solutionDirection: item.solutionDirection !== undefined ? item.solutionDirection : existingInPeriod.solutionDirection,
-            responsibleUnit: item.responsibleUnit !== undefined ? item.responsibleUnit : existingInPeriod.responsibleUnit,
+            responsibleUnit: item.responsibleUnit !== undefined ? item.responsibleUnit : (responsibleUnit || existingInPeriod.responsibleUnit),
             actionPriority: item.actionPriority !== undefined ? item.actionPriority : existingInPeriod.actionPriority,
             updatedAt: now,
           }).where(eq(issues.id, existingInPeriod.id)).run();
@@ -966,7 +969,7 @@ issueRoutes.post('/batch-import', async (req, res) => {
             domainNodeId: item.domainNodeId ? parseInt(item.domainNodeId) : null,
             title: item.title.trim(),
             solutionDirection: item.solutionDirection || '',
-            responsibleUnit: item.responsibleUnit || '',
+            responsibleUnit: item.responsibleUnit || responsibleUnit || '',
             confidentialityLevel: item.confidentialityLevel || 'عمومی',
             actionPriority: item.actionPriority || 'متوسط',
             approvalDate: item.approvalDate || now,

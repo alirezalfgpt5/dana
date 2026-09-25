@@ -376,13 +376,13 @@ export function useIssues() {
   // انتقال و فریز مسائل بین دوره‌های زمانی (Period Rollover)
   // ============================================
 
-  const carryOverIssues = useCallback(async (sourcePeriodId: number, targetPeriodId: number, mode = 'open_only', issueIds?: number[]) => {
+  const carryOverIssues = useCallback(async (sourcePeriodId: number, targetPeriodId: number, mode = 'open_only', issueIds?: number[], responsibleUnit?: string) => {
     setLoading(true);
     try {
       const result: any = await apiClient('/api/issues/carry-over', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourcePeriodId, targetPeriodId, mode, issueIds }),
+        body: JSON.stringify({ sourcePeriodId, targetPeriodId, mode, issueIds, responsibleUnit }),
       });
       toast.success(result.message || 'مسائل با موفقیت به دوره جدید انتقال یافتند');
       await fetchIssues({ page: 1, limit: pagination.limit, periodId: targetPeriodId });
@@ -399,13 +399,13 @@ export function useIssues() {
   // بارگذاری گروهی مسائل از فایل/سی‌دی برای دوره مشخص
   // ============================================
 
-  const batchImportIssues = useCallback(async (targetPeriodId: number, issuesList: any[], updateExistingByTitle = true) => {
+  const batchImportIssues = useCallback(async (targetPeriodId: number, issuesList: any[], updateExistingByTitle = true, responsibleUnit?: string) => {
     setLoading(true);
     try {
       const result: any = await apiClient('/api/issues/batch-import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetPeriodId, issuesList, updateExistingByTitle }),
+        body: JSON.stringify({ targetPeriodId, issuesList, updateExistingByTitle, responsibleUnit }),
       });
       toast.success(result.message || 'مسائل با موفقیت بارگذاری شدند');
       await fetchIssues({ page: 1, limit: pagination.limit, periodId: targetPeriodId });

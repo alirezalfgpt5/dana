@@ -3,11 +3,12 @@
 
 import React, { useState } from 'react';
 import { 
-  X, FileText, Settings, ClipboardList, Users, DollarSign, 
+  X, FileText, Settings, ClipboardList, Users, Coins, 
   CheckCircle, Clock, RefreshCw, File, UserCog, Building2,
   Calendar, Shield, AlertCircle, Paperclip, ChevronLeft
 } from 'lucide-react';
 import { format } from 'date-fns-jalali';
+import { formatCurrency, formatNumber } from '../../utils/numberFormat';
 
 interface IssueDetailsModalProps {
   issue: any;
@@ -41,16 +42,11 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
   const application = safeJson(issue.application);
   const teamMembers = safeJson(issue.issueResolutionTeam, []);
 
-  const formatCurrency = (amount: number) => {
-    if (!amount) return '۰';
-    return Number(amount).toLocaleString('fa-IR');
-  };
-
   const tabs = [
     { id: 'general', label: 'اطلاعات کلی', icon: Settings },
     { id: 'need', label: 'بیانیه نیاز', icon: FileText },
     { id: 'projects', label: 'پروژه‌ها و همکاری', icon: ClipboardList },
-    { id: 'budget', label: 'بودجه و زمان', icon: DollarSign },
+    { id: 'budget', label: 'اعتبارات و بودجه', icon: Coins },
     { id: 'actions', label: 'اقدامات و گلوگاه‌ها', icon: CheckCircle },
     { id: 'team', label: 'کارگروه', icon: UserCog },
     { id: 'contract', label: 'قراردادها', icon: File },
@@ -243,28 +239,28 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-100">
-                  <span className="text-xs text-emerald-800 block mb-1">💰 بودجه مورد نیاز</span>
-                  <p className="text-base font-bold text-emerald-700">{formatCurrency(issue.requiredBudget)} ریال</p>
+                  <span className="text-xs text-emerald-800 block mb-1">💰 اعتبار / بودجه مورد نیاز</span>
+                  <p className="text-base font-bold text-emerald-700">{formatCurrency(issue.requiredBudget, true)}</p>
                 </div>
                 <div className="bg-blue-50/60 p-3.5 rounded-xl border border-blue-100">
-                  <span className="text-xs text-blue-800 block mb-1">💳 بودجه مصوب</span>
-                  <p className="text-base font-bold text-blue-700">{formatCurrency(issue.approvedBudget)} ریال</p>
+                  <span className="text-xs text-blue-800 block mb-1">💳 اعتبار / بودجه مصوب</span>
+                  <p className="text-base font-bold text-blue-700">{formatCurrency(issue.approvedBudget, true)}</p>
                 </div>
                 <div className="bg-purple-50/60 p-3.5 rounded-xl border border-purple-100">
-                  <span className="text-xs text-purple-800 block mb-1">💵 بودجه تخصیص‌یافته</span>
-                  <p className="text-base font-bold text-purple-700">{formatCurrency(issue.assignedBudget)} ریال</p>
+                  <span className="text-xs text-purple-800 block mb-1">💵 اعتبار / بودجه تخصیص‌یافته</span>
+                  <p className="text-base font-bold text-purple-700">{formatCurrency(issue.assignedBudget, true)}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
                   <span className="text-xs text-gray-400 block mb-1">⏳ مدت زمان پیش‌بینی شده</span>
-                  <p className="text-sm font-semibold text-gray-800">{issue.expectedMonths || 0} ماه</p>
+                  <p className="text-sm font-semibold text-gray-800">{formatNumber(issue.expectedMonths || 0)} ماه</p>
                 </div>
                 <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
                   <span className="text-xs text-gray-400 block mb-1">📊 درصد پیشرفت فیزیکی</span>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-sm font-bold text-gray-800">{issue.completionPercent || 0}%</span>
+                    <span className="text-sm font-bold text-gray-800">{formatNumber(issue.completionPercent || 0)}٪</span>
                     <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-purple-600 rounded-full"

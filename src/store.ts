@@ -131,6 +131,14 @@ interface UIState {
   browserTitle: string;
   setBrowserTitle: (title: string) => void;
   
+  // تنظیمات فرمت اعداد و ریال
+  numberFormat: 'persian' | 'latin';
+  setNumberFormat: (format: 'persian' | 'latin') => void;
+  showThousandSeparator: boolean;
+  setShowThousandSeparator: (show: boolean) => void;
+  currencyUnit: string;
+  setCurrencyUnit: (unit: string) => void;
+  
   // بازنشانی
   resetFormState: () => void;
 }
@@ -299,6 +307,9 @@ export const useUIStore = create<UIState>()(
                 sidebarTitle: data.sidebarTitle || get().sidebarTitle,
                 browserTitle: data.browserTitle || get().browserTitle,
                 siteLogo: data.siteLogo || get().siteLogo,
+                numberFormat: data.numberFormat || get().numberFormat || 'persian',
+                showThousandSeparator: data.showThousandSeparator !== undefined ? data.showThousandSeparator === 'true' || data.showThousandSeparator === true : true,
+                currencyUnit: data.currencyUnit || get().currencyUnit || 'ریال',
               });
             }
           }
@@ -315,6 +326,9 @@ export const useUIStore = create<UIState>()(
             body: JSON.stringify(settings),
           });
           if (data) {
+            if (settings.numberFormat) localStorage.setItem('dana_number_format', settings.numberFormat);
+            if (settings.showThousandSeparator !== undefined) localStorage.setItem('dana_show_thousand_separator', String(settings.showThousandSeparator));
+            if (settings.currencyUnit) localStorage.setItem('dana_currency_unit', settings.currencyUnit);
             
             set({
               systemName: data.systemName || settings.systemName,
@@ -323,6 +337,9 @@ export const useUIStore = create<UIState>()(
               sidebarTitle: data.sidebarTitle || settings.sidebarTitle,
               browserTitle: data.browserTitle || settings.browserTitle,
               siteLogo: data.siteLogo || settings.siteLogo,
+              numberFormat: (data.numberFormat || settings.numberFormat || 'persian') as 'persian' | 'latin',
+              showThousandSeparator: data.showThousandSeparator !== undefined ? data.showThousandSeparator === 'true' || data.showThousandSeparator === true : (settings.showThousandSeparator ?? true),
+              currencyUnit: data.currencyUnit || settings.currencyUnit || 'ریال',
             });
           }
         } catch (error) {
@@ -367,6 +384,23 @@ export const useUIStore = create<UIState>()(
       
       browserTitle: 'DANA - سیستم مدیریت دانش و نظام مسائل',
       setBrowserTitle: (title) => set({ browserTitle: title }),
+
+      // تنظیمات فرمت اعداد و اعتبارات ریالی
+      numberFormat: 'persian',
+      setNumberFormat: (format) => {
+        localStorage.setItem('dana_number_format', format);
+        set({ numberFormat: format });
+      },
+      showThousandSeparator: true,
+      setShowThousandSeparator: (show) => {
+        localStorage.setItem('dana_show_thousand_separator', String(show));
+        set({ showThousandSeparator: show });
+      },
+      currencyUnit: 'ریال',
+      setCurrencyUnit: (unit) => {
+        localStorage.setItem('dana_currency_unit', unit);
+        set({ currencyUnit: unit });
+      },
       
       resetFormState: () => {
         set({ selectedTreeId: null });

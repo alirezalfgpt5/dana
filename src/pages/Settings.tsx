@@ -6,10 +6,11 @@ import {
   Save, Settings as SettingsIcon, Shield,
   Image, RefreshCw, CheckCircle,
   Plus, Trash2, Edit, X,
-  Layers, Tag, Building2, Download, Palette, Target
+  Layers, Tag, Building2, Download, Palette, Target, Coins, Hash
 } from 'lucide-react';
 import { useSecurityStore, useUIStore, useAuthStore, THEMES, ThemeId } from '../store';
 import { DynamicMetadataManager } from '../components/DynamicMetadataManager';
+import { formatNumber } from '../utils/numberFormat';
 import toast from 'react-hot-toast';
 
 type TabType = 'general' | 'appearance' | 'gapConfig' | 'security';
@@ -87,6 +88,9 @@ export function Settings() {
     sidebarTitle: '',
     browserTitle: '',
     lockTimer: 15,
+    numberFormat: 'persian' as 'persian' | 'latin',
+    showThousandSeparator: true,
+    currencyUnit: 'ریال',
   });
 
   const [logoBase64, setLogoBase64] = useState<string | null>(siteLogo);
@@ -96,6 +100,10 @@ export function Settings() {
   // ============================================
 
   useEffect(() => {
+    const rawNumberFormat = localStorage.getItem('dana_number_format') || 'persian';
+    const rawGrouping = localStorage.getItem('dana_show_thousand_separator') !== 'false';
+    const rawCurrency = localStorage.getItem('dana_currency_unit') || 'ریال';
+
     setFormData({
       systemName: systemName || 'سیستم مدیریت دانش (DANA)',
       pageTitle: pageTitle || 'داشبورد',
@@ -103,6 +111,9 @@ export function Settings() {
       sidebarTitle: sidebarTitle || 'DANA',
       browserTitle: browserTitle || 'DANA - سیستم مدیریت دانش و نظام مسائل',
       lockTimer: lockTimerMinutes || 15,
+      numberFormat: (rawNumberFormat as 'persian' | 'latin') || 'persian',
+      showThousandSeparator: rawGrouping,
+      currencyUnit: rawCurrency,
     });
     setLogoBase64(siteLogo);
 
@@ -379,9 +390,16 @@ export function Settings() {
         loginTitle: formData.loginTitle,
         sidebarTitle: formData.sidebarTitle,
         browserTitle: formData.browserTitle,
-        siteLogo: logoBase64 !== siteLogo ? (logoBase64 || '') : (siteLogo || '')
+        siteLogo: logoBase64 !== siteLogo ? (logoBase64 || '') : (siteLogo || ''),
+        numberFormat: formData.numberFormat,
+        showThousandSeparator: String(formData.showThousandSeparator),
+        currencyUnit: formData.currencyUnit || 'ریال',
       };
       
+      localStorage.setItem('dana_number_format', formData.numberFormat);
+      localStorage.setItem('dana_show_thousand_separator', String(formData.showThousandSeparator));
+      localStorage.setItem('dana_currency_unit', formData.currencyUnit || 'ریال');
+
       if (saveSystemSettings) {
         await saveSystemSettings(settingsToSave);
       } else {
@@ -874,6 +892,127 @@ export function Settings() {
           عنوان مرورگر (Tab)
         </label>
         <input type="text" className="w-full px-4 py-2.5 border border-gray-200 dark:border-[#2d2d44] rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 dark:bg-[#1a1a2e]/50 focus:bg-white dark:focus:bg-[#1e1e2f] dark:bg-[#1e1e2f] text-sm" value={formData.browserTitle} onChange={e => setFormData({...formData, browserTitle: e.target.value})} />
+      </div>
+
+      {/* بخش تنظیمات فرمت اعداد و اعتبارات ریالی */}
+      <div className="pt-4 border-t border-gray-200 dark:border-[#2d2d44] space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg">
+            <Coins size={18} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">تنظیمات فرمت نمایش اعداد و اعتبارات (بومی‌سازی ریال)</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">نحوه نمایش مقادیر عددی، مبالغ بودجه و جداکننده هزارگان در کلیه بخش‌های سامانه</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 dark:bg-[#1a1a2e]/40 p-4 rounded-xl border border-gray-200 dark:border-[#2d2d44]">
+          {/* حالت نمایش ارقام */}
+          <div>
+            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">
+              فرمت نمایش ارقام:
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2.5 p-2 rounded-lg border border-gray-200 dark:border-[#2d2d44] bg-white dark:bg-[#1e1e2f] cursor-pointer hover:border-blue-400 transition-colors">
+                <input
+                  type="radio"
+                  name="numberFormat"
+                  value="persian"
+                  checked={formData.numberFormat === 'persian'}
+                  onChange={() => setFormData({ ...formData, numberFormat: 'persian' })}
+                  className="text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                  اعداد فارسی (۱۲۳٬۴۵۶) <span className="text-xs text-emerald-600 font-normal mr-1">(استاندارد بومی)</span>
+                </span>
+              </label>
+
+              <label className="flex items-center gap-2.5 p-2 rounded-lg border border-gray-200 dark:border-[#2d2d44] bg-white dark:bg-[#1e1e2f] cursor-pointer hover:border-blue-400 transition-colors">
+                <input
+                  type="radio"
+                  name="numberFormat"
+                  value="latin"
+                  checked={formData.numberFormat === 'latin'}
+                  onChange={() => setFormData({ ...formData, numberFormat: 'latin' })}
+                  className="text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                  اعداد انگلیسی / لاتین (123,456)
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* جداکننده هزارگان و واحد */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">
+                جداکننده هزارگان:
+              </label>
+              <label className="flex items-center gap-2.5 p-2.5 rounded-lg border border-gray-200 dark:border-[#2d2d44] bg-white dark:bg-[#1e1e2f] cursor-pointer hover:border-blue-400 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={formData.showThousandSeparator}
+                  onChange={(e) => setFormData({ ...formData, showThousandSeparator: e.target.checked })}
+                  className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                    نمایش جداکننده سه‌رقمی هزارگان
+                  </span>
+                  <p className="text-[11px] text-gray-400">
+                    تفکیک مقادیر مالی با علامت جداکننده (مانند {formData.numberFormat === 'persian' ? '۱۲۵٬۰۰۰٬۰۰۰' : '125,000,000'})
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                واحد پول و اعتبارات:
+              </label>
+              <input
+                type="text"
+                disabled
+                value="ریال (Rial - واحد رسمی کشور)"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-[#2d2d44] rounded-lg bg-gray-100 dark:bg-[#252538] text-xs text-gray-600 dark:text-gray-300 font-medium"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* پیش‌نمایش زنده */}
+        <div className="bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 rounded-xl p-3.5 text-xs">
+          <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 font-bold mb-2">
+            <span>👁️ پیش‌نمایش زنده تنظیمات عددی:</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+            <div className="bg-white dark:bg-[#1e1e2f] p-2 rounded-lg border border-blue-100 dark:border-[#2d2d44]">
+              <span className="text-[11px] text-gray-400 block mb-0.5">اعتبار نمونه</span>
+              <span className="font-bold text-emerald-600">
+                {formatNumber(1450000000, { usePersianDigits: formData.numberFormat === 'persian', useGrouping: formData.showThousandSeparator })} ریال
+              </span>
+            </div>
+            <div className="bg-white dark:bg-[#1e1e2f] p-2 rounded-lg border border-blue-100 dark:border-[#2d2d44]">
+              <span className="text-[11px] text-gray-400 block mb-0.5">بودجه مصوب</span>
+              <span className="font-bold text-blue-600">
+                {formatNumber(50000000, { usePersianDigits: formData.numberFormat === 'persian', useGrouping: formData.showThousandSeparator })} ریال
+              </span>
+            </div>
+            <div className="bg-white dark:bg-[#1e1e2f] p-2 rounded-lg border border-blue-100 dark:border-[#2d2d44]">
+              <span className="text-[11px] text-gray-400 block mb-0.5">درصد پیشرفت</span>
+              <span className="font-bold text-indigo-600">
+                {formatNumber(78, { usePersianDigits: formData.numberFormat === 'persian', useGrouping: false })}٪
+              </span>
+            </div>
+            <div className="bg-white dark:bg-[#1e1e2f] p-2 rounded-lg border border-blue-100 dark:border-[#2d2d44]">
+              <span className="text-[11px] text-gray-400 block mb-0.5">تعداد کل مسائل</span>
+              <span className="font-bold text-gray-800 dark:text-gray-200">
+                {formatNumber(1250, { usePersianDigits: formData.numberFormat === 'persian', useGrouping: formData.showThousandSeparator })} فقره
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="pt-4 border-t border-gray-200 dark:border-[#2d2d44]">

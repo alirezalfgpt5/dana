@@ -9,21 +9,42 @@ import {
   Target, Database, Settings,
   HelpCircle,
   Maximize,
-  Minimize
+  Minimize,
+  Building2
 } from 'lucide-react';
 import { useTree } from '../../hooks/useTree';
 import { useOutputs } from '../../hooks/useOutputs';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
-import DatePicker from 'react-multi-date-picker';
-import persian from 'react-date-object/calendars/persian';
-import persian_fa from 'react-date-object/locales/persian_fa';
-import ExcelIcon from '../../components/icon/ExcelIcon';
-
-import transition from 'react-element-popper/animations/transition';
+import RawDatePicker from 'react-multi-date-picker';
+import rawPersian from 'react-date-object/calendars/persian';
+import rawPersianFa from 'react-date-object/locales/persian_fa';
+import RawExcelIcon from '../../components/icon/ExcelIcon';
+import rawTransition from 'react-element-popper/animations/transition';
 import toast from 'react-hot-toast';
 import { TreeGraphView } from '../Trees/components/TreeGraphView';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { formatNumber } from '../../utils/numberFormat';
 
+// استخراج امن کامپوننت‌ها برای جلوگیری از خطای Element type is invalid در React 19 / Vite
+const resolveComponent = (comp: any) => {
+  if (!comp) return null;
+  if (comp.$$typeof || typeof comp === 'function') return comp;
+  if (comp.default?.$$typeof || typeof comp.default === 'function') return comp.default;
+  if (comp.default?.default?.$$typeof || typeof comp.default?.default === 'function') return comp.default.default;
+  return comp.default || comp;
+};
+
+const DatePicker: any = resolveComponent(RawDatePicker);
+const persian: any = (rawPersian as any)?.default || rawPersian;
+const persian_fa: any = (rawPersianFa as any)?.default || rawPersianFa;
+const ExcelIcon: any = resolveComponent(RawExcelIcon) || RawExcelIcon;
+const safeTransition = () => {
+  try {
+    const fn = (rawTransition as any)?.default || rawTransition;
+    if (typeof fn === 'function') return fn();
+  } catch {}
+  return undefined;
+};
 
 type OutputType = 'tree' | 'gaps' | 'research' | 'issues' | 'full-report';
 
@@ -43,6 +64,8 @@ export function Outputs() {
   const [selectedTreeId, setSelectedTreeId] = useState<number | null>(null);
   const [outputType, setOutputType] = useState<OutputType>('tree');
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+  const [selectedUnit, setSelectedUnit] = useState<string>('');
+  const [orgUnits, setOrgUnits] = useState<string[]>([]);
   const [includeTemplates, setIncludeTemplates] = useState(true);
   const [includeLevels, setIncludeLevels] = useState(true);
   const [includeMetadata, setIncludeMetadata] = useState(false);
@@ -55,7 +78,7 @@ export function Outputs() {
 
   useEffect(() => {
     fetchTrees();
-   (window.customFetch || window.fetch)('/api/periods')
+    (window.customFetch || window.fetch)('/api/periods')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -63,10 +86,24 @@ export function Outputs() {
         }
       })
       .catch(err => console.error('Error fetching periods:', err));
+
+    // دریافت لیست یگان‌ها و ساختارهای سازمانی جهت فیلتر خروجی‌ها
+    Promise.all([
+      (window.customFetch || window.fetch)('/api/org/bases').then(r => r.json()).catch(() => []),
+      (window.customFetch || window.fetch)('/api/org/units').then(r => r.json()).catch(() => []),
+      (window.customFetch || window.fetch)('/api/issues?limit=500').then(r => r.json()).catch(() => ({ issues: [] })),
+    ]).then(([bases, units, issuesData]) => {
+      const set = new Set<string>();
+      if (Array.isArray(bases)) bases.forEach((b: any) => b.name && set.add(b.name));
+      if (Array.isArray(units)) units.forEach((u: any) => u.name && set.add(u.name));
+      const iss = Array.isArray(issuesData) ? issuesData : (issuesData?.issues || []);
+      iss.forEach((i: any) => i.responsibleUnit && set.add(i.responsibleUnit));
+      setOrgUnits(Array.from(set).filter(Boolean).sort());
+    });
   }, []);
 
   const handleExport = async () => {
-    if (!selectedTreeId) {
+    if (!selectedTreeId && outputType !== 'issues') {
       toast.error('❌ لطفاً یک درختواره انتخاب کنید');
       return;
     }
@@ -81,15 +118,16 @@ export function Outputs() {
         periodId: selectedPeriodId || undefined,
         fromDate: fromDate?.toDate?.()?.toISOString(),
         toDate: toDate?.toDate?.()?.toISOString(),
+        responsibleUnit: selectedUnit || undefined,
       };
 
       if (outputType === 'tree') {
-        await exportTree(selectedTreeId);
+        await exportTree(selectedTreeId!);
       } else {
-        await exportExcel(outputType, selectedTreeId, options);
+        await exportExcel(outputType, selectedTreeId || 0, options);
       }
 
-      toast.success('📥 فایل با موفقیت دانلود شد');
+      toast.success('📥 فایل اکسل با موفقیت دانلود شد');
     } catch (error: any) {
       toast.error(error.message || '❌ خطا در خروجی اکسل');
     } finally {
@@ -175,9 +213,9 @@ export function Outputs() {
             {isExporting ? (
               <RefreshCw size={18} className="animate-spin" />
             ) : (
-              <Download size={18} />
+              <ExcelIcon color="#ffffff" size={18} />
             )}
-            {isExporting ? '⏳ در حال ایجاد...' : <ExcelIcon  color="#ffff" />}
+            <span>{isExporting ? 'در حال ایجاد فایل...' : 'دریافت خروجی اکسل (ریال)'}</span>
             
           </button>
         </div>
@@ -255,6 +293,26 @@ export function Outputs() {
             />
           </div>
 
+          {/* فیلتر ساختار سازمانی / یگان متولی */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
+              <Building2 size={16} className="text-blue-600" />
+              <span>واحد سازمانی / یگان متولی (اختیاری)</span>
+            </label>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'همه واحدها و یگان‌های سازمانی' },
+                ...orgUnits.map(u => ({
+                  value: u,
+                  label: u,
+                }))
+              ]}
+              value={selectedUnit}
+              onChange={(val) => setSelectedUnit(val ? String(val) : '')}
+              placeholder="همه واحدها و یگان‌ها..."
+            />
+          </div>
+
           {/* تاریخ از */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -266,7 +324,7 @@ export function Outputs() {
                 onChange={(date: any) => setFromDate(date)}
                 calendar={persian}
                 locale={persian_fa}
-                animations={[transition()]}
+                animations={safeTransition() ? [safeTransition()] : []}
                 format="YYYY/MM/DD"
                 inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-right font-sans text-sm pr-10"
                 containerClassName="w-full"
@@ -295,7 +353,7 @@ export function Outputs() {
                 onChange={(date: any) => setToDate(date)}
                 calendar={persian}
                 locale={persian_fa}
-                animations={[transition()]}
+                animations={safeTransition() ? [safeTransition()] : []}
                 format="YYYY/MM/DD"
                 inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-right font-sans text-sm pr-10"
                 containerClassName="w-full"
@@ -394,19 +452,19 @@ export function Outputs() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
                     <span className="text-sm text-gray-500 mb-1">کل گره‌ها</span>
-                    <span className="text-2xl font-bold text-gray-800">{graphData.stats?.totalNodes || 0}</span>
+                    <span className="text-2xl font-bold text-gray-800">{formatNumber(graphData.stats?.totalNodes || 0)}</span>
                   </div>
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
                     <span className="text-sm text-gray-500 mb-1">گره‌های برگ (L 🍃)</span>
-                    <span className="text-2xl font-bold text-blue-600">{graphData.stats?.leaves || 0}</span>
+                    <span className="text-2xl font-bold text-blue-600">{formatNumber(graphData.stats?.leaves || 0)}</span>
                   </div>
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
                     <span className="text-sm text-gray-500 mb-1"> 🔴 شکاف‌های شناسایی‌شده</span>
-                    <span className="text-2xl font-bold text-red-600">{graphData.stats?.gaps || 0}</span>
+                    <span className="text-2xl font-bold text-red-600">{formatNumber(graphData.stats?.gaps || 0)}</span>
                   </div>
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
                     <span className="text-sm text-gray-500 mb-1">موارد پژوهشی</span>
-                    <span className="text-2xl font-bold text-purple-600">{graphData.stats?.researchItems || 0}</span>
+                    <span className="text-2xl font-bold text-purple-600">{formatNumber(graphData.stats?.researchItems || 0)}</span>
                   </div>
                 </div>
 

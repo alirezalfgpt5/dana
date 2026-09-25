@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Save, X, Plus, Trash2, Calendar, FileText, 
-  Users, DollarSign, Clock, CheckCircle, AlertCircle,
+  Users, Coins, Clock, CheckCircle, AlertCircle,
   Building2, UserCog, File as FileIcon, Link, Settings, 
   ClipboardList, BookOpen, RefreshCw, Upload,
   Download, Eye, EyeOff, HelpCircle
@@ -16,6 +16,7 @@ import rawTransition from 'react-element-popper/animations/transition';
 import toast from 'react-hot-toast';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { api } from '../../services/api';
+import { formatCurrency } from '../../utils/numberFormat';
 
 // Safe extraction of CJS/ESM exports for react-multi-date-picker and plugins
 const resolveComponent = (comp: any) => {
@@ -462,7 +463,7 @@ export function IssueFormTabs({
     { id: 'general', label: ' اطلاعات کلی', icon: Settings },
     { id: 'projects', label: ' پروژه‌ها', icon: ClipboardList },
     { id: 'collaboration', label: ' همکاری‌ها', icon: Users },
-    { id: 'budget', label: ' بودجه و زمان', icon: DollarSign },
+    { id: 'budget', label: ' بودجه و اعتبارات', icon: Coins },
     { id: 'actions', label: ' اقدامات', icon: CheckCircle },
     { id: 'team', label: ' کارگروه', icon: UserCog },
     { id: 'contract', label: ' قرارداد', icon: FileIcon },
@@ -1050,10 +1051,10 @@ export function IssueFormTabs({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            💰 بودجه مورد نیاز
+            💰 اعتبار / بودجه مورد نیاز (ریال)
           </label>
           <div className="relative">
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">ریال</span>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">ریال</span>
             <input
               type="number"
               value={formData.requiredBudget || 0}
@@ -1063,13 +1064,18 @@ export function IssueFormTabs({
               min="0"
             />
           </div>
+          {Number(formData.requiredBudget) > 0 && (
+            <p className="text-xs text-blue-600 mt-1 font-medium">
+              {formatCurrency(formData.requiredBudget, true)}
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            ✅ بودجه مصوب
+            ✅ اعتبار / بودجه مصوب (ریال)
           </label>
           <div className="relative">
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">ریال</span>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">ریال</span>
             <input
               type="number"
               value={formData.approvedBudget || 0}
@@ -1079,13 +1085,18 @@ export function IssueFormTabs({
               min="0"
             />
           </div>
+          {Number(formData.approvedBudget) > 0 && (
+            <p className="text-xs text-emerald-600 mt-1 font-medium">
+              {formatCurrency(formData.approvedBudget, true)}
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            📤 بودجه واگذار شده
+            📤 اعتبار / بودجه واگذار شده (ریال)
           </label>
           <div className="relative">
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">ریال</span>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">ریال</span>
             <input
               type="number"
               value={formData.assignedBudget || 0}
@@ -1095,6 +1106,11 @@ export function IssueFormTabs({
               min="0"
             />
           </div>
+          {Number(formData.assignedBudget) > 0 && (
+            <p className="text-xs text-purple-600 mt-1 font-medium">
+              {formatCurrency(formData.assignedBudget, true)}
+            </p>
+          )}
         </div>
       </div>
 

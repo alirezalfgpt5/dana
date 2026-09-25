@@ -1,7 +1,7 @@
 // src/components/issues/PeriodRolloverModal.tsx
 // مدال مدیریت انتقال بین‌دوره‌ای و ورود اطلاعات دوره‌های جدید (سی‌دی و فایل)
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Calendar, 
@@ -11,7 +11,8 @@ import {
   AlertCircle, 
   FileText,
   Copy,
-  Info
+  Info,
+  Building2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -20,8 +21,8 @@ interface PeriodRolloverModalProps {
   onClose: () => void;
   periods: any[];
   activePeriod: any;
-  onCarryOver: (sourcePeriodId: number, targetPeriodId: number, mode: string) => Promise<any>;
-  onBatchImport: (targetPeriodId: number, issuesList: any[], updateExisting: boolean) => Promise<any>;
+  onCarryOver: (sourcePeriodId: number, targetPeriodId: number, mode: string, issueIds?: number[], responsibleUnit?: string) => Promise<any>;
+  onBatchImport: (targetPeriodId: number, issuesList: any[], updateExisting: boolean, responsibleUnit?: string) => Promise<any>;
   onRefresh: () => void;
 }
 
@@ -41,12 +42,30 @@ export function PeriodRolloverModal({
   const [sourcePeriodId, setSourcePeriodId] = useState<string>(activePeriod?.id ? String(activePeriod.id) : (periods[0]?.id ? String(periods[0].id) : ''));
   const [targetPeriodId, setTargetPeriodId] = useState<string>('');
   const [carryOverMode, setCarryOverMode] = useState<'open_only' | 'all'>('open_only');
+  const [rolloverUnit, setRolloverUnit] = useState<string>('');
 
   // فرم ورود اطلاعات سی‌دی / فایل
   const [importPeriodId, setImportPeriodId] = useState<string>(activePeriod?.id ? String(activePeriod.id) : (periods[0]?.id ? String(periods[0].id) : ''));
+  const [importUnit, setImportUnit] = useState<string>('');
   const [updateExisting, setUpdateExisting] = useState<boolean>(true);
   const [jsonInput, setJsonInput] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
+  const [orgUnits, setOrgUnits] = useState<string[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      (window.customFetch || window.fetch)('/api/org/bases').then(r => r.json()).catch(() => []),
+      (window.customFetch || window.fetch)('/api/org/units').then(r => r.json()).catch(() => []),
+      (window.customFetch || window.fetch)('/api/issues?limit=500').then(r => r.json()).catch(() => ({ issues: [] })),
+    ]).then(([bases, units, issuesData]) => {
+      const set = new Set<string>();
+      if (Array.isArray(bases)) bases.forEach((b: any) => b.name && set.add(b.name));
+      if (Array.isArray(units)) units.forEach((u: any) => u.name && set.add(u.name));
+      const iss = Array.isArray(issuesData) ? issuesData : (issuesData?.issues || []);
+      iss.forEach((i: any) => i.responsibleUnit && set.add(i.responsibleUnit));
+      setOrgUnits(Array.from(set).filter(Boolean).sort());
+    });
+  }, []);
 
   if (!isOpen) return null;
 
@@ -63,7 +82,7 @@ export function PeriodRolloverModal({
 
     setLoading(true);
     try {
-      await onCarryOver(parseInt(sourcePeriodId), parseInt(targetPeriodId), carryOverMode);
+      await onCarryOver(parseInt(sourcePeriodId), parseInt(targetPeriodId), carryOverMode, undefined, rolloverUnit || undefined);
       onRefresh();
       onClose();
     } catch (err: any) {
@@ -132,7 +151,7 @@ export function PeriodRolloverModal({
 
     setLoading(true);
     try {
-      await onBatchImport(parseInt(importPeriodId), parsedList, updateExisting);
+      await onBatchImport(parseInt(importPeriodId), parsedList, updateExisting, importUnit || undefined);
       onRefresh();
       onClose();
     } catch (err: any) {
@@ -240,8 +259,30 @@ export function PeriodRolloverModal({
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center gap-1.5">
+                  <Building2 size={15} className="text-purple-600" />
+                  ۳. ساختار سازمانی / یگان متولی جهت انتقال (اختیاری)
+                </label>
+                <select
+                  value={rolloverUnit}
+                  onChange={(e) => setRolloverUnit(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">همه یگان‌ها و ساختارهای سازمانی (انتقال سراسری)</option>
+                  {orgUnits.map((u) => (
+                    <option key={u} value={u}>
+                      یگان / واحد: {u}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  می‌توانید انتقال به دوره بعد را فقط برای مسائل متعلق به یک یگان یا ساختار سازمانی مشخص فیلتر کنید.
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-gray-700 mb-2">
-                  ۳. دامنه انتقال مسائل
+                  ۴. دامنه انتقال مسائل
                 </label>
                 <div className="space-y-2">
                   <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors">
@@ -317,6 +358,28 @@ export function PeriodRolloverModal({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center gap-1.5">
+                  <Building2 size={15} className="text-indigo-600" />
+                  ساختار سازمانی / یگان متولی این سی‌دی یا فایل (اختیاری)
+                </label>
+                <select
+                  value={importUnit}
+                  onChange={(e) => setImportUnit(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">استخراج از مشخصات فایل سی‌دی (پیش‌فرض)</option>
+                  {orgUnits.map((u) => (
+                    <option key={u} value={u}>
+                      تخصیص به یگان / واحد: {u}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  مشخص کنید این بسته اطلاعاتی سی‌دی متعلق به کدام ساختار سازمانی یا یگان است.
+                </p>
               </div>
 
               <div>
