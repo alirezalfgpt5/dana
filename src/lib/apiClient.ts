@@ -100,8 +100,13 @@ export async function apiClient<T = any>(
       }
       
       const message = data.message || data.error || 'خطا در ارتباط با سرور';
-      if (showErrorToast) toast.error(message);
-      throw new Error(message);
+      if (showErrorToast) {
+        toast.error(message, { id: `api-err-${message}` });
+      }
+      const apiErr: any = new Error(message);
+      apiErr._toastShown = true;
+      apiErr.status = res.status;
+      throw apiErr;
     }
 
     // موفقیت
@@ -115,16 +120,17 @@ export async function apiClient<T = any>(
     if (
       error.name === 'TypeError' ||
       error.message === 'Failed to fetch' ||
-      error.message.includes('NetworkError')
+      error.message?.includes('NetworkError')
     ) {
-      if (showErrorToast) {
-        toast.error('خطا در برقراری ارتباط با سرور (اتصال اینترنت را بررسی کنید)');
+      if (showErrorToast && !error._toastShown) {
+        toast.error('خطا در برقراری ارتباط با سرور (اتصال اینترنت را بررسی کنید)', { id: 'network-fetch-error' });
+        error._toastShown = true;
       }
     }
 
     // اگر خطا از قبل toast داشته باشد، دوباره نمایش نده
-    if (!error._toastShown && showErrorToast && error.message && error.message !== 'Unauthorized') {
-      toast.error(error.message);
+    if (!error._toastShown && showErrorToast && error.message && error.message !== 'Unauthorized' && error.message !== 'Session locked') {
+      toast.error(error.message, { id: `api-err-${error.message}` });
       error._toastShown = true;
     }
 

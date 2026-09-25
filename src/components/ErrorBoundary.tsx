@@ -19,9 +19,22 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  private lastErrorTime = 0;
+  private lastErrorMessage = '';
+
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    const now = Date.now();
+    if (this.lastErrorMessage === error.message && now - this.lastErrorTime < 4000) {
+      return; // جلوگیری از تکرار لاگ خطای یکسان در کنسول
+    }
+    this.lastErrorMessage = error.message;
+    this.lastErrorTime = now;
+    console.error('ErrorBoundary captured error:', error.message, errorInfo.componentStack?.slice(0, 300));
   }
+
+  private handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
 
   public render() {
     if (this.state.hasError) {
@@ -35,17 +48,25 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">خطای غیرمنتظره رخ داد</h2>
             <p className="text-gray-600 dark:text-slate-400 mb-6">
-              متأسفانه در پردازش این صفحه خطایی به وجود آمد. لطفاً صفحه را رفرش کنید.
+              متأسفانه در پردازش این بخش خطایی به وجود آمد. می‌توانید تلاش مجدد کنید یا صفحه را بازنشانی نمایید.
             </p>
             <div className="bg-gray-100 dark:bg-slate-900 p-3 rounded text-left text-sm text-red-500 overflow-auto max-h-32 mb-6" dir="ltr">
               <code>{this.state.error?.message || 'Unknown Error'}</code>
             </div>
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors font-medium"
-            >
-              تلاش مجدد
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={this.handleReset}
+                className="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors font-medium shadow-sm"
+              >
+                تلاش مجدد
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="py-2 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg transition-colors font-medium"
+              >
+                بارگذاری مجدد
+              </button>
+            </div>
           </div>
         </div>
       );

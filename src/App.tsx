@@ -1,9 +1,21 @@
 // src/App.tsx
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, useToasterStore } from 'react-hot-toast';
 
 import toast from 'react-hot-toast';
+
+// محدودکننده تعداد پیام‌های همزمان روی صفحه (حداکثر ۳ پیام همزمان برای جلوگیری از شلوغی رابط کاربری)
+function ToastLimiter() {
+  const { toasts } = useToasterStore();
+  useEffect(() => {
+    toasts
+      .filter((t) => t.visible)
+      .filter((_, i) => i >= 3)
+      .forEach((t) => toast.dismiss(t.id));
+  }, [toasts]);
+  return null;
+}
 
 import { useUIStore, useAuthStore } from './store';
 import { MainLayout } from './components/layout/MainLayout';
@@ -57,12 +69,12 @@ export default function App() {
 
   useEffect(() => {
     const handleAuthError = (e: any) => {
-      toast.error(e.detail || 'نشست شما منقضی شده است');
+      toast.error(e.detail || 'نشست شما منقضی شده است', { id: 'app-auth-expired' });
       logout();
     };
     
     const handleNetworkError = (e: any) => {
-      toast.error(e.detail || 'خطا در ارتباط با سرور');
+      toast.error(e.detail || 'خطا در ارتباط با سرور', { id: 'app-network-error' });
     };
 
     window.addEventListener('auth-error', handleAuthError);
@@ -77,7 +89,16 @@ export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <Toaster position="top-center" toastOptions={{ className: 'font-sans rtl' }} />
+        <ToastLimiter />
+        <Toaster
+          position="top-center"
+          reverseOrder={false}
+          gutter={8}
+          toastOptions={{
+            className: 'font-sans rtl shadow-lg border border-slate-200/50',
+            duration: 3500,
+          }}
+        />
         <Routes>
           <Route path="/login" element={<Login />} />
           

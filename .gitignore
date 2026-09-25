@@ -9,3 +9,6 @@ coverage/
 
 dana.zip
 backups/
+database.sqlite-shm
+database.sqlite-wal
+tsconfig.tsbuildinfo

@@ -14,6 +14,7 @@ import {
   templates,
   knowledgeLevels,
   programCoverages,
+  periods,
 } from '../../src/db/schema.js';
 import { eq, and, inArray } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';

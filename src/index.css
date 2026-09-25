@@ -4,9 +4,7 @@
 /* فونت Vazirmatn به صورت آفلاین از public/fonts استفاده می‌شود (offline-font.css) */
 @import './offline-font.css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* ============================================
    🎨 سیستم تم (Theme System)

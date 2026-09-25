@@ -7,6 +7,12 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { useAuthStore } from './store';
+import { initToastDeduplication } from './lib/toastInterceptor';
+import { initClientErrorHandling } from './lib/clientLogger';
+
+// فعال‌سازی سیستم هوشمند مهار لوپ خطا و مدیریت استثناها
+initToastDeduplication();
+initClientErrorHandling();
 
 // ============================================
 // بررسی وجود المنت ریشه
@@ -53,7 +59,12 @@ window.customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const res = await originalFetch(input, options);
     
     if (res.status === 401 && isApiRequest) {
-      window.dispatchEvent(new CustomEvent('auth-error', { detail: 'نشست شما منقضی شده است. لطفا دوباره وارد شوید.' }));
+      const now = Date.now();
+      const lastAuthTime = (window as any)._lastAuthErrorDispatch || 0;
+      if (now - lastAuthTime > 4000) {
+        (window as any)._lastAuthErrorDispatch = now;
+        window.dispatchEvent(new CustomEvent('auth-error', { detail: 'نشست شما منقضی شده است. لطفا دوباره وارد شوید.' }));
+      }
     }
     
     return res;

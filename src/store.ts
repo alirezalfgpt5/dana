@@ -135,6 +135,25 @@ interface UIState {
   resetFormState: () => void;
 }
 
+let lastNetworkErrorTime = 0;
+let lastAuthErrorTime = 0;
+
+const dispatchNetworkError = (detail: string) => {
+  const now = Date.now();
+  if (now - lastNetworkErrorTime > 3000) {
+    lastNetworkErrorTime = now;
+    window.dispatchEvent(new CustomEvent('network-error', { detail }));
+  }
+};
+
+const dispatchAuthError = (detail: string) => {
+  const now = Date.now();
+  if (now - lastAuthErrorTime > 3000) {
+    lastAuthErrorTime = now;
+    window.dispatchEvent(new CustomEvent('auth-error', { detail }));
+  }
+};
+
 const safeFetchJson = async (url: string, options: any = {}) => {
   options.credentials = "include";
   // Add auth header if not present
@@ -150,9 +169,9 @@ const safeFetchJson = async (url: string, options: any = {}) => {
     const res = await fetch(url, options);
     if (!res.ok) {
       if (res.status === 401) {
-        window.dispatchEvent(new CustomEvent('auth-error', { detail: 'نشست شما منقضی شده است. لطفا دوباره وارد شوید.' }));
+        dispatchAuthError('نشست شما منقضی شده است. لطفا دوباره وارد شوید.');
       } else {
-        window.dispatchEvent(new CustomEvent('network-error', { detail: `خطای سرور: ${res.status}` }));
+        dispatchNetworkError(`خطای سرور: ${res.status}`);
       }
       return null;
     }
@@ -169,7 +188,7 @@ const safeFetchJson = async (url: string, options: any = {}) => {
     }
   } catch (e) {
     console.warn('Network error for', url, e);
-    window.dispatchEvent(new CustomEvent('network-error', { detail: 'ارتباط با سرور قطع شده است. لطفا وضعیت شبکه را بررسی کنید.' }));
+    dispatchNetworkError('ارتباط با سرور قطع شده است. لطفا وضعیت شبکه را بررسی کنید.');
     return null;
   }
 };

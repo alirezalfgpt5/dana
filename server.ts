@@ -19,10 +19,12 @@ app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false,
 app.set('trust proxy', 1); // Trust first proxy for express-rate-limit
 
 // ============================================
-// Fix Item 45: Process Death on Unhandled Exceptions
+// سیستم لاگینگ هوشمند، جلوگیری از تکرار لاگ‌ها و مدیریت استثناها
 // ============================================
-// ⚠️ توجه: به‌طور عمدی هیچ handler سراسری uncaughtException/unhandledRejection ثبت نمی‌شود
-// تا خطاهای راه‌اندازی (مانند اشغال بودن پورت) باعث خروج تمیز و شفاف پروسه شوند.
+import { logger, setupProcessExceptionHandlers } from './server/utils/logger.js';
+import { freePort, listenWithAutoPortRecovery, setupGracefulShutdown } from './server/utils/portManager.js';
+logger.patchConsole();
+setupProcessExceptionHandlers();
 
 // پورت سرور برنامه باید 3000 باشد (پورت 8080 مربوط به پروکسی معکوس Nginx است)
 let targetPort = 3000;
@@ -248,12 +250,6 @@ app.use('/api/search', requireAuth, searchRoutes);
 app.use('/api/reports', requireAuth, reportRoutes);
 app.use('/api/dynamic-fields', requireAuth, dynamicFieldsRoutes);
 
-// Global Error Handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Unhandled Server Error:', err);
-  res.status(500).json({ error: 'خطای سرور رخ داده است. لطفاً با مدیر سیستم تماس بگیرید.' });
-});
-
 // ============================================
 // Login
 // ============================================
@@ -324,7 +320,8 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       token: token,
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message, stack: error.stack });
+    logger.error('Login processing error:', error);
+    res.status(500).json({ message: 'خطا در فرآیند ورود به سیستم' });
   }
 });
 
@@ -366,7 +363,7 @@ async function startServer() {
       const vite = await createServer({
         server: { 
           middlewareMode: true,
-          hmr: process.env.DISABLE_HMR === 'true' ? false : { server: httpServer }
+          hmr: process.env.DISABLE_HMR === 'true' ? false : undefined,
         },
         appType: 'spa',
       });
@@ -385,30 +382,30 @@ async function startServer() {
   }
 
   // ============================================
-  // Error Handler
+  // Centralized Error Handler (با مهار لوپ لاگ و محافظت از اطلاعات محرمانه)
   // ============================================
 
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error(err?.message || err);
-    res.status(500).json({ error: 'خطای داخلی سرور' });
-  });
-
-  // ============================================
-  // Start (با مدیریت خطای پورت)
-  // ============================================
-
-  httpServer.on('error', (err: any) => {
-    if (err.code === 'EADDRINUSE') {
-      console.error(`❌ پورت ${PORT} توسط پردازش دیگری اشغال شده است (EADDRINUSE).`);
-      console.error('   یک نمونه دیگر از سرور احتمالاً در حال اجراست. آن را ببندید و دوباره تلاش کنید.');
-      // خروج با کد خطا تا فرآیندمدیر (platform) بتواند نمونه قبلی را پاک و دوباره اجرا کند
-      process.exit(1);
+    logger.error(`[${req.method} ${req.originalUrl || req.url}] Server Error:`, err);
+    if (res.headersSent) {
+      return next(err);
     }
-    console.error('❌ Server error:', err);
-    process.exit(1);
+    const isProduction = process.env.NODE_ENV === 'production';
+    const statusCode = err.status && typeof err.status === 'number' ? err.status : 500;
+    res.status(statusCode).json({
+      error: isProduction
+        ? 'خطای سرور رخ داده است. لطفاً با مدیر سیستم تماس بگیرید.'
+        : err?.message || 'خطای داخلی سرور',
+    });
   });
 
-  httpServer.listen(PORT, '0.0.0.0', () => {
+  // ============================================
+  // Start (راه‌اندازی با مهار هوشمند EADDRINUSE و آزادسازی خودکار پورت)
+  // ============================================
+
+  setupGracefulShutdown(httpServer);
+
+  listenWithAutoPortRecovery(httpServer, PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
     console.log(`👤 Admin: admin / admin123`);
   });

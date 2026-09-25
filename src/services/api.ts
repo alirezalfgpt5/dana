@@ -22,6 +22,8 @@ api.interceptors.request.use((config) => {
   return config;
 }, (error) => Promise.reject(error));
 
+let isAuthRedirecting = false;
+
 // Interceptor برای مدیریت پاسخ‌ها - اینجا response.data رو برگردون
 api.interceptors.response.use(
   (response) => {
@@ -34,12 +36,16 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      toast.error('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
-      useAuthStore.getState().logout();
-      // با delay کوچیک هدایت کن تا toast دیده بشه
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 1500);
+      if (!isAuthRedirecting) {
+        isAuthRedirecting = true;
+        toast.error('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.', { id: 'session-expired' });
+        useAuthStore.getState().logout();
+        setTimeout(() => {
+          isAuthRedirecting = false;
+          window.location.href = '/login';
+        }, 1500);
+      }
+      return Promise.reject(new Error('Unauthorized'));
     }
     
     const message = error.response?.data?.error || 
@@ -47,12 +53,14 @@ api.interceptors.response.use(
                     error.message || 
                     'خطا در ارتباط با سرور';
     
-    // خطاهای ۴۰۰ و ۵۰۰ را با toast نمایش نده (برای مدیریت در کامپوننت)
+    // خطاهای سرور (۵۰۰) با آیدی یکتا برای جلوگیری از تکرار چندگانه
     if (error.response?.status >= 500) {
-      toast.error('خطای سرور. لطفاً مجدداً تلاش کنید.');
+      toast.error('خطای سرور. لطفاً مجدداً تلاش کنید.', { id: 'server-500-error' });
     }
     
-    return Promise.reject(new Error(message));
+    const err = new Error(message);
+    (err as any)._toastShown = true;
+    return Promise.reject(err);
   }
 );
 

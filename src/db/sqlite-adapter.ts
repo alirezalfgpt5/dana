@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import fs from 'fs';
 
 export interface SqliteRunResult {
   changes: number;
@@ -17,8 +18,10 @@ export interface SqliteStatement {
 
 export class BetterSqlite3Compat {
   private _db: DatabaseSync;
+  private _filename: string;
 
   constructor(filename: string) {
+    this._filename = filename;
     this._db = new DatabaseSync(filename);
   }
 
@@ -52,7 +55,7 @@ export class BetterSqlite3Compat {
         const flat = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
         const res = stmt.run(...flat);
         return {
-          changes: res.changes,
+          changes: Number(res.changes),
           lastInsertRowid: res.lastInsertRowid,
         };
       },
@@ -69,6 +72,18 @@ export class BetterSqlite3Compat {
     };
 
     return proxy;
+  }
+
+  async backup(destPath: string): Promise<void> {
+    try {
+      if (fs.existsSync(destPath)) {
+        fs.unlinkSync(destPath);
+      }
+      const escaped = destPath.replace(/'/g, "''");
+      this._db.exec(`VACUUM INTO '${escaped}'`);
+    } catch {
+      fs.copyFileSync(this._filename, destPath);
+    }
   }
 
   transaction<T extends (...args: any[]) => any>(fn: T): T {
