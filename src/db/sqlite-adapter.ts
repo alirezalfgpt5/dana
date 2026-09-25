@@ -86,19 +86,28 @@ export class BetterSqlite3Compat {
     }
   }
 
-  transaction<T extends (...args: any[]) => any>(fn: T): T {
-    const wrapped = (...args: any[]) => {
-      this._db.exec('BEGIN IMMEDIATE');
-      try {
-        const res = fn(...args);
-        this._db.exec('COMMIT');
-        return res;
-      } catch (err) {
-        this._db.exec('ROLLBACK');
-        throw err;
-      }
+  transaction<T extends (...args: any[]) => any>(fn: T): any {
+    const makeRunner = (mode: string) => {
+      return (...args: any[]) => {
+        this._db.exec(`BEGIN ${mode}`);
+        try {
+          const res = fn(...args);
+          this._db.exec('COMMIT');
+          return res;
+        } catch (err) {
+          try {
+            this._db.exec('ROLLBACK');
+          } catch {}
+          throw err;
+        }
+      };
     };
-    return wrapped as T;
+
+    const wrapped: any = makeRunner('IMMEDIATE');
+    wrapped.deferred = makeRunner('DEFERRED');
+    wrapped.immediate = makeRunner('IMMEDIATE');
+    wrapped.exclusive = makeRunner('EXCLUSIVE');
+    return wrapped;
   }
 
   exec(sql: string): void {

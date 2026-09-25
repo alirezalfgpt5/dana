@@ -241,7 +241,17 @@ export function IssueFormTabs({
 
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData);
+      // استخراج و سینک صحیح شناسه‌های قالب‌ها جهت چک‌باکس‌های فرم
+      const initialTemplateIds = (initialData.templateIds && Array.isArray(initialData.templateIds))
+        ? initialData.templateIds.map(String)
+        : Array.isArray(initialData.templates)
+          ? initialData.templates.map((t: any) => String(t.id !== undefined ? t.id : t))
+          : [];
+
+      setFormData({
+        ...initialData,
+        templateIds: initialTemplateIds,
+      });
       
       const safeParse = (data: any, defaultVal: any = null) => {
         if (!data) return defaultVal;
@@ -251,30 +261,123 @@ export function IssueFormTabs({
         return data;
       };
 
-      if (initialData.issueResolutionTeam) {
-        setTeamMembers(safeParse(initialData.issueResolutionTeam, []));
-      }
-      if (initialData.needStatement) {
-        setNeedStatementData(safeParse(initialData.needStatement));
-      }
-      if (initialData.contract) {
-        setContractData(safeParse(initialData.contract));
-      }
-      if (initialData.executiveContract) {
-        setExecutiveContractData(safeParse(initialData.executiveContract));
-      }
-      if (initialData.stage20) {
-        setStage20Data(safeParse(initialData.stage20));
-      }
-      if (initialData.stage50) {
-        setStage50Data(safeParse(initialData.stage50));
-      }
-      if (initialData.stage100) {
-        setStage100Data(safeParse(initialData.stage100));
-      }
-      if (initialData.application) {
-        setApplicationData(safeParse(initialData.application));
-      }
+      setTeamMembers(safeParse(initialData.issueResolutionTeam, []));
+      setNeedStatementData(safeParse(initialData.needStatement, {
+        user: '',
+        problem: '',
+        suggestedBudget: 0,
+        level: '',
+        file: null,
+        approvalStatus: 'pending',
+        approvalDate: '',
+        approvedAmount: 0,
+      }));
+      setContractData(safeParse(initialData.contract, {
+        number: '',
+        executor: '',
+        collaborators: [],
+        agents: [],
+        date: '',
+        duration: 0,
+        startDate: '',
+        amount: 0,
+        file: null,
+      }));
+      setExecutiveContractData(safeParse(initialData.executiveContract, {
+        file: null,
+        minutes: '',
+      }));
+      setStage20Data(safeParse(initialData.stage20, {
+        proposal: '',
+        file: null,
+        defenseDate: '',
+        minutes: '',
+        minutesFile: null,
+        recordsFiles: [],
+        paidAmount: 0,
+        paymentDate: '',
+      }));
+      setStage50Data(safeParse(initialData.stage50, {
+        proposal: '',
+        file: null,
+        defenseDate: '',
+        minutes: '',
+        minutesFile: null,
+        recordsFiles: [],
+        paidAmount: 0,
+        paymentDate: '',
+      }));
+      setStage100Data(safeParse(initialData.stage100, {
+        proposal: '',
+        file: null,
+        defenseDate: '',
+        minutes: '',
+        minutesFile: null,
+        recordsFiles: [],
+        paidAmount: 0,
+        paymentDate: '',
+      }));
+      setApplicationData(safeParse(initialData.application, {
+        resultReflection: '',
+        applicationType: '',
+        applicationDate: '',
+        minutes: '',
+        minutesFile: null,
+        recordsFiles: [],
+        workingGroup: '',
+      }));
+    } else {
+      setFormData({
+        domainNodeId: '',
+        title: '',
+        solutionDirection: '',
+        responsibleUnit: '',
+        confidentialityLevel: 'عمومی',
+        actionPriority: 'متوسط',
+        approvalDate: '',
+        knowledgeType: '',
+        projectLevel: 'سطح1',
+        approvalAuthority: '',
+        researchProjectType: '',
+        knowledgeProjectType: '',
+        events: '',
+        macroProject: null,
+        scientificDiplomacy: '',
+        collaborators: '',
+        collaborationNetwork: null,
+        referenceDocument: '',
+        requiredBudget: 0,
+        approvedBudget: 0,
+        assignedBudget: 0,
+        expectedMonths: 0,
+        completionPercent: 0,
+        actionsTaken: '',
+        bottlenecks: '',
+        orders: '',
+        issueResolutionTeam: null,
+        needStatement: null,
+        contract: null,
+        stage20: null,
+        stage50: null,
+        stage100: null,
+        application: null,
+        status: 'pending',
+        templateIds: [],
+      });
+      setTeamMembers([]);
+      setNeedStatementData({
+        user: '', problem: '', suggestedBudget: 0, level: '', file: null,
+        approvalStatus: 'pending', approvalDate: '', approvedAmount: 0
+      });
+      setContractData({
+        number: '', executor: '', collaborators: [], agents: [], date: '',
+        duration: 0, startDate: '', amount: 0, file: null
+      });
+      setExecutiveContractData({ file: null, minutes: '' });
+      setStage20Data({ proposal: '', file: null, defenseDate: '', minutes: '', minutesFile: null, recordsFiles: [], paidAmount: 0, paymentDate: '' });
+      setStage50Data({ proposal: '', file: null, defenseDate: '', minutes: '', minutesFile: null, recordsFiles: [], paidAmount: 0, paymentDate: '' });
+      setStage100Data({ proposal: '', file: null, defenseDate: '', minutes: '', minutesFile: null, recordsFiles: [], paidAmount: 0, paymentDate: '' });
+      setApplicationData({ resultReflection: '', applicationType: '', applicationDate: '', minutes: '', minutesFile: null, recordsFiles: [], workingGroup: '' });
     }
   }, [initialData]);
 

@@ -13,12 +13,13 @@ import {
   FileText, Plus, RefreshCw, Search, X,
   CheckCircle, AlertCircle, Clock,
   Filter, Edit, Trash2, ChevronDown,
-  ChevronUp, DollarSign,
+  ChevronUp, DollarSign, Eye, Building2,
   HelpCircle, TrendingUp, Calendar, ArrowLeftRight
 } from 'lucide-react';
 import { AdvancedQueryBuilder, FilterGroup } from '../../components/ui/AdvancedQueryBuilder';
 import { format } from 'date-fns-jalali';
 import { KanbanBoard } from '../../components/issues/KanbanBoard';
+import { IssueDetailsModal } from '../../components/issues/IssueDetailsModal';
 import toast from 'react-hot-toast';
 
 export function IssueSystem() {
@@ -49,6 +50,7 @@ export function IssueSystem() {
 
   const [showForm, setShowForm] = useState(false);
   const [editingIssue, setEditingIssue] = useState<any>(null);
+  const [viewingIssue, setViewingIssue] = useState<any | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [showFilters, setShowFilters] = useState(true);
   const [expandedIssue, setExpandedIssue] = useState<number | null>(null);
@@ -108,9 +110,17 @@ export function IssueSystem() {
 
   const stats = getIssueStats(issues);
 
-  const handleEdit = (issue: any) => {
+  const handleEdit = async (issue: any) => {
     setEditingIssue(issue);
     setShowForm(true);
+    try {
+      const fullIssue = await fetchIssue(issue.id);
+      if (fullIssue) {
+        setEditingIssue(fullIssue);
+      }
+    } catch {
+      // استفاده از داده‌های موجود در صورت بروز خطا
+    }
   };
 
   const handleSave = async (data: any) => {
@@ -573,6 +583,23 @@ export function IssueSystem() {
             const StatusIcon = status.icon;
             const isExpanded = expandedIssue === issue.id;
 
+            const safeJson = (data: any, defaultVal: any = null) => {
+              if (!data) return defaultVal;
+              if (typeof data === 'string') {
+                try { return JSON.parse(data); } catch { return defaultVal; }
+              }
+              return data;
+            };
+
+            const needStatement = safeJson(issue.needStatement);
+            const contract = safeJson(issue.contract);
+            const executiveContract = safeJson(issue.executiveContract);
+            const stage20 = safeJson(issue.stage20);
+            const stage50 = safeJson(issue.stage50);
+            const stage100 = safeJson(issue.stage100);
+            const application = safeJson(issue.application);
+            const teamMembers = safeJson(issue.issueResolutionTeam, []);
+
             return (
               <div
                 key={issue.id}
@@ -589,27 +616,34 @@ export function IssueSystem() {
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityBadge(issue.actionPriority || 'متوسط')}`}>
                         {issue.actionPriority || 'متوسط'}
                       </span>
-                      <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium">
                         📂 {issue.domain}
                       </span>
+                      {issue.responsibleUnit && (
+                        <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-medium">
+                          🏢 {issue.responsibleUnit}
+                        </span>
+                      )}
                       {issue.templates && issue.templates.length > 0 && (
-                        <span className="text-xs text-purple-400 bg-purple-50 px-2 py-0.5 rounded-full">
+                        <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full font-medium">
                           📋 {issue.templates.length} قالب
                         </span>
                       )}
                     </div>
-                    <h4 className="font-bold text-gray-800 text-sm mt-1">{issue.title}</h4>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                      <span>📊 پیشرفت: {issue.completionPercent || 0}%</span>
-                      <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full ${
-                            (issue.completionPercent || 0) >= 80 ? 'bg-green-500' :
-                            (issue.completionPercent || 0) >= 50 ? 'bg-blue-500' :
-                            (issue.completionPercent || 0) >= 20 ? 'bg-yellow-500' : 'bg-red-500'
-                          }`}
-                          style={{ width: `${issue.completionPercent || 0}%` }}
-                        />
+                    <h4 className="font-bold text-gray-800 text-sm mt-1.5">{issue.title}</h4>
+                    <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <span>📊 پیشرفت: {issue.completionPercent || 0}%</span>
+                        <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full ${
+                              (issue.completionPercent || 0) >= 80 ? 'bg-green-500' :
+                              (issue.completionPercent || 0) >= 50 ? 'bg-blue-500' :
+                              (issue.completionPercent || 0) >= 20 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${issue.completionPercent || 0}%` }}
+                          />
+                        </div>
                       </div>
                       <span className="w-px h-3 bg-gray-300" />
                       <span>💰 {formatCurrency(issue.requiredBudget || 0)} ریال</span>
@@ -619,6 +653,13 @@ export function IssueSystem() {
                   </div>
 
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => setViewingIssue(issue)}
+                      className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                      title="👁️ مشاهده تمامی فیلدها"
+                    >
+                      <Eye size={16} />
+                    </button>
                     <button
                       onClick={() => handleStatusChange(issue.id, issue.status === 'completed' ? 'pending' : 'completed')}
                       className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
@@ -651,60 +692,124 @@ export function IssueSystem() {
 
                 {/* Expanded Details */}
                 {isExpanded && (
-                  <div className="p-4 border-t border-gray-100 bg-gray-50/50">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div className="p-4 border-t border-gray-100 bg-gray-50/60 space-y-4">
+                    {/* اطلاعات پایه و راه‌حل */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs bg-white p-3 rounded-xl border border-gray-100">
                       <div>
-                        <p className="text-xs text-gray-400">🧭 جهت‌گیری راه‌حل</p>
-                        <p className="text-gray-700">{issue.solutionDirection || '-'}</p>
+                        <p className="text-gray-400 mb-0.5">🧭 جهت‌گیری راه‌حل</p>
+                        <p className="font-semibold text-gray-800">{issue.solutionDirection || '-'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400">🏢 دستگاه مسئول</p>
-                        <p className="text-gray-700">{issue.responsibleUnit || '-'}</p>
+                        <p className="text-gray-400 mb-0.5">🏢 دستگاه مسئول</p>
+                        <p className="font-semibold text-gray-800">{issue.responsibleUnit || '-'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400">📚 نوع دانش</p>
-                        <p className="text-gray-700">{issue.knowledgeType || '-'}</p>
+                        <p className="text-gray-400 mb-0.5">📚 نوع دانش و سطح پروژه</p>
+                        <p className="font-semibold text-gray-800">{issue.knowledgeType || '-'} | {issue.projectLevel || '-'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400">📊 سطح پروژه</p>
-                        <p className="text-gray-700">{issue.projectLevel || '-'}</p>
+                        <p className="text-gray-400 mb-0.5">🏛️ مرجع تصویب</p>
+                        <p className="font-semibold text-gray-800">{issue.approvalAuthority || '-'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400">🏛️ مرجع تصویب</p>
-                        <p className="text-gray-700">{issue.approvalAuthority || '-'}</p>
+                        <p className="text-gray-400 mb-0.5">🔒 سطح محرمانگی</p>
+                        <p className="font-semibold text-gray-800">{issue.confidentialityLevel || 'عمومی'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400">🤝 همکاران</p>
-                        <p className="text-gray-700">{issue.collaborators || '-'}</p>
+                        <p className="text-gray-400 mb-0.5">🤝 همکاران و دیپلماسی</p>
+                        <p className="font-semibold text-gray-800">{issue.collaborators || '-'} ({issue.scientificDiplomacy || 'درون‌سازمانی'})</p>
                       </div>
                     </div>
 
-                    {issue.actionsTaken && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <p className="text-xs text-gray-400">✅ اقدامات صورت‌گرفته</p>
-                        <p className="text-gray-700 text-sm">{issue.actionsTaken}</p>
+                    {/* بودجه‌ها و زمان */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                      <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-100">
+                        <span className="text-emerald-800 block text-[11px]">بودجه مورد نیاز:</span>
+                        <span className="font-bold text-emerald-700">{formatCurrency(issue.requiredBudget || 0)} ریال</span>
+                      </div>
+                      <div className="bg-blue-50/70 p-2.5 rounded-lg border border-blue-100">
+                        <span className="text-blue-800 block text-[11px]">بودجه مصوب:</span>
+                        <span className="font-bold text-blue-700">{formatCurrency(issue.approvedBudget || 0)} ریال</span>
+                      </div>
+                      <div className="bg-purple-50/70 p-2.5 rounded-lg border border-purple-100">
+                        <span className="text-purple-800 block text-[11px]">بودجه تخصیص‌یافته:</span>
+                        <span className="font-bold text-purple-700">{formatCurrency(issue.assignedBudget || 0)} ریال</span>
+                      </div>
+                      <div className="bg-amber-50/70 p-2.5 rounded-lg border border-amber-100">
+                        <span className="text-amber-800 block text-[11px]">مدت زمان پیش‌بینی‌شده:</span>
+                        <span className="font-bold text-amber-700">{issue.expectedMonths || 0} ماه</span>
+                      </div>
+                    </div>
+
+                    {/* بیانیه نیاز در صورت وجود */}
+                    {needStatement && (
+                      <div className="bg-white p-3 rounded-xl border border-gray-100 text-xs space-y-1">
+                        <span className="font-bold text-purple-800 block">📄 بیانیه نیاز:</span>
+                        <p className="text-gray-700"><span className="text-gray-400">متقاضی:</span> {needStatement.user || '-'} | <span className="text-gray-400">بودجه پیشنهادی:</span> {formatCurrency(needStatement.suggestedBudget)} ریال</p>
+                        {needStatement.problem && <p className="text-gray-600 bg-gray-50 p-2 rounded-lg">{needStatement.problem}</p>}
                       </div>
                     )}
 
-                    {issue.bottlenecks && (
-                      <div className="mt-2">
-                        <p className="text-xs text-gray-400">🚧 گلوگاه‌ها</p>
-                        <p className="text-gray-700 text-sm">{issue.bottlenecks}</p>
+                    {/* قرارداد و شورای اجرایی */}
+                    {(contract || executiveContract) && (
+                      <div className="bg-white p-3 rounded-xl border border-gray-100 text-xs space-y-1.5">
+                        <span className="font-bold text-indigo-800 block">📑 اطلاعات قرارداد و شورای اجرایی:</span>
+                        {contract && (
+                          <p className="text-gray-700">
+                            شماره: <span className="font-semibold">{contract.number || '-'}</span> | مجری: <span className="font-semibold">{contract.executor || '-'}</span> | مبلغ: <span className="font-semibold text-emerald-700">{formatCurrency(contract.amount)} ریال</span>
+                          </p>
+                        )}
+                        {executiveContract?.minutes && (
+                          <p className="text-gray-600 bg-gray-50 p-2 rounded-lg">مصوبه شورای اجرایی: {executiveContract.minutes}</p>
+                        )}
                       </div>
                     )}
 
-                    {issue.issueResolutionTeam && (
-                      <div className="mt-2">
-                        <p className="text-xs text-gray-400">👥 کارگروه حل مسئله</p>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {JSON.parse(issue.issueResolutionTeam || '[]').map((member: any, idx: number) => (
-                            <span key={idx} className="text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                              {member.name} ({member.rank})
+                    {/* اقدامات و گلوگاه‌ها */}
+                    {(issue.actionsTaken || issue.bottlenecks || issue.orders) && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                        {issue.actionsTaken && (
+                          <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                            <span className="text-green-700 font-bold block mb-1">✅ اقدامات:</span>
+                            <p className="text-gray-700 line-clamp-3">{issue.actionsTaken}</p>
+                          </div>
+                        )}
+                        {issue.bottlenecks && (
+                          <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                            <span className="text-red-700 font-bold block mb-1">🚧 گلوگاه‌ها:</span>
+                            <p className="text-gray-700 line-clamp-3">{issue.bottlenecks}</p>
+                          </div>
+                        )}
+                        {issue.orders && (
+                          <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                            <span className="text-blue-700 font-bold block mb-1">📋 تدابیر:</span>
+                            <p className="text-gray-700 line-clamp-3">{issue.orders}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* کارگروه و قالب‌ها */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-200 text-xs">
+                      {teamMembers.length > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-gray-400">👥 کارگروه ({teamMembers.length} نفر):</span>
+                          {teamMembers.slice(0, 3).map((m: any, idx: number) => (
+                            <span key={idx} className="bg-white border px-2 py-0.5 rounded-full text-[11px] text-gray-700">
+                              {m.name} ({m.rank || 'عضو'})
                             </span>
                           ))}
+                          {teamMembers.length > 3 && <span className="text-gray-400 text-[10px]">+{teamMembers.length - 3} نفر دیگر</span>}
                         </div>
-                      </div>
-                    )}
+                      )}
+
+                      <button
+                        onClick={() => setViewingIssue(issue)}
+                        className="text-xs text-purple-700 hover:text-purple-900 font-medium underline mr-auto"
+                      >
+                        👁️ مشاهده و چاپ تمامی فیلدها در پنجره اختصاصی
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -720,45 +825,96 @@ export function IssueSystem() {
             return (
               <div
                 key={issue.id}
-                className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 hover:shadow-md transition-all"
+                className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-4 hover:shadow-md transition-all flex flex-col justify-between"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${status.color}`}>
-                    <StatusIcon size={12} />
-                    {status.label}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityBadge(issue.actionPriority || 'متوسط')}`}>
-                    {issue.actionPriority || 'متوسط'}
-                  </span>
-                </div>
-                <h4 className="font-bold text-gray-800 text-sm">{issue.title}</h4>
-                <p className="text-xs text-gray-400 mt-1">📂 {issue.domain}</p>
-                <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
-                  <span>📊 {issue.completionPercent || 0}%</span>
-                  <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full ${
-                        (issue.completionPercent || 0) >= 80 ? 'bg-green-500' :
-                        (issue.completionPercent || 0) >= 50 ? 'bg-blue-500' : 'bg-yellow-500'
-                      }`}
-                      style={{ width: `${issue.completionPercent || 0}%` }}
-                    />
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${status.color}`}>
+                      <StatusIcon size={12} />
+                      {status.label}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityBadge(issue.actionPriority || 'متوسط')}`}>
+                      {issue.actionPriority || 'متوسط'}
+                    </span>
+                  </div>
+
+                  <h4 className="font-bold text-gray-800 text-sm line-clamp-2 mb-1.5 leading-snug">
+                    {issue.title}
+                  </h4>
+
+                  <div className="space-y-1 mb-2 text-xs text-gray-500">
+                    <div className="flex items-center gap-1 text-slate-600 truncate">
+                      <span>📂</span>
+                      <span className="truncate">{issue.domain}</span>
+                    </div>
+                    {issue.responsibleUnit && (
+                      <div className="flex items-center gap-1 text-blue-700 truncate">
+                        <Building2 size={13} className="shrink-0" />
+                        <span className="truncate">{issue.responsibleUnit}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {issue.projectLevel && (
+                    <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
+                      <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                        {issue.projectLevel}
+                      </span>
+                      {issue.knowledgeType && (
+                        <span className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                          {issue.knowledgeType}
+                        </span>
+                      )}
+                      {issue.templates && issue.templates.length > 0 && (
+                        <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full">
+                          📋 {issue.templates.length}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mb-2">
+                    <div className="flex justify-between items-center text-[11px] text-gray-400 mb-1">
+                      <span>پیشرفت</span>
+                      <span className="font-bold text-gray-700">{issue.completionPercent || 0}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${
+                          (issue.completionPercent || 0) >= 80 ? 'bg-green-500' :
+                          (issue.completionPercent || 0) >= 50 ? 'bg-blue-500' : 'bg-yellow-500'
+                        }`}
+                        style={{ width: `${issue.completionPercent || 0}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="text-xs text-gray-400">💰 {formatCurrency(issue.requiredBudget || 0)}</span>
+
+                <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
+                  <span className="text-emerald-700 font-semibold text-[11px]">
+                    💰 {formatCurrency(issue.requiredBudget || 0)} ریال
+                  </span>
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => handleEdit(issue)}
-                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      onClick={() => setViewingIssue(issue)}
+                      className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                      title="مشاهده تمامی جزئیات"
                     >
-                      <Edit size={14} />
+                      <Eye size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleEdit(issue)}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="ویرایش"
+                    >
+                      <Edit size={15} />
                     </button>
                     <button
                       onClick={() => handleDelete(issue.id)}
-                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="حذف"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={15} />
                     </button>
                   </div>
                 </div>
@@ -794,6 +950,16 @@ export function IssueSystem() {
           </div>
         </div>
       )}
+
+      {/* پنجره اختصاصی مشاهده جامع کلیه فیلدها */}
+      {viewingIssue && (
+        <IssueDetailsModal
+          issue={viewingIssue}
+          onClose={() => setViewingIssue(null)}
+          onEdit={handleEdit}
+        />
+      )}
+
       {/* Period Rollover & CD Batch Import Modal */}
       <PeriodRolloverModal
         isOpen={showRolloverModal}

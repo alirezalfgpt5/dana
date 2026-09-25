@@ -55,13 +55,23 @@ export function useTree() {
   // دریافت لیست قالب‌ها (برای سیستم مسائل)
   // ============================================
 
-  const fetchTemplates = useCallback(async () => {
+  const fetchTemplates = useCallback(async (retry = true) => {
     try {
-      const data = await apiClient('/api/metadata/templates');
-      setTemplates(Array.isArray(data) ? data : []);
-      return data;
+      const data = await apiClient('/api/metadata/templates', { showErrorToast: false });
+      const validData = Array.isArray(data) ? data : [];
+      setTemplates(validData);
+      return validData;
     } catch (err: any) {
-      console.error('Error fetching templates:', err);
+      if (retry) {
+        // تلاش مجدد با تأخیر در صورت در حال راه‌اندازی بودن سرور
+        await new Promise(r => setTimeout(r, 600));
+        try {
+          const retryData = await apiClient('/api/metadata/templates', { showErrorToast: false });
+          const validData = Array.isArray(retryData) ? retryData : [];
+          setTemplates(validData);
+          return validData;
+        } catch {}
+      }
       return [];
     }
   }, []);

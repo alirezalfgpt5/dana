@@ -38,6 +38,7 @@ interface Issue {
   issueResolutionTeam: any;
   needStatement: any;
   contract: any;
+  executiveContract?: any;
   stage20: any;
   stage50: any;
   stage100: any;

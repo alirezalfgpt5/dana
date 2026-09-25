@@ -33,8 +33,13 @@ export function initClientErrorHandling() {
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason?.message || String(event.reason || 'Unhandled Rejection');
     
-    // اگر خطای نشست منقضی شده یا دسترسی قفل است، به‌آرامی مدیریت شود
-    if (reason.includes('Unauthorized') || reason.includes('Session locked')) {
+    // فیلتر کردن خطاهای سوکت Vite، نشست منقضی شده یا اتصالات مقطعی
+    if (
+      reason.includes('WebSocket') ||
+      reason.includes('closed without opened') ||
+      reason.includes('Unauthorized') ||
+      reason.includes('Session locked')
+    ) {
       event.preventDefault();
       return;
     }

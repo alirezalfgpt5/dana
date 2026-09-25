@@ -363,7 +363,7 @@ async function startServer() {
       const vite = await createServer({
         server: { 
           middlewareMode: true,
-          hmr: process.env.DISABLE_HMR === 'true' ? false : undefined,
+          hmr: false,
         },
         appType: 'spa',
       });
