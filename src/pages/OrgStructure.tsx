@@ -27,6 +27,7 @@ import {
   FileText,
   Check,
   Layers,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuthStore, useUIStore } from "../store";
 import { ConfirmModal } from "../components/ui/ConfirmModal";
@@ -106,20 +107,31 @@ export function OrgStructure() {
   // FETCH DATA
   // ============================================
 
-  const fetchData = async () => {
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const fetchData = async (retryCount = 0) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const url = `/api/org/bases?all=true&t=${new Date().getTime()}`;
 
       const [basesRes, unitsRes, levelsRes] = await Promise.all([
-       (window.customFetch || window.fetch)(url),
-       (window.customFetch || window.fetch)(`/api/org/units?t=${new Date().getTime()}`),
-       (window.customFetch || window.fetch)(`/api/metadata/org-levels?t=${new Date().getTime()}`),
+        (window.customFetch || window.fetch)(url),
+        (window.customFetch || window.fetch)(`/api/org/units?t=${new Date().getTime()}`),
+        (window.customFetch || window.fetch)(`/api/metadata/org-levels?t=${new Date().getTime()}`),
       ]);
 
-      const basesData = await basesRes.json();
-      const unitsData = await unitsRes.json();
-      const levelsData = await levelsRes.json();
+      if (!basesRes.ok || !unitsRes.ok || !levelsRes.ok) {
+        throw new Error("پاسخ ناموفق از سرور");
+      }
+
+      const basesData = await basesRes.json().catch(() => []);
+      const unitsData = await unitsRes.json().catch(() => []);
+      const levelsData = await levelsRes.json().catch(() => []);
+
+      if (!Array.isArray(basesData) || !Array.isArray(unitsData)) {
+        throw new Error("فرمت داده‌های ساختار سازمانی نامعتبر است");
+      }
 
       const mappedBases = basesData.map((b: any) => ({
         id: b.id,
@@ -151,19 +163,24 @@ export function OrgStructure() {
       setUnits(mappedUnits);
       setOrgLevels(Array.isArray(levelsData) ? levelsData : []);
       
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("خطا در دریافت اطلاعات ساختار سازمانی");
+    } catch (error: any) {
+      console.error("Error fetching org data:", error);
+      if (retryCount < 1) {
+        setTimeout(() => fetchData(retryCount + 1), 800);
+        return;
+      }
+      setLoadError("خطا در دریافت اطلاعات ساختار سازمانی. ممکن است در لحظه اتصال اولیه سرعت سرور یا شبکه پایین بوده باشد.");
+      toast.error("خطا در دریافت اطلاعات ساختار سازمانی", { id: 'org-fetch-error' });
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (user?.role === "superadmin") {
+    if (user?.role === "superadmin" || user?.role === "admin") {
       fetchData();
     }
-  }, []);
+  }, [user]);
 
   // ============================================
   // PARENT OPTIONS - با استفاده از ID
@@ -529,14 +546,14 @@ export function OrgStructure() {
   // بررسی دسترسی
   // ============================================
 
-  if (user?.role !== "superadmin") {
+  if (user?.role !== "superadmin" && user?.role !== "admin") {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-gray-500">
         <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
           <Shield size={48} className="text-gray-400" />
         </div>
         <h2 className="text-2xl font-bold text-gray-700">عدم دسترسی</h2>
-        <p className="text-gray-400 mt-2">فقط مدیر کل به این بخش دسترسی دارد.</p>
+        <p className="text-gray-400 mt-2">فقط مدیران سیستم به این بخش دسترسی دارند.</p>
       </div>
     );
   }
@@ -563,12 +580,27 @@ export function OrgStructure() {
           </div>
         </div>
         <button
-          onClick={fetchData}
+          onClick={() => fetchData()}
           className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          title="بروزرسانی داده‌ها"
         >
-          <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+          <RefreshCw size={18} className={loading ? "animate-spin text-blue-600" : ""} />
         </button>
       </div>
+
+      {/* هشدار خطای لود و دکمه تلاش مجدد در صورت بروز مشکل شبکه */}
+      {loadError && bases.length === 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-center">
+          <AlertTriangle size={28} className="mx-auto mb-2 text-amber-500" />
+          <p className="text-amber-800 font-medium mb-3 text-sm">{loadError}</p>
+          <button
+            onClick={() => fetchData()}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors inline-flex items-center gap-2 shadow"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> تلاش مجدد برای دریافت ساختار سازمانی
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

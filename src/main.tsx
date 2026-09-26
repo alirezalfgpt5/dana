@@ -36,7 +36,7 @@ try {
 } catch { /* noop */ }
 
 // ============================================
-// Patch Global Fetch for Auth Token Injection
+// Patch Global Fetch for Auth Token Injection & Cold-Start Auto-Retry
 // ============================================
 const originalFetch = window.fetch;
 
@@ -47,26 +47,44 @@ window.customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const options = { ...init };
   const urlString = url.toString();
   const isApiRequest = urlString.startsWith('/api') || urlString.includes('/api/');
+  const isGet = !options.method || options.method.toUpperCase() === 'GET';
   
   if (token && isApiRequest) {
-    options.headers = {
-      ...options.headers,
-      'Authorization': `Bearer ${token}`
-    };
+    const headers = new Headers(init?.headers);
+    if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    options.headers = headers;
   }
   
-  try {
-    const res = await originalFetch(input, options);
-    
-    if (res.status === 401 && isApiRequest) {
-      // از dispatcher مشترک store استفاده می‌کنیم تا فقط یک‌بار و فقط با نشست فعال رویداد صادر شود
-      dispatchAuthError('نشست شما منقضی شده است. لطفا دوباره وارد شوید.');
+  const attemptFetch = async (attempt: number): Promise<Response> => {
+    try {
+      const res = await originalFetch(input, options);
+      
+      if (res.status === 401 && isApiRequest) {
+        // برای روت لاگین یا تنظیمات عمومی نیازی به پرتاب رویداد انقضای نشست نیست
+        if (!urlString.includes('/api/auth/login') && !urlString.includes('/api/metadata/system-settings')) {
+          dispatchAuthError('نشست شما منقضی شده است. لطفا دوباره وارد شوید.');
+        }
+      }
+      
+      // اگر در درخواست GET سرور به دلیل بیداری اولیه کانتینر کدهای 502/503/504 داد، با یک وقفه کوتاه بازآزمایی می‌شود
+      if (isApiRequest && isGet && (res.status === 502 || res.status === 503 || res.status === 504) && attempt < 1) {
+        await new Promise((r) => setTimeout(r, 600));
+        return attemptFetch(attempt + 1);
+      }
+      
+      return res;
+    } catch (err: any) {
+      if (isApiRequest && isGet && attempt < 1) {
+        await new Promise((r) => setTimeout(r, 600));
+        return attemptFetch(attempt + 1);
+      }
+      throw err;
     }
-    
-    return res;
-  } catch (err) {
-    throw err;
-  }
+  };
+  
+  return attemptFetch(0);
 };
 
 try {

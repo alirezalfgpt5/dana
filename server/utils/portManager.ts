@@ -79,7 +79,8 @@ export function freePort(port: number): boolean {
 
   for (const pid of targetPids) {
     try {
-      logger.info(`🔄 آزادسازی پورت ${port}: بستن پردازش قبلی (PID ${pid})...`);
+      logger.info(`🔄 Port ${port} release: Closing previous process (PID ${pid})...`);
+
       if (process.platform === 'win32') {
         execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' });
       } else {
@@ -150,7 +151,7 @@ export function listenWithAutoPortRecovery(
       if (err.code === 'EADDRINUSE') {
         retryCount++;
         logger.warn(
-          `⚠️ پورت ${port} اشغال است (EADDRINUSE). در حال آزادسازی خودکار و تلاش مجدد (${retryCount} از ${maxRetries})...`
+          `⚠️ Port ${port} is in use (EADDRINUSE). Attempting automatic release and retry (${retryCount} of ${maxRetries})...`
         );
 
         freePort(port);
@@ -165,7 +166,7 @@ export function listenWithAutoPortRecovery(
           return;
         }
 
-        logger.error(`❌ پس از ${maxRetries} بار تلاش، امکان آزادسازی پورت ${port} فراهم نشد.`);
+        logger.error(`❌ Port ${port} could not be released after ${maxRetries} attempts.`);
         process.exit(1);
       }
 
@@ -193,10 +194,9 @@ export function setupGracefulShutdown(httpServer: http.Server) {
   const handleShutdown = (signal: string) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
-    logger.info(`🛑 دریافت سیگنال ${signal}: در حال بستن سرور و آزادسازی کامل سوکت‌ها...`);
-
+      logger.info(`🛑 Received ${signal}: Gracefully shutting down server and freeing all sockets...`); 
     httpServer.close(() => {
-      logger.info('✅ سرور با موفقیت متوقف شد و پورت آزاد گردید.');
+      logger.info('✅ Server has been shut down successfully and the port is now free.');
       process.exit(0);
     });
 

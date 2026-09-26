@@ -19,7 +19,8 @@ import {
   User as UserIcon2,
   ChevronDown,
   Building2,
-  Filter
+  Filter,
+  AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
@@ -52,6 +53,7 @@ export function UsersManagement() {
   const [showModal, setShowModal] = useState(false);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [filterLevel, setFilterLevel] = useState<string>('all');
@@ -67,6 +69,8 @@ export function UsersManagement() {
       fetchOrg();
       fetchOrgLevels();
       fetchRoles();
+    } else if (user) {
+      setLoading(false);
     }
   }, [user]);
 
@@ -77,7 +81,7 @@ export function UsersManagement() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => []);
         setRolesList(Array.isArray(data) ? data : []);
       }
     } catch (e) {
@@ -85,15 +89,25 @@ export function UsersManagement() {
     }
   };
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (retryCount = 0) => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const res = await(window.customFetch || window.fetch)('/api/users');
-      if (!res.ok) throw new Error('خطا در دریافت لیست کاربران');
-      const data = await res.json();
+      const res = await (window.customFetch || window.fetch)('/api/users');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'خطا در دریافت لیست کاربران');
+      }
+      const data = await res.json().catch(() => []);
       setUsersList(Array.isArray(data) ? data : []);
     } catch (error: any) {
-      toast.error(error.message);
+      console.error('fetchUsers error:', error);
+      if (retryCount < 1) {
+        setTimeout(() => fetchUsers(retryCount + 1), 800);
+        return;
+      }
+      setLoadError(error.message || 'خطا در دریافت اطلاعات کاربران از سرور');
+      toast.error(error.message || 'خطا در دریافت لیست کاربران', { id: 'users-fetch-err' });
     } finally {
       setLoading(false);
     }
@@ -102,27 +116,27 @@ export function UsersManagement() {
   const fetchOrg = async () => {
     try {
       const [basesRes, unitsRes] = await Promise.all([
-       (window.customFetch || window.fetch)('/api/org/bases'),
-       (window.customFetch || window.fetch)('/api/org/units')
+        (window.customFetch || window.fetch)('/api/org/bases'),
+        (window.customFetch || window.fetch)('/api/org/units')
       ]);
-      const basesData = await basesRes.json();
-      const unitsData = await unitsRes.json();
+      const basesData = basesRes.ok ? await basesRes.json().catch(() => []) : [];
+      const unitsData = unitsRes.ok ? await unitsRes.json().catch(() => []) : [];
       setBases(Array.isArray(basesData) ? basesData : []);
       setUnits(Array.isArray(unitsData) ? unitsData : []);
     } catch (e) {
-      console.error(e);
+      console.error('fetchOrg error:', e);
     }
   };
 
   const fetchOrgLevels = async () => {
     try {
-      const res = await(window.customFetch || window.fetch)('/api/metadata/org-levels');
+      const res = await (window.customFetch || window.fetch)('/api/metadata/org-levels');
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => []);
         setOrgLevels(Array.isArray(data) ? data : []);
       }
     } catch (e) {
-      console.error(e);
+      console.error('fetchOrgLevels error:', e);
     }
   };
 
@@ -423,7 +437,20 @@ export function UsersManagement() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400"><RefreshCw size={28} className="animate-spin mx-auto mb-3 text-gray-300" /><p className="text-sm">در حال بارگذاری کاربران...</p></td></tr>
+                <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400"><RefreshCw size={28} className="animate-spin mx-auto mb-3 text-purple-600" /><p className="text-sm">در حال بارگذاری کاربران...</p></td></tr>
+              ) : loadError && usersList.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center text-amber-800 bg-amber-50/50">
+                    <AlertTriangle size={32} className="mx-auto mb-2 text-amber-500" />
+                    <p className="text-sm font-medium mb-3">{loadError}</p>
+                    <button
+                      onClick={() => fetchUsers()}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-medium transition-colors inline-flex items-center gap-1.5 shadow"
+                    >
+                      <RefreshCw size={14} /> تلاش مجدد برای دریافت کاربران
+                    </button>
+                  </td>
+                </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400"><UsersIcon size={40} className="mx-auto mb-3 text-gray-300" /><p className="text-sm font-medium text-gray-500">هیچ کاربری یافت نشد</p></td></tr>
               ) : (
