@@ -221,9 +221,6 @@ export function Dashboard() {
     toast.success('گزارش جامع داشبورد دریافت شد');
   };
 
-  const issueProgress = stats.issues > 0 ? Math.round((stats.completedIssues / stats.issues) * 100) : 0;
-  const gapProgress = stats.gaps > 0 ? Math.round((stats.filledGaps / stats.gaps) * 100) : 0;
-
   return (
     <div className="space-y-8 pb-8">
       {/* Header — هدر برند */}
