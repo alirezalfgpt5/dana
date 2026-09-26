@@ -77,6 +77,11 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
                    issue.status === 'on_hold' ? '⏸️ متوقف' :
                    issue.status === 'canceled' ? '❌ لغو شده' : '⏳ در انتظار'}
                 </span>
+                {issue.period?.isComplete === 1 && (
+                  <span className="text-xs bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full font-bold">
+                    🔒 دوره خاتمه‌یافته / فریز
+                  </span>
+                )}
               </div>
               <h3 className="font-bold text-gray-800 text-base mt-1 line-clamp-1">
                 {issue.title}
@@ -84,7 +89,7 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {onEdit && (
+            {onEdit && issue.period?.isComplete !== 1 && (
               <button
                 onClick={() => { onClose(); onEdit(issue); }}
                 className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-medium transition-colors shadow-sm"
@@ -100,6 +105,24 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* نوار ردیابی خط سیر بین دوره‌ای (Lineage Tracking - Audit Phase 9 Item 7) */}
+        {(issue.sourceIssueId || issue.sourceIssue || issue.metadata?.snapshotSource) && (
+          <div className="bg-indigo-50/90 border-b border-indigo-100 px-4 py-2 flex items-center justify-between text-xs text-indigo-900">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-indigo-700">🔗 ردیابی خط سیر مسئله (Lineage):</span>
+              <span>
+                این رکورد منتقل‌شده از دوره {issue.sourceIssue?.period?.name || 'پیشین'} است 
+                (شناسه والد: #{issue.sourceIssueId || issue.metadata?.snapshotSource?.issueId})
+              </span>
+            </div>
+            {issue.sourceIssue?.title && (
+              <span className="text-[11px] text-indigo-600 truncate max-w-xs">
+                عنوان مبدأ: {issue.sourceIssue.title}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Tab Headers */}
         <div className="flex overflow-x-auto gap-1 p-2.5 border-b border-gray-100 bg-gray-50/70 scrollbar-thin">

@@ -157,7 +157,18 @@ export function IssueSystem() {
 
   const stats = getIssueStats(issues);
 
+  const isIssuePeriodFrozen = (periodId?: number | null) => {
+    if (!periodId) return false;
+    const p = periods.find((item: any) => item.id === periodId);
+    return p?.isComplete === 1;
+  };
+
   const handleEdit = async (issue: any) => {
+    if (isIssuePeriodFrozen(issue.periodId)) {
+      toast.error('دوره زمانی این مسئله خاتمه‌یافته (فریز شده) است و امکان ویرایش آن وجود ندارد.');
+      setViewingIssue(issue);
+      return;
+    }
     setEditingIssue(issue);
     setShowForm(true);
     try {
@@ -219,11 +230,21 @@ export function IssueSystem() {
   ];
 
   const handleStatusChange = async (issueId: number, status: string) => {
+    const targetIssue = issues.find((i: any) => i.id === issueId);
+    if (targetIssue && isIssuePeriodFrozen(targetIssue.periodId)) {
+      toast.error('دوره زمانی این مسئله خاتمه‌یافته است و تغییر وضعیت ممکن نیست.');
+      return;
+    }
     await changeStatus(issueId, status);
     toast.success(`📌 وضعیت مسئله به "${getStatusLabel(status)}" تغییر یافت`);
   };
 
   const handleDelete = async (issueId: number) => {
+    const targetIssue = issues.find((i: any) => i.id === issueId);
+    if (targetIssue && isIssuePeriodFrozen(targetIssue.periodId)) {
+      toast.error('دوره زمانی این مسئله خاتمه‌یافته (فریز شده) است و امکان حذف آن وجود ندارد.');
+      return;
+    }
     if (confirm('⚠️ آیا از حذف این مسئله اطمینان دارید؟')) {
       await deleteIssue(issueId);
       toast.success('🗑️ مسئله با موفقیت حذف شد');

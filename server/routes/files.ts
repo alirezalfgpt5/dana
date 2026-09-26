@@ -13,7 +13,7 @@ import { requireAuth } from '../middleware/rbac.js';
 
 export const fileRoutes = Router();
 
-const STORAGE_DIR = path.join(process.cwd(), 'storage');
+const STORAGE_DIR = process.env.STORAGE_DIR || path.join(process.cwd(), 'storage');
 
 // اطمینان از وجود پوشه‌ها
 const ensureDirectories = () => {

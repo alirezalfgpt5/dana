@@ -326,6 +326,7 @@ export const issues = sqliteTable('issues', {
   
   status: text('status').default('pending'),
   category: text('category'),
+  sourceIssueId: integer('source_issue_id').references((): any => issues.id, { onDelete: 'set null' }),
   
   metadata: text('metadata', { mode: 'json' }),
   createdAt: text('created_at').notNull(),
@@ -334,6 +335,7 @@ export const issues = sqliteTable('issues', {
   issuePeriodIdx: index('issues_period_idx').on(table.periodId),
   issueResearchIdx: index('issues_research_idx').on(table.researchItemId),
   issueStatusIdx: index('issues_status_idx').on(table.status),
+  issueSourceIssueIdx: index('issues_source_issue_idx').on(table.sourceIssueId),
 }));
 
 export const issueTemplates = sqliteTable('issue_templates', {
@@ -658,6 +660,14 @@ export const issuesRelations = relations(issues, ({ one, many }) => ({
   domainNode: one(treeNodes, {
     fields: [issues.domainNodeId],
     references: [treeNodes.id],
+  }),
+  sourceIssue: one(issues, {
+    fields: [issues.sourceIssueId],
+    references: [issues.id],
+    relationName: 'issue_lineage',
+  }),
+  derivedIssues: many(issues, {
+    relationName: 'issue_lineage',
   }),
   templates: many(issueTemplates),
   attachments: many(issueAttachments),

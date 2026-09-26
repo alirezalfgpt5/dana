@@ -250,8 +250,8 @@ export function PeriodRolloverModal({
                   >
                     <option value="">انتخاب دوره جدید مقصد...</option>
                     {periods.filter(p => String(p.id) !== sourcePeriodId).map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
+                      <option key={p.id} value={p.id} disabled={p.isComplete === 1}>
+                        {p.name} {p.isComplete === 1 ? '(🔒 خاتمه‌یافته / قفل)' : ''}
                       </option>
                     ))}
                   </select>
@@ -353,8 +353,8 @@ export function PeriodRolloverModal({
                   className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   {periods.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} {p.id === activePeriod?.id ? '(دوره فعال جاری)' : ''}
+                    <option key={p.id} value={p.id} disabled={p.isComplete === 1}>
+                      {p.name} {p.id === activePeriod?.id ? '(دوره فعال جاری)' : ''} {p.isComplete === 1 ? '(🔒 خاتمه‌یافته / قفل)' : ''}
                     </option>
                   ))}
                 </select>

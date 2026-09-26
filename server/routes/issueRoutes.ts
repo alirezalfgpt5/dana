@@ -453,6 +453,13 @@ issueRoutes.get('/:id', async (req, res) => {
       ? await db.query.treeNodes.findFirst({ where: eq(treeNodes.id, issue.domainNodeId) })
       : null;
 
+    const sourceIssue = issue.sourceIssueId
+      ? await db.query.issues.findFirst({
+          where: eq(issues.id, issue.sourceIssueId),
+          with: { period: true },
+        })
+      : null;
+
     res.json({
       ...issue,
       domain: domainNode?.title || (issue as any).domain || 'نامشخص',
@@ -463,10 +470,74 @@ issueRoutes.get('/:id', async (req, res) => {
       templateIds: templateIds.map(String),
       attachments,
       history,
+      sourceIssue,
     });
   } catch (error) {
     console.error('Error fetching issue:', error);
     res.status(500).json({ error: 'خطا در دریافت مسئله' });
+  }
+});
+
+// ============================================
+// ۲-ب. ردیابی زنجیره زمانی و تاریخچه خط سیر مسئله بین دوره‌ها (Lineage Tracking - Audit Phase 9 Item 7)
+// ============================================
+issueRoutes.get('/:id/lineage', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const issueId = parseInt(id);
+    const target = await db.query.issues.findFirst({
+      where: eq(issues.id, issueId),
+      with: {
+        period: true,
+      },
+    });
+    if (!target) {
+      return res.status(404).json({ error: 'مسئله یافت نشد' });
+    }
+
+    // پیمایش زنجیره به سمت گذشته (اجداد مسئله در دوره‌های پیشین)
+    const ancestors: any[] = [];
+    let currentSourceId = target.sourceIssueId;
+    const visited = new Set<number>([target.id]);
+    while (currentSourceId && !visited.has(currentSourceId)) {
+      visited.add(currentSourceId);
+      const parentIssue = await db.query.issues.findFirst({
+        where: eq(issues.id, currentSourceId),
+        with: {
+          period: true,
+        },
+      });
+      if (!parentIssue) break;
+      ancestors.push(parentIssue);
+      currentSourceId = parentIssue.sourceIssueId;
+    }
+
+    // پیمایش زنجیره به سمت آینده (مسائل مشتق‌شده در دوره‌های بعدی)
+    const descendants: any[] = [];
+    let currentIssueId = target.id;
+    while (currentIssueId) {
+      const childIssue = await db.query.issues.findFirst({
+        where: eq(issues.sourceIssueId, currentIssueId),
+        with: {
+          period: true,
+        },
+      });
+      if (!childIssue || visited.has(childIssue.id)) break;
+      visited.add(childIssue.id);
+      descendants.push(childIssue);
+      currentIssueId = childIssue.id;
+    }
+
+    const ancestorsOrdered = ancestors.reverse();
+    res.json({
+      current: target,
+      ancestors: ancestorsOrdered,
+      descendants,
+      lineageChain: [...ancestorsOrdered, target, ...descendants],
+    });
+  } catch (error) {
+    console.error('Error fetching issue lineage:', error);
+    res.status(500).json({ error: 'خطا در بازیابی تاریخچه خط سیر مسئله' });
   }
 });
 
@@ -486,7 +557,7 @@ issueRoutes.post('/', async (req, res) => {
       'requiredBudget', 'approvedBudget', 'assignedBudget', 'expectedMonths', 'completionPercent',
       'actionsTaken', 'bottlenecks', 'orders', 'issueResolutionTeam', 'needStatement', 'contract',
       'executiveContract', 'stage20', 'stage50', 'stage100', 'application', 'status', 'gapId',
-      'templateIds', 'metadata', 'category'
+      'templateIds', 'metadata', 'category', 'sourceIssueId'
     ];
     const data: any = {};
     for (const field of allowedFields) {
@@ -575,10 +646,21 @@ issueRoutes.post('/', async (req, res) => {
       issuePeriodId = activeP?.id || 1;
     }
 
+    // بررسی خاتمه‌یافته یا فریز بودن دوره زمانی (Audit Phase 9 Item 8)
+    const targetPeriod = await db.query.periods.findFirst({
+      where: eq(periods.id, issuePeriodId),
+    });
+    if (targetPeriod && (targetPeriod.isComplete === 1 || (targetPeriod as any).status === 'completed' || (targetPeriod as any).status === 'archived')) {
+      return res.status(400).json({ 
+        error: 'دوره زمانی انتخاب‌شده خاتمه‌یافته یا فریز گردیده است و امکان ثبت مسئله جدید در آن وجود ندارد.' 
+      });
+    }
+
     // ایجاد مسئله درون تراکنش
     const result = db.transaction((tx) => {
       const newIssue = tx.insert(issues).values({
         periodId: issuePeriodId,
+        sourceIssueId: data.sourceIssueId ? parseInt(data.sourceIssueId) : null,
         researchItemId: data.researchItemId ? parseInt(data.researchItemId) : null,
         domainNodeId: parseInt(data.domainNodeId),
         title: data.title,
@@ -681,7 +763,7 @@ issueRoutes.put('/:id', async (req, res) => {
       'requiredBudget', 'approvedBudget', 'assignedBudget', 'expectedMonths', 'completionPercent',
       'actionsTaken', 'bottlenecks', 'orders', 'issueResolutionTeam', 'needStatement', 'contract',
       'executiveContract', 'stage20', 'stage50', 'stage100', 'application', 'status', 'gapId',
-      'templateIds', 'metadata', 'category'
+      'templateIds', 'metadata', 'category', 'sourceIssueId'
     ];
     const data: any = {};
     for (const field of allowedFields) {
@@ -701,6 +783,30 @@ issueRoutes.put('/:id', async (req, res) => {
 
     if (!oldData) {
       return res.status(404).json({ error: 'مسئله یافت نشد' });
+    }
+
+    // ============================================
+    // محافظت از دوره‌های خاتمه‌یافته یا فریز شده (Audit Spec Phase 9 Item 8)
+    // ============================================
+    if (oldData.periodId) {
+      const currentPeriod = await db.query.periods.findFirst({
+        where: eq(periods.id, oldData.periodId),
+      });
+      if (currentPeriod && (currentPeriod.isComplete === 1 || (currentPeriod as any).status === 'completed' || (currentPeriod as any).status === 'archived')) {
+        return res.status(400).json({ 
+          error: 'دوره زمانی این مسئله خاتمه‌یافته یا فریز گردیده است و امکان تغییر اطلاعات آن وجود ندارد.' 
+        });
+      }
+    }
+    if (data.periodId && parseInt(data.periodId) !== oldData.periodId) {
+      const targetPeriod = await db.query.periods.findFirst({
+        where: eq(periods.id, parseInt(data.periodId)),
+      });
+      if (targetPeriod && (targetPeriod.isComplete === 1 || (targetPeriod as any).status === 'completed' || (targetPeriod as any).status === 'archived')) {
+        return res.status(400).json({ 
+          error: 'دوره مقصد انتخاب‌شده خاتمه‌یافته است و امکان انتقال مسئله به آن وجود ندارد.' 
+        });
+      }
     }
     
     // ============================================
@@ -754,6 +860,7 @@ issueRoutes.put('/:id', async (req, res) => {
       application: data.application !== undefined ? data.application : oldData.application,
       status: data.status !== undefined && data.status !== null ? data.status : oldData.status,
       category: data.category !== undefined ? data.category : oldData.category,
+      sourceIssueId: data.sourceIssueId !== undefined ? (data.sourceIssueId ? parseInt(data.sourceIssueId) : null) : oldData.sourceIssueId,
       updatedAt: now,
     };
 
@@ -822,6 +929,14 @@ issueRoutes.post('/carry-over', async (req, res) => {
       return res.status(400).json({ error: 'دوره مبدأ و مقصد نمی‌توانند یکسان باشند' });
     }
 
+    // بررسی فریز یا خاتمه‌یافته بودن دوره مقصد
+    const targetPeriod = await db.query.periods.findFirst({
+      where: eq(periods.id, parseInt(targetPeriodId)),
+    });
+    if (targetPeriod && (targetPeriod.isComplete === 1 || (targetPeriod as any).status === 'completed' || (targetPeriod as any).status === 'archived')) {
+      return res.status(400).json({ error: 'دوره مقصد انتخاب‌شده خاتمه‌یافته یا فریز است و امکان انتقال مسئله به آن وجود ندارد.' });
+    }
+
     const now = new Date().toISOString();
     const userId = (req as AuthRequest).user?.id || null;
 
@@ -845,6 +960,7 @@ issueRoutes.post('/carry-over', async (req, res) => {
       for (const s of sourceIssues) {
         const newIssue = tx.insert(issues).values({
           periodId: parseInt(targetPeriodId),
+          sourceIssueId: s.id, // ردیابی خط سیر مسئله بین دوره‌ها (Lineage Tracking - Audit Phase 9 Item 7)
           researchItemId: s.researchItemId,
           domainNodeId: s.domainNodeId,
           title: s.title,
@@ -933,6 +1049,14 @@ issueRoutes.post('/batch-import', async (req, res) => {
     const { targetPeriodId, issuesList, updateExistingByTitle = true, responsibleUnit } = req.body;
     if (!targetPeriodId || !Array.isArray(issuesList)) {
       return res.status(400).json({ error: 'شناسه دوره و لیست مسائل الزامی است' });
+    }
+
+    // بررسی فریز یا خاتمه‌یافته بودن دوره مقصد
+    const targetPeriod = await db.query.periods.findFirst({
+      where: eq(periods.id, parseInt(targetPeriodId)),
+    });
+    if (targetPeriod && (targetPeriod.isComplete === 1 || (targetPeriod as any).status === 'completed' || (targetPeriod as any).status === 'archived')) {
+      return res.status(400).json({ error: 'دوره مقصد انتخاب‌شده خاتمه‌یافته یا فریز است و نمی‌توان به آن مسئله وارد کرد.' });
     }
 
     const now = new Date().toISOString();
@@ -1035,6 +1159,20 @@ issueRoutes.put('/:id/status', async (req, res) => {
       return res.status(404).json({ error: 'مسئله یافت نشد' });
     }
 
+    // ============================================
+    // محافظت از دوره‌های خاتمه‌یافته یا فریز شده (Audit Spec Phase 9 Item 8)
+    // ============================================
+    if (oldData.periodId) {
+      const currentPeriod = await db.query.periods.findFirst({
+        where: eq(periods.id, oldData.periodId),
+      });
+      if (currentPeriod && (currentPeriod.isComplete === 1 || (currentPeriod as any).status === 'completed' || (currentPeriod as any).status === 'archived')) {
+        return res.status(400).json({ 
+          error: 'دوره زمانی این مسئله خاتمه‌یافته یا فریز گردیده است و امکان تغییر وضعیت آن وجود ندارد.' 
+        });
+      }
+    }
+
     const result = await db.update(issues)
       .set({
         status,
@@ -1124,6 +1262,17 @@ issueRoutes.post('/:id/attachment', upload.single('file'), async (req, res) => {
       return res.status(404).json({ error: 'مسئله یافت نشد' });
     }
 
+    // بررسی خاتمه دوره زمانی مسئله
+    if (issue.periodId) {
+      const currentPeriod = await db.query.periods.findFirst({
+        where: eq(periods.id, issue.periodId),
+      });
+      if (currentPeriod && (currentPeriod.isComplete === 1 || (currentPeriod as any).status === 'completed' || (currentPeriod as any).status === 'archived')) {
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'دوره زمانی این مسئله خاتمه‌یافته یا فریز گردیده است و امکان افزودن پیوست وجود ندارد.' });
+      }
+    }
+
     const result = await db.insert(issueAttachments).values({
       issueId,
       filePath: req.file.path,
@@ -1172,6 +1321,18 @@ issueRoutes.delete('/:issueId/attachment/:attachmentId', async (req, res) => {
       return res.status(404).json({ error: 'فایل پیوست یافت نشد' });
     }
 
+    const parentIssue = await db.query.issues.findFirst({
+      where: eq(issues.id, parseInt(issueId)),
+    });
+    if (parentIssue?.periodId) {
+      const currentPeriod = await db.query.periods.findFirst({
+        where: eq(periods.id, parentIssue.periodId),
+      });
+      if (currentPeriod && (currentPeriod.isComplete === 1 || (currentPeriod as any).status === 'completed' || (currentPeriod as any).status === 'archived')) {
+        return res.status(400).json({ error: 'دوره زمانی این مسئله خاتمه‌یافته یا فریز گردیده است و امکان حذف پیوست وجود ندارد.' });
+      }
+    }
+
     // حذف فایل از دیسک
     if (fs.existsSync(attachment.filePath)) {
       fs.unlinkSync(attachment.filePath);
@@ -1213,6 +1374,18 @@ issueRoutes.delete('/:id', async (req, res) => {
 
     if (!existing) {
       return res.status(404).json({ error: 'مسئله یافت نشد' });
+    }
+
+    // بررسی دوره خاتمه‌یافته یا فریز شده (Audit Spec Phase 9 Item 8)
+    if (existing.periodId) {
+      const currentPeriod = await db.query.periods.findFirst({
+        where: eq(periods.id, existing.periodId),
+      });
+      if (currentPeriod && (currentPeriod.isComplete === 1 || (currentPeriod as any).status === 'completed' || (currentPeriod as any).status === 'archived')) {
+        return res.status(400).json({ 
+          error: 'دوره زمانی این مسئله خاتمه‌یافته یا فریز گردیده است و امکان حذف آن وجود ندارد.' 
+        });
+      }
     }
 
     const attachments = await db.select()

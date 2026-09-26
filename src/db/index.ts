@@ -844,8 +844,27 @@ export function initDb() {
       SET period_id = (SELECT id FROM periods WHERE is_active = 1 LIMIT 1)
       WHERE period_id IS NULL;
     `);
+
+    // ============================================
+    // ردیابی زنجیره زمانی و مسئله مبدأ (Lineage Tracking - Audit Phase 9 Item 7)
+    // ============================================
+    if (!issuesCols.includes('source_issue_id')) {
+      sqlite.exec("ALTER TABLE issues ADD COLUMN source_issue_id INTEGER REFERENCES issues(id) ON DELETE SET NULL;");
+      sqlite.exec("CREATE INDEX IF NOT EXISTS issues_source_issue_idx ON issues(source_issue_id);");
+      console.log('✅ Added source_issue_id column to issues');
+    }
+    // بازگردانی خودکار شناسه‌های مبدأ از روی متادیتای نسخه‌های منتقل‌شده قبلی
+    try {
+      sqlite.exec(`
+        UPDATE issues
+        SET source_issue_id = CAST(json_extract(metadata, '$.snapshotSource.issueId') AS INTEGER)
+        WHERE source_issue_id IS NULL 
+          AND metadata IS NOT NULL 
+          AND json_extract(metadata, '$.snapshotSource.issueId') IS NOT NULL;
+      `);
+    } catch {}
   } catch (e) {
-    console.error('Error migrating period_id:', e);
+    console.error('Error migrating period_id / source_issue_id:', e);
   }
   
   console.log('🎉 Database initialization completed!');

@@ -219,8 +219,10 @@ app.use(async (req, res, next) => {
 });
 
 // محافظت از فایل‌های محرمانه با احراز هویت (Fix 32)
-app.use('/uploads', requireAuth, express.static(path.join(currentDir, 'uploads')));
-app.use('/storage', requireAuth, express.static(path.join(currentDir, 'storage')));
+const persistentUploadsDir = process.env.UPLOAD_DIR || path.join(currentDir, 'uploads');
+const persistentStorageDir = process.env.STORAGE_DIR || path.join(currentDir, 'storage');
+app.use('/uploads', requireAuth, express.static(persistentUploadsDir));
+app.use('/storage', requireAuth, express.static(persistentStorageDir));
 
 // ⚠️ مسیرهای بکاپ باید بعد از میدل‌ور احراز هویت تعریف شوند تا req.user ست شده باشد
 import { createManualBackup } from './server/utils/backup.js';
