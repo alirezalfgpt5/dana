@@ -1,5 +1,5 @@
 // src/components/auth/OfflineCaptcha.tsx
-// کامپوننت کپچای حرفه‌ای، فشرده و زنده (بدون نیاز به دکمه تایید، بدون تب سناریو و کاملاً آفلاین)
+// کامپوننت کپچای حرفه‌ای، فشرده و زنده (بدون وابستگی ریرندر به والد، بدون رفرش ناخواسته)
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RefreshCw, CheckCircle2, ShieldCheck } from 'lucide-react';
@@ -16,6 +16,12 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
   const [isVerified, setIsVerified] = useState(false);
   const [userInput, setUserInput] = useState('');
 
+  // جلوگیری از ایجاد وابستگی ریرندر روی تابع onVerify
+  const onVerifyRef = useRef(onVerify);
+  useEffect(() => {
+    onVerifyRef.current = onVerify;
+  }, [onVerify]);
+
   // Math State
   const [mathProblem, setMathProblem] = useState({ text: '', answer: 0 });
   const mathCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -28,20 +34,19 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
   const [targetPosition, setTargetPosition] = useState(65);
   const [sliderValue, setSliderValue] = useState(0);
 
-  // تبدیل ارقام انگلیسی به فارسی برای زیبایی
+  // تبدیل ارقام انگلیسی به فارسی
   const toPersianDigits = (num: number | string) => {
     const farsiDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
     return String(num).replace(/[0-9]/g, (w) => farsiDigits[+w]);
   };
 
-  // تبدیل ارقام فارسی و عربی به انگلیسی جهت اعتبارسنجی
+  // تبدیل ارقام فارسی و عربی به انگلیسی
   const toEnglishDigits = (str: string) => {
     return str
       .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 1776))
       .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632));
   };
 
-  // سناریوی تصادفی جدید
   const pickRandomScenario = (): CaptchaScenario => {
     const scenarios: CaptchaScenario[] = ['math', 'text', 'slider'];
     return scenarios[Math.floor(Math.random() * scenarios.length)];
@@ -81,14 +86,12 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
       const w = canvas.width;
       const h = canvas.height;
 
-      // پس‌زمینه لطیف
       const grad = ctx.createLinearGradient(0, 0, w, h);
       grad.addColorStop(0, '#f8fafc');
       grad.addColorStop(1, '#f1f5f9');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
-      // خطوط نویز ملایم
       for (let i = 0; i < 3; i++) {
         ctx.strokeStyle = `rgba(99, 102, 241, 0.25)`;
         ctx.lineWidth = 1.2;
@@ -98,7 +101,6 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
         ctx.stroke();
       }
 
-      // متن
       ctx.font = 'bold 16px Vazirmatn, Tahoma, sans-serif';
       ctx.fillStyle = '#334155';
       ctx.textAlign = 'center';
@@ -107,7 +109,7 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
     }, 40);
   }, []);
 
-  // ۲. کد متنی تصویری
+  // ۲. چالش کد متنی تصویری
   const generateText = useCallback(() => {
     const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
     let code = '';
@@ -131,7 +133,6 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
-      // نویز
       for (let i = 0; i < 3; i++) {
         ctx.strokeStyle = `rgba(139, 92, 246, 0.3)`;
         ctx.lineWidth = 1.2;
@@ -141,7 +142,6 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
         ctx.stroke();
       }
 
-      // حروف
       const charWidth = w / (code.length + 1);
       for (let i = 0; i < code.length; i++) {
         ctx.save();
@@ -160,17 +160,17 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
     }, 40);
   }, []);
 
-  // ۳. اسلایدر
+  // ۳. چالش اسلایدر
   const generateSlider = useCallback(() => {
     setSliderValue(0);
-    const newTarget = Math.floor(Math.random() * 45) + 40; // بین ۴۰ تا ۸۵ درصد
+    const newTarget = Math.floor(Math.random() * 45) + 40;
     setTargetPosition(newTarget);
   }, []);
 
-  // راه‌اندازی سناریوی جدید به صورت تصادفی
+  // اجرای سناریوی تصادفی جدید
   const initNewRandomChallenge = useCallback(() => {
     setIsVerified(false);
-    onVerify(false);
+    onVerifyRef.current(false);
     setUserInput('');
 
     const nextScenario = pickRandomScenario();
@@ -183,12 +183,13 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
     } else {
       generateSlider();
     }
-  }, [generateMath, generateText, generateSlider, onVerify]);
+  }, [generateMath, generateText, generateSlider]);
 
-  // بارگذاری اولیه
+  // بارگذاری فقط و فقط یک بار در اولین لود
   useEffect(() => {
     initNewRandomChallenge();
-  }, [initNewRandomChallenge]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // بررسی زنده ورودی ریاضی
   const handleMathChange = (val: string) => {
@@ -196,11 +197,11 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
     const clean = toEnglishDigits(val.trim());
     if (clean !== '' && parseInt(clean, 10) === mathProblem.answer) {
       setIsVerified(true);
-      onVerify(true);
+      onVerifyRef.current(true);
     } else {
       if (isVerified) {
         setIsVerified(false);
-        onVerify(false);
+        onVerifyRef.current(false);
       }
     }
   };
@@ -210,11 +211,11 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
     setUserInput(val.toUpperCase());
     if (val.trim().toUpperCase() === textCode.toUpperCase()) {
       setIsVerified(true);
-      onVerify(true);
+      onVerifyRef.current(true);
     } else {
       if (isVerified) {
         setIsVerified(false);
-        onVerify(false);
+        onVerifyRef.current(false);
       }
     }
   };
@@ -225,10 +226,10 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
     if (Math.abs(val - targetPosition) <= 5) {
       setSliderValue(targetPosition);
       setIsVerified(true);
-      onVerify(true);
+      onVerifyRef.current(true);
     } else if (isVerified) {
       setIsVerified(false);
-      onVerify(false);
+      onVerifyRef.current(false);
     }
   };
 
@@ -236,11 +237,11 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
     if (Math.abs(sliderValue - targetPosition) <= 6) {
       setSliderValue(targetPosition);
       setIsVerified(true);
-      onVerify(true);
+      onVerifyRef.current(true);
     } else {
       setSliderValue(0);
       setIsVerified(false);
-      onVerify(false);
+      onVerifyRef.current(false);
     }
   };
 
@@ -283,7 +284,7 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
             type="button"
             onClick={initNewRandomChallenge}
             title="چالش جدید"
-            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-gray-200/60 rounded-lg transition-colors shrink-0"
+            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-gray-200/60 rounded-lg transition-colors shrink-0 cursor-pointer"
           >
             <RefreshCw size={14} />
           </button>
@@ -323,7 +324,7 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
             type="button"
             onClick={initNewRandomChallenge}
             title="چالش جدید"
-            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-gray-200/60 rounded-lg transition-colors shrink-0"
+            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-gray-200/60 rounded-lg transition-colors shrink-0 cursor-pointer"
           >
             <RefreshCw size={14} />
           </button>
@@ -334,9 +335,7 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
       {scenario === 'slider' && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
-            {/* ترَک اسلایدر با قطعه پازل */}
             <div className="relative flex-1 h-8 bg-gradient-to-r from-purple-100/80 via-indigo-50 to-blue-100/80 rounded-lg border border-gray-200/80 overflow-hidden select-none">
-              {/* جایگاه هدف */}
               <div
                 className="absolute top-1 w-6 h-6 border-2 border-dashed border-purple-500 bg-white/70 rounded-md flex items-center justify-center transition-all"
                 style={{ left: `${targetPosition}%` }}
@@ -344,7 +343,6 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
                 <div className="w-2.5 h-2.5 rounded-xs bg-purple-300" />
               </div>
 
-              {/* قطعه پازل متحرک */}
               <div
                 className={`absolute top-1 w-6 h-6 rounded-md shadow-xs flex items-center justify-center text-white text-[10px] transition-transform ${
                   isVerified
@@ -361,7 +359,7 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
               type="button"
               onClick={initNewRandomChallenge}
               title="چالش جدید"
-              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-gray-200/60 rounded-lg transition-colors shrink-0"
+              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-gray-200/60 rounded-lg transition-colors shrink-0 cursor-pointer"
             >
               <RefreshCw size={14} />
             </button>

@@ -1,7 +1,7 @@
 // src/pages/Login.tsx
-// صفحه ورود به سیستم — فشرده، زیبا و بهینه با کپچای زنده و تولتیپ اطلاعات توسعه‌دهنده
+// صفحه ورود به سیستم — فشرده، زیبا و بهینه با کپچای زنده و تولتیپ اطلاعات توسعه‌دهنده بدون ریرندر
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuthStore, useUIStore } from '../store';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BookOpen, Sparkles, KeyRound, User, Shield, Eye, EyeOff, Info } from 'lucide-react';
@@ -18,12 +18,15 @@ export function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
-  const [showDevInfo, setShowDevInfo] = useState(false);
   
   const login = useAuthStore(state => state.login);
   const { siteLogo, systemName, loginTitle } = useUIStore();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const handleCaptchaVerify = useCallback((valid: boolean) => {
+    setIsCaptchaVerified(valid);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,7 +199,7 @@ export function Login() {
             {/* کپچای امنیتی فشرده و زنده */}
             <div>
               <OfflineCaptcha
-                onVerify={(valid) => setIsCaptchaVerified(valid)}
+                onVerify={handleCaptchaVerify}
               />
             </div>
 
@@ -258,54 +261,46 @@ export function Login() {
             }}
           />
 
-          {/* فوتر مینیمال با آیکون i برای نمایش اطلاعات توسعه‌دهنده */}
+          {/* فوتر مینیمال با آیکون i کاملاً استاتیک با هوور CSS بدون هیچ ریرندر یا ایونت فرم */}
           <div className="mt-3 pt-2 border-t divider-soft flex items-center justify-between text-[11px]">
             <span className="text-[10px] opacity-65" style={{ color: 'var(--text-faint)' }}>
               سامانه آفلاین دانا
             </span>
 
-            {/* اطلاعات توسعه‌دهنده به صورت تولتیپ بر روی آیکون i */}
-            <div 
-              className="relative inline-block"
-              onMouseEnter={() => setShowDevInfo(true)}
-              onMouseLeave={() => setShowDevInfo(false)}
-              onClick={() => setShowDevInfo(!showDevInfo)}
-            >
-              <button
-                type="button"
-                className="w-5 h-5 rounded-full flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer border border-gray-200"
+            {/* اطلاعات توسعه‌دهنده با Pure CSS Hover بدون هیچ دستکاری در State یا DOM */}
+            <div className="relative group inline-flex items-center">
+              <div
+                className="w-5 h-5 rounded-full flex items-center justify-center text-gray-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors cursor-pointer border border-gray-200"
                 title="درباره توسعه‌دهنده"
               >
                 <Info size={12} />
-              </button>
+              </div>
 
-              {/* Tooltip Popup */}
-              {showDevInfo && (
-                <div 
-                  className="absolute bottom-full left-0 mb-2 w-64 bg-[#1e293b] text-white rounded-xl shadow-2xl p-3 z-50 text-right animate-in fade-in zoom-in-95 border border-slate-700 pointer-events-auto"
-                >
-                  <div className="space-y-1.5 text-[11px]">
-                    <p className="font-bold text-blue-400 text-xs border-b border-slate-700/80 pb-1.5">
-                      طراحی و توسعه توسط علیرضا لباف
-                    </p>
-                    <div className="flex items-center justify-between text-slate-300 pt-0.5">
-                      <span className="text-[10px] text-slate-400">تماس:</span>
-                      <a href="tel:09196600545" dir="ltr" className="hover:text-blue-300 font-mono text-xs">
-                        📱 ۰۹۱۹۶۶۰۰۵۴۵
-                      </a>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-300">
-                      <span className="text-[10px] text-slate-400">ایمیل:</span>
-                      <a href="mailto:alirezalf@gmail.com" dir="ltr" className="hover:text-blue-300 font-mono text-[11px]">
-                        ✉️ alirezalf@gmail.com
-                      </a>
-                    </div>
-                    <div className="pt-1.5 border-t border-slate-700/80 text-[10px] text-slate-400 text-center">
-                      © 2026 DANA - تمامی حقوق محفوظ است
-                    </div>
+              {/* Tooltip Popup Pure CSS Hover */}
+              <div 
+                className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all duration-200 pointer-events-none group-hover:pointer-events-auto absolute bottom-full left-0 mb-2 w-64 bg-[#1e293b] text-white rounded-xl shadow-2xl p-3 z-50 text-right border border-slate-700"
+              >
+                <div className="space-y-1.5 text-[11px]">
+                  <p className="font-bold text-blue-400 text-xs border-b border-slate-700/80 pb-1.5">
+                    طراحی و توسعه توسط علیرضا لباف
+                  </p>
+                  <div className="flex items-center justify-between text-slate-300 pt-0.5">
+                    <span className="text-[10px] text-slate-400">تماس:</span>
+                    <a href="tel:09196600545" dir="ltr" className="hover:text-blue-300 font-mono text-xs">
+                      📱 ۰۹۱۹۶۶۰۰۵۴۵
+                    </a>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-300">
+                    <span className="text-[10px] text-slate-400">ایمیل:</span>
+                    <a href="mailto:alirezalf@gmail.com" dir="ltr" className="hover:text-blue-300 font-mono text-[11px]">
+                      ✉️ alirezalf@gmail.com
+                    </a>
+                  </div>
+                  <div className="pt-1.5 border-t border-slate-700/80 text-[10px] text-slate-400 text-center">
+                    © 2026 DANA - تمامی حقوق محفوظ است
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
