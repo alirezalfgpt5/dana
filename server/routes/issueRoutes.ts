@@ -1327,11 +1327,11 @@ issueRoutes.get('/stats', async (req, res) => {
     }, {});
 
     // بودجه کل
-    const totalBudget = allIssues.reduce((sum, issue) => sum + (issue.requiredBudget || 0), 0);
+    const totalBudget = allIssues.reduce((sum, issue) => sum + (Number(issue.requiredBudget) || 0), 0);
     
     // میانگین پیشرفت
     const avgCompletion = total > 0 
-      ? Math.round(allIssues.reduce((sum, issue) => sum + (issue.completionPercent || 0), 0) / total) 
+      ? Math.round(allIssues.reduce((sum, issue) => sum + (Number(issue.completionPercent) || 0), 0) / total) 
       : 0;
 
     res.json({

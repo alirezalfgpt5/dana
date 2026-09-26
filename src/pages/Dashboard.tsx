@@ -89,6 +89,9 @@ export function Dashboard() {
     inProgressIssues: issueStats.inProgress,
   };
 
+  const issueProgress = stats.issues > 0 ? Math.round((stats.completedIssues / stats.issues) * 100) : 0;
+  const gapProgress = stats.gaps > 0 ? Math.round((stats.filledGaps / stats.gaps) * 100) : 0;
+
   const handleExport = () => {
     const esc = (val: any): string => {
       if (val === null || val === undefined) return '""';

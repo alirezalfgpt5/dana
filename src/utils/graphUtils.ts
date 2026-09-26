@@ -301,9 +301,9 @@ export function generateIssueData(issues: any[], nodes: any[]) {
       acc[priority] = (acc[priority] || 0) + 1;
       return acc;
     }, {}),
-    totalBudget: issues.reduce((sum, issue) => sum + (issue.requiredBudget || 0), 0),
+    totalBudget: issues.reduce((sum, issue) => sum + (Number(issue.requiredBudget) || 0), 0),
     avgCompletion: issues.length > 0
-      ? Math.round(issues.reduce((sum, issue) => sum + (issue.completionPercent || 0), 0) / issues.length)
+      ? Math.round(issues.reduce((sum, issue) => sum + (Number(issue.completionPercent) || 0), 0) / issues.length)
       : 0,
   };
 

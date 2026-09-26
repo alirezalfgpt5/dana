@@ -456,8 +456,8 @@ outputRoutes.get('/research/:treeId/excel', async (req, res) => {
       `🏛️ راهبردی: ${researchItemsList.filter(i => i.importance === 'راهبردی').length}`,
       `⏳ کوتاه‌مدت: ${researchItemsList.filter(i => i.timeFrame === 'کوتاه‌مدت').length}`,
       '',
-      `💪 میانگین: ${Math.round(researchItemsList.reduce((s, i) => s + (i.combatImpact || 0), 0) / total)}`,
-      `💰 میانگین: ${Math.round(researchItemsList.reduce((s, i) => s + (i.costBenefit || 0), 0) / total)}`,
+      `💪 میانگین: ${total > 0 ? Math.round(researchItemsList.reduce((s, i) => s + (Number(i.combatImpact) || 0), 0) / total) : 0}`,
+      `💰 میانگین: ${total > 0 ? Math.round(researchItemsList.reduce((s, i) => s + (Number(i.costBenefit) || 0), 0) / total) : 0}`,
       '',
     ]);
     summaryRow.font = { name: 'Vazirmatn', bold: true, size: 11 };
@@ -616,8 +616,8 @@ outputRoutes.get('/full-report', async (req, res) => {
       ['لغو شده', issuesData.filter(i => i.status === 'canceled').length],
       ['متوقف', issuesData.filter(i => i.status === 'on_hold').length],
       ['', ''],
-      ['💰 بودجه کل', new Intl.NumberFormat('fa-IR').format(issuesData.reduce((s, i) => s + (i.requiredBudget || 0), 0)) + ' ریال'],
-      ['📈 میانگین پیشرفت', issuesData.length > 0 ? Math.round(issuesData.reduce((s, i) => s + (i.completionPercent || 0), 0) / issuesData.length) + '%' : '۰%'],
+      ['💰 بودجه کل', new Intl.NumberFormat('fa-IR').format(issuesData.reduce((s, i) => s + (Number(i.requiredBudget) || 0), 0)) + ' ریال'],
+      ['📈 میانگین پیشرفت', issuesData.length > 0 ? Math.round(issuesData.reduce((s, i) => s + (Number(i.completionPercent) || 0), 0) / issuesData.length) + '%' : '۰%'],
     ];
 
     for (const [label, value] of infoData) {

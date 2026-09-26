@@ -356,8 +356,8 @@ export function useIssues() {
       return acc;
     }, {});
 
-    const totalBudget = issuesList.reduce((sum, issue) => sum + (issue.requiredBudget || 0), 0);
-    const avgCompletion = total > 0 ? Math.round(issuesList.reduce((sum, issue) => sum + (issue.completionPercent || 0), 0) / total) : 0;
+    const totalBudget = issuesList.reduce((sum, issue) => sum + (Number(issue.requiredBudget) || 0), 0);
+    const avgCompletion = total > 0 ? Math.round(issuesList.reduce((sum, issue) => sum + (Number(issue.completionPercent) || 0), 0) / total) : 0;
 
     return {
       total,
