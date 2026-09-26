@@ -481,8 +481,10 @@ export function IssueSystem() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
+        {/* ریسپانسیو: در موبایل ستونی، در تبلت/دسکتاپ ردیفی با امکان شکستن خط (flex-wrap) تا هرگز سرریز نشود */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
+          {/* جستجو: در موبایل تمام‌عرض، در تبلت خط خودش را می‌گیرد، در دسکتاپ کنار فیلترها جمع می‌شود */}
+          <div className="relative min-w-0 w-full sm:basis-full lg:basis-0 lg:flex-1">
             <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -503,7 +505,7 @@ export function IssueSystem() {
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 min-w-[140px]"
+            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 min-w-[140px] sm:flex-1"
           >
             <option value="all">📌 همه وضعیت‌ها</option>
             <option value="pending">⏳ در انتظار</option>
@@ -515,7 +517,7 @@ export function IssueSystem() {
           <select
             value={priorityFilter}
             onChange={e => setPriorityFilter(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 min-w-[140px]"
+            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 min-w-[140px] sm:flex-1"
           >
             <option value="all">🎯 همه اولویت‌ها</option>
             <option value="خیلی زیاد">🔥 خیلی زیاد</option>
@@ -526,7 +528,7 @@ export function IssueSystem() {
           <select
             value={categoryFilter}
             onChange={e => setCategoryFilter(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 min-w-[140px]"
+            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 min-w-[140px] sm:flex-1"
           >
             <option value="all">🏷️ همه دسته‌ها</option>
             <option value="عمومی">عمومی</option>
@@ -541,7 +543,7 @@ export function IssueSystem() {
           <select
             value={timeFrameFilter}
             onChange={e => setTimeFrameFilter(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 min-w-[140px]"
+            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 min-w-[140px] sm:flex-1"
           >
             <option value="all">⏳ همه زمان‌بندی‌ها</option>
             <option value="کوتاه‌مدت">کوتاه‌مدت</option>
@@ -556,7 +558,7 @@ export function IssueSystem() {
               setCategoryFilter('all');
               setTimeFrameFilter('all');
             }}
-            className="px-4 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            className="px-4 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 flex-shrink-0 self-start"
           >
             <Filter size={16} />
             🧹 پاک کردن

@@ -69,6 +69,9 @@ export default function App() {
 
   useEffect(() => {
     const handleAuthError = (e: any) => {
+      // محافظت مضاعف: در صفحه عمومی لاگین یا بدون نشست فعال، این پیام نمایش داده نمی‌شود
+      const path = window.location.pathname || '/';
+      if (path === '/login' || path.startsWith('/login/') || !useAuthStore.getState().token) return;
       toast.error(e.detail || 'نشست شما منقضی شده است', { id: 'app-auth-expired' });
       logout();
     };

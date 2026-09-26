@@ -12,3 +12,4 @@ backups/
 database.sqlite-shm
 database.sqlite-wal
 tsconfig.tsbuildinfo
+continu.txt
