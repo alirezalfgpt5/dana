@@ -9,7 +9,7 @@ import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Clock, Calendar, Filter, X, Eye, UploadCloud, CheckCircle2,
   AlertTriangle, Building2, Layers, GitBranch, ArrowDownToLine,
-  FileCheck, ShieldAlert, Sparkles, HelpCircle
+  FileCheck, ShieldAlert, Sparkles, HelpCircle, History, GitMerge, FileDiff, ShieldCheck, Undo2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns-jalali';
@@ -80,6 +80,23 @@ export function FilesManagement() {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [syncSummary, setSyncSummary] = useState<any | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // زیرتب‌های بخش تبادل داده
+  const [exchangeSubTab, setExchangeSubTab] = useState<'exchange_sync' | 'versions_dashboard' | 'unit_analytics'>('exchange_sync');
+
+  // استراتژی حل تعارض و تایید دستی
+  const [syncStrategy, setSyncStrategy] = useState<'smart_merge' | 'apply_incoming' | 'keep_existing'>('smart_merge');
+  const [conflictResolutions, setConflictResolutions] = useState<Record<string, 'incoming' | 'existing'>>({});
+  const [manualConfirmChecked, setManualConfirmChecked] = useState(false);
+  const [showConflictTable, setShowConflictTable] = useState(true);
+
+  // داشبورد نسخه‌ها و لاگ تغییرات
+  const [versionsList, setVersionsList] = useState<any[]>([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [selectedVersionForLogs, setSelectedVersionForLogs] = useState<any | null>(null);
+  const [versionLogs, setVersionLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [showLogsModal, setShowLogsModal] = useState(false);
 
   // -------------------------------------------------------------
   // ۲. Stateهای بخش فایل‌های پیوست (Storage)
@@ -170,7 +187,63 @@ export function FilesManagement() {
 
   useEffect(() => {
     fetchUnitStats();
+    fetchVersions();
   }, [selectedPeriodId, selectedBaseId, selectedUnitId, viewModeScope]);
+
+  // دریافت تاریخچه نسخه‌های همگام‌سازی شده
+  const fetchVersions = async () => {
+    setLoadingVersions(true);
+    try {
+      const params = new URLSearchParams();
+      if (selectedUnitId) params.append('unitId', selectedUnitId);
+      if (selectedPeriodId) params.append('periodId', selectedPeriodId);
+      const res = await (window.customFetch || window.fetch)(`/api/data-exchange/versions?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setVersionsList(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('Error fetching versions:', err);
+    } finally {
+      setLoadingVersions(false);
+    }
+  };
+
+  const fetchVersionLogs = async (version: any) => {
+    setSelectedVersionForLogs(version);
+    setLoadingLogs(true);
+    setShowLogsModal(true);
+    try {
+      const res = await (window.customFetch || window.fetch)(`/api/data-exchange/versions/${version.id}/logs`);
+      if (res.ok) {
+        const data = await res.json();
+        setVersionLogs(data.logs || []);
+      }
+    } catch (err) {
+      console.error('Error fetching logs:', err);
+      toast.error('خطا در دریافت لاگ تغییرات نسخه');
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const handleRollbackVersion = async (versionId: number) => {
+    if (!window.confirm('آیا از بازگردانی تغییرات این نسخه و بازیابی مقادیر قبلی در پایگاه داده اطمینان دارید؟')) {
+      return;
+    }
+    try {
+      const res = await (window.customFetch || window.fetch)(`/api/data-exchange/versions/${versionId}/rollback`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'خطا در بازگردانی نسخه');
+      toast.success(data.message || 'نسخه با موفقیت بازگردانی شد.');
+      fetchVersions();
+      fetchUnitStats();
+    } catch (err: any) {
+      toast.error(err.message || 'خطا در بازگردانی');
+    }
+  };
 
   // -------------------------------------------------------------
   // متدهای بخش قالب و همگام‌سازی اکسل
@@ -230,6 +303,8 @@ export function FilesManagement() {
     }
 
     setIsPreviewLoading(true);
+    setManualConfirmChecked(false);
+    setConflictResolutions({});
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -248,7 +323,17 @@ export function FilesManagement() {
 
       setPreviewData(data);
       if (data.valid) {
-        toast.success(`فایل معتبر است (${data.stats.totalNodes} گره دانشی و ${data.stats.totalIssues} مسئله شناسایی شد).`);
+        const conflictCount = data.stats?.totalConflicts || 0;
+        if (conflictCount > 0) {
+          toast((t) => (
+            <div className="text-xs">
+              <b>⚠️ {conflictCount} مورد مغایرت شناسایی شد</b>
+              <p className="mt-1">اطلاعات دریافتی با پایگاه داده مقایسه شد. لطفاً جدول تعارضات را بررسی و استراتژی ادغام را مشخص فرمایید.</p>
+            </div>
+          ), { duration: 5000, icon: '⚠️' });
+        } else {
+          toast.success(`فایل کاملاً معتبر است (${data.stats.totalNodes} گره و ${data.stats.totalIssues} مسئله، بدون مغایرت).`);
+        }
       } else {
         toast.error(`فایل دارای ${data.errors?.length || 0} خطا در اعتبارسنجی است.`);
       }
@@ -266,12 +351,20 @@ export function FilesManagement() {
       return;
     }
 
+    if (!manualConfirmChecked) {
+      toast.error('لطفاً چک‌باکس تایید دستی را جهت همگام‌سازی و ثبت نسخه در دیتابیس علامت بزنید.');
+      return;
+    }
+
     setIsUploading(true);
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
       if (selectedUnitId) formData.append('unitId', selectedUnitId);
       if (selectedPeriodId) formData.append('periodId', selectedPeriodId);
+      formData.append('confirmSync', 'true');
+      formData.append('strategy', syncStrategy);
+      formData.append('resolutions', JSON.stringify(conflictResolutions));
 
       const res = await (window.customFetch || window.fetch)('/api/data-exchange/template/upload-sync', {
         method: 'POST',
@@ -286,10 +379,13 @@ export function FilesManagement() {
       setSyncSummary(data.summary);
       setPreviewData(null);
       setSelectedFile(null);
+      setManualConfirmChecked(false);
+      setConflictResolutions({});
       if (fileInputRef.current) fileInputRef.current.value = '';
 
-      toast.success(data.message || 'اطلاعات با موفقیت در پایگاه داده اعمال شد.');
+      toast.success(data.message || 'اطلاعات با موفقیت و ورژنبندی دقیق در پایگاه داده لوکال ثبت شد.');
       fetchUnitStats();
+      fetchVersions();
     } catch (error: any) {
       console.error('Sync error:', error);
       toast.error(error.message || 'خطا در همگام‌سازی فایل اکسل');
@@ -507,289 +603,597 @@ export function FilesManagement() {
             </div>
           </div>
 
-          {/* دو ستون اصلی: ۱. دریافت قالب خام  ۲. بارگذاری و به‌روزرسانی */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* بخش ۱: دریافت قالب خام */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl">
-                    <ArrowDownToLine size={24} />
+          {/* نوار زیرتب‌های بخش تبادل اطلاعات یگان‌ها */}
+          <div className="flex flex-wrap border-b border-slate-200 dark:border-slate-700 gap-2 pb-2">
+            <button
+              onClick={() => setExchangeSubTab('exchange_sync')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                exchangeSubTab === 'exchange_sync'
+                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <UploadCloud size={16} />
+              تبادل قالب و فایل سی‌دی (خام و دریافتی)
+            </button>
+            <button
+              onClick={() => {
+                setExchangeSubTab('versions_dashboard');
+                fetchVersions();
+              }}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                exchangeSubTab === 'versions_dashboard'
+                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <History size={16} />
+              داشبورد مرکزی مدیریت نسخه‌ها و لاگ تغییرات ({versionsList.length})
+            </button>
+            <button
+              onClick={() => setExchangeSubTab('unit_analytics')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                exchangeSubTab === 'unit_analytics'
+                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <GitBranch size={16} />
+              تحلیل و وضعیت ساختار یگان‌ها ({unitStats.length})
+            </button>
+          </div>
+
+          {/* ۱. تبادل قالب خام و فایل پرشده سی‌دی */}
+          {exchangeSubTab === 'exchange_sync' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* بخش ۱: دریافت قالب خام */}
+              <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl">
+                      <ArrowDownToLine size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                        صدور قالب خام اکسل یگان
+                      </h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        فرمت استاندارد جمع‌آوری درخت دانش و نظام مسائل بر اساس ساختار سازمانی و دوره
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                      صدور قالب خام اکسل یگان
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      فرمت استاندارد جمع‌آوری درخت دانش و نظام مسائل بر اساس ساختار
+
+                  {/* کارت مشخصات یگان و دوره */}
+                  <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700 space-y-2.5 mb-6 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 text-xs">یگان مخاطب:</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">
+                        {selectedUnitObj?.name || 'انتخاب نشده'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 text-xs">رده بالادست:</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {selectedBaseObj?.name || 'انتخاب نشده'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 text-xs">دوره ارزیابی:</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {selectedPeriodObj?.name || 'انتخاب نشده'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <span className="text-slate-500 text-xs">وضعیت داده در سامانه:</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        آماده صدور قالب
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl text-xs text-blue-800 dark:text-blue-300 leading-relaxed mb-6">
+                    <p className="font-bold mb-1 flex items-center gap-1.5">
+                      <HelpCircle size={15} />
+                      نحوه کارکرد فرآیند تبادل سی‌دی / آفلاین:
                     </p>
+                    این فایل دارای شناسنامه سیستمی قفل‌شده است تا اطلاعات دقیقاً به همین یگان و دوره منتسب گردد. کارشناسان یگان، درخت دانش و مسائل را در شیت‌های مربوطه تکمیل نموده و سپس فایل نهایی را در بخش روبه‌رو بارگذاری می‌کنند.
                   </div>
                 </div>
 
-                {/* کارت مشخصات یگان و دوره */}
-                <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700 space-y-2.5 mb-6 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 text-xs">یگان مخاطب:</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">
-                      {selectedUnitObj?.name || 'انتخاب نشده'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 text-xs">رده بالادست:</span>
-                    <span className="font-medium text-slate-700 dark:text-slate-300">
-                      {selectedBaseObj?.name || 'انتخاب نشده'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 text-xs">دوره ارزیابی:</span>
-                    <span className="font-medium text-slate-700 dark:text-slate-300">
-                      {selectedPeriodObj?.name || 'انتخاب نشده'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-700">
-                    <span className="text-slate-500 text-xs">وضعیت داده در سامانه:</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                      آماده صدور قالب
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl text-xs text-blue-800 dark:text-blue-300 leading-relaxed mb-6">
-                  <p className="font-bold mb-1 flex items-center gap-1.5">
-                    <HelpCircle size={15} />
-                    نحوه کارکرد فرآیند:
-                  </p>
-                  این فایل دارای شناسنامه سیستمی قفل‌شده است تا اطلاعات دقیقاً به همین یگان و دوره منتسب گردد. کارشناسان یگان، درخت دانش و مسائل را در شیت‌های مربوطه تکمیل نموده و سپس فایل نهایی را در بخش روبه‌رو بارگذاری می‌کنند.
-                </div>
+                <button
+                  onClick={handleDownloadTemplate}
+                  disabled={isDownloadingTemplate || !selectedUnitId}
+                  className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  {isDownloadingTemplate ? (
+                    <>
+                      <RefreshCw size={18} className="animate-spin" />
+                      در حال ساخت و صدور فایل اکسل...
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet size={18} />
+                      دریافت فایل قالب خام اکسل برای «{selectedUnitObj?.name || 'یگان'}»
+                    </>
+                  )}
+                </button>
               </div>
 
-              <button
-                onClick={handleDownloadTemplate}
-                disabled={isDownloadingTemplate || !selectedUnitId}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-50 transition-all cursor-pointer"
-              >
-                {isDownloadingTemplate ? (
-                  <>
-                    <RefreshCw size={18} className="animate-spin" />
-                    در حال ساخت و صدور فایل اکسل...
-                  </>
-                ) : (
-                  <>
-                    <FileSpreadsheet size={18} />
-                    دریافت فایل قالب خام اکسل برای «{selectedUnitObj?.name || 'یگان'}»
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* بخش ۲: بارگذاری و همگام‌سازی اکسل پرشده */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                    <UploadCloud size={24} />
+              {/* بخش ۲: بارگذاری، پیش‌نمایش، حل تعارضات و همگام‌سازی تاییدمحور */}
+              <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                      <UploadCloud size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                        بارگذاری و همگام‌سازی فایل دریافتی یگان
+                      </h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        اعتبارسنجی ساختار، مقایسه با دیتابیس، تشخیص مغایرت‌ها و ورژنبندی بدون بازنویسی مخرب
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                      بارگذاری و همگام‌سازی فایل پرشده
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      خواندن داده‌های یگان و به‌روزرسانی هوشمند دیتابیس بر اساس ساختار و دوره
-                    </p>
-                  </div>
-                </div>
 
-                {/* ناحیه انتخاب فایل Dropzone */}
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all mb-4 ${
-                    selectedFile
-                      ? 'border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/20'
-                      : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 bg-slate-50 dark:bg-slate-900/40'
-                  }`}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                  {selectedFile ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <FileSpreadsheet size={36} className="text-emerald-600" />
-                      <div className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                        {selectedFile.name}
+                  {/* ناحیه انتخاب فایل Dropzone */}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all mb-4 ${
+                      selectedFile
+                        ? 'border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/20'
+                        : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 bg-slate-50 dark:bg-slate-900/40'
+                    }`}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                    {selectedFile ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <FileSpreadsheet size={36} className="text-emerald-600" />
+                        <div className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                          {selectedFile.name}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          حجم: {(selectedFile.size / 1024).toFixed(1)} کیلوبایت • برای تغییر کلیک کنید
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-500">
-                        حجم: {(selectedFile.size / 1024).toFixed(1)} کیلوبایت • برای تغییر کلیک کنید
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <UploadCloud size={36} className="text-slate-400" />
-                      <div className="font-semibold text-sm text-slate-700 dark:text-slate-300">
-                        برای انتخاب فایل اکسل پرشده کلیک کنید
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        پشتیبانی از فرمت‌های استاندارد XLSX و XLS
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* پیش‌نمایش یا هشدارهای فایل */}
-                {previewData && (
-                  <div className={`p-4 rounded-xl border mb-4 text-xs space-y-2 ${
-                    previewData.valid
-                      ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
-                      : 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
-                  }`}>
-                    <div className="flex items-center justify-between font-bold">
-                      <span className="flex items-center gap-1.5">
-                        {previewData.valid ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                        نتیجه اعتبارسنجی فایل اکسل:
-                      </span>
-                      <span>یگان: {previewData.unitName || 'شناسایی شد'}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-200 dark:border-emerald-800">
-                      <div>گره‌های دانشی شناسایی‌شده: <b>{previewData.stats?.totalNodes}</b></div>
-                      <div>مسائل شناسایی‌شده: <b>{previewData.stats?.totalIssues}</b></div>
-                    </div>
-                    {previewData.errors?.length > 0 && (
-                      <div className="mt-2 space-y-1 text-red-600 dark:text-red-400">
-                        {previewData.errors.slice(0, 3).map((err: string, i: number) => (
-                          <div key={i}>• {err}</div>
-                        ))}
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <UploadCloud size={36} className="text-slate-400" />
+                        <div className="font-semibold text-sm text-slate-700 dark:text-slate-300">
+                          برای انتخاب فایل اکسل دریافتی یگان کلیک کنید
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          پشتیبانی از قالب استاندارد تکمیل‌شده اکسل یگان
+                        </div>
                       </div>
                     )}
                   </div>
-                )}
 
-                {/* پیام نتیجه همگام‌سازی */}
-                {syncSummary && (
-                  <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 space-y-1.5 mb-4">
-                    <div className="font-bold flex items-center gap-1 text-emerald-600">
-                      <CheckCircle2 size={16} />
-                      همگام‌سازی با موفقیت انجام شد:
-                    </div>
-                    <div>درخت دانشی یگان: <b>{syncSummary.totalNodes}</b> گره ({syncSummary.nodesCreated} جدید، {syncSummary.nodesUpdated} ویرایش)</div>
-                    <div>نظام مسائل: <b>{syncSummary.totalIssues}</b> مسئله ({syncSummary.issuesCreated} جدید، {syncSummary.issuesUpdated} ویرایش)</div>
-                  </div>
-                )}
-              </div>
-
-              {/* دکمه‌های عملیاتی */}
-              <div className="flex gap-3">
-                <button
-                  onClick={handlePreviewExcel}
-                  disabled={!selectedFile || isPreviewLoading || isUploading}
-                  className="flex-1 py-3 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 disabled:opacity-50 transition-all cursor-pointer"
-                >
-                  {isPreviewLoading ? <RefreshCw size={15} className="animate-spin" /> : <Eye size={15} />}
-                  پیش‌نمایش و بررسی
-                </button>
-                <button
-                  onClick={handleSyncToDatabase}
-                  disabled={!selectedFile || isUploading}
-                  className="flex-1 py-3 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/20 disabled:opacity-50 transition-all cursor-pointer"
-                >
-                  {isUploading ? <RefreshCw size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
-                  به‌روزرسانی و اعمال در سامانه
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* بخش ۳: وضعیت و آمار تجمیعی/تفکیکی یگان‌ها */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <GitBranch size={18} className="text-blue-500" />
-                  وضعیت پوشش اطلاعات یگان‌ها ({viewModeScope === 'aggregate' ? 'گزارش تجمیعی' : 'گزارش تفکیکی'})
-                </h3>
-                <p className="text-xs text-slate-500">
-                  فهرست یگان‌های تحت پوشش، تعداد درختواره‌ها، گره‌های دانشی و مسائل ثبت‌شده در دوره انتخابی
-                </p>
-              </div>
-
-              {/* کارت‌های خلاصه آماری تجمیعی */}
-              <div className="flex items-center gap-3">
-                <div className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl text-center">
-                  <div className="text-xs text-blue-600 dark:text-blue-400">کل یگان‌ها</div>
-                  <div className="font-bold text-sm text-slate-800 dark:text-slate-100">{statsAggregated.totalUnits}</div>
-                </div>
-                <div className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 rounded-xl text-center">
-                  <div className="text-xs text-emerald-600 dark:text-emerald-400">کل گره‌های دانشی</div>
-                  <div className="font-bold text-sm text-slate-800 dark:text-slate-100">{statsAggregated.totalNodes}</div>
-                </div>
-                <div className="px-3 py-1.5 bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl text-center">
-                  <div className="text-xs text-purple-600 dark:text-purple-400">کل مسائل ثبت‌شده</div>
-                  <div className="font-bold text-sm text-slate-800 dark:text-slate-100">{statsAggregated.totalIssues}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* جدول آمار یگان‌ها */}
-            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-              <table className="w-full text-right text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-700">
-                  <tr>
-                    <th className="py-3 px-4">شناسه</th>
-                    <th className="py-3 px-4">نام یگان سازمانی</th>
-                    <th className="py-3 px-4">رده بالادست (نیرو)</th>
-                    <th className="py-3 px-4 text-center">تعداد درختواره</th>
-                    <th className="py-3 px-4 text-center">گره‌های دانشی</th>
-                    <th className="py-3 px-4 text-center">مسائل شناسنامه‌دار</th>
-                    <th className="py-3 px-4 text-center">عملیات</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {unitStats.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="text-center py-6 text-slate-400">
-                        هیچ اطلاعاتی برای این فیلتر یافت نشد.
-                      </td>
-                    </tr>
-                  ) : (
-                    unitStats.map((item) => (
-                      <tr key={item.unit_id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/30 transition-colors">
-                        <td className="py-3 px-4 font-mono text-slate-400">{item.unit_id}</td>
-                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-200">{item.unit_name}</td>
-                        <td className="py-3 px-4 text-slate-500">{item.base_name}</td>
-                        <td className="py-3 px-4 text-center">
-                          <span className={`px-2 py-0.5 rounded-full font-bold ${
-                            item.tree_count > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-slate-100 text-slate-500'
-                          }`}>
-                            {item.tree_count}
+                  {/* پیش‌نمایش، اعتبارسنجی و پنل حل تعارضات */}
+                  {previewData && (
+                    <div className="space-y-4 mb-4">
+                      {/* کارت وضعیت اعتبارسنجی */}
+                      <div className={`p-4 rounded-xl border text-xs space-y-2 ${
+                        previewData.valid
+                          ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                          : 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+                      }`}>
+                        <div className="flex items-center justify-between font-bold">
+                          <span className="flex items-center gap-1.5">
+                            {previewData.valid ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                            نتیجه تحلیل فایل اکسل یگان:
                           </span>
-                        </td>
-                        <td className="py-3 px-4 text-center font-bold text-emerald-600 dark:text-emerald-400">
-                          {item.node_count}
-                        </td>
-                        <td className="py-3 px-4 text-center font-bold text-purple-600 dark:text-purple-400">
-                          {item.issue_count}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => {
-                              setSelectedBaseId(String(item.base_id));
-                              setSelectedUnitId(String(item.unit_id));
-                              toast.success(`یگان «${item.unit_name}» انتخاب شد.`);
-                            }}
-                            className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 transition-colors"
-                          >
-                            انتخاب جهت کار با قالب
-                          </button>
+                          <span>یگان: {previewData.unitName} | {previewData.periodName}</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-emerald-200 dark:border-emerald-800 font-medium">
+                          <div>کل گره‌ها: <b>{previewData.stats?.totalNodes}</b></div>
+                          <div>گره جدید: <b className="text-emerald-700">{previewData.stats?.newNodesCount}</b></div>
+                          <div>گره اصلاح‌شده: <b className="text-amber-700">{previewData.stats?.modifiedNodesCount}</b></div>
+                          <div>بدون تغییر: <b className="text-slate-600">{previewData.stats?.unchangedNodesCount}</b></div>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-medium">
+                          <div>کل مسائل: <b>{previewData.stats?.totalIssues}</b></div>
+                          <div>مسئله جدید: <b className="text-emerald-700">{previewData.stats?.newIssuesCount}</b></div>
+                          <div>مسئله اصلاح‌شده: <b className="text-amber-700">{previewData.stats?.modifiedIssuesCount}</b></div>
+                          <div>بدون تغییر: <b className="text-slate-600">{previewData.stats?.unchangedIssuesCount}</b></div>
+                        </div>
+                        {previewData.errors?.length > 0 && (
+                          <div className="mt-2 space-y-1 text-red-600 dark:text-red-400">
+                            {previewData.errors.map((err: string, i: number) => (
+                              <div key={i}>• {err}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* پنل مغایرت‌ها و انتخاب راهکار ادغام */}
+                      {previewData.conflicts && previewData.conflicts.length > 0 && (
+                        <div className="p-4 rounded-xl border border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle size={18} className="text-amber-600" />
+                              <span className="font-bold text-xs text-amber-900 dark:text-amber-200">
+                                تشخیص {previewData.stats?.totalConflicts} مورد مغایرت با اطلاعات موجود در دیتابیس لوکال
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowConflictTable(!showConflictTable)}
+                              className="text-[11px] text-amber-700 hover:text-amber-900 underline font-medium cursor-pointer"
+                            >
+                              {showConflictTable ? 'بستن جدول مغایرت‌ها' : 'مشاهده جزئیات مغایرت‌ها'}
+                            </button>
+                          </div>
+
+                          {/* انتخاب استراتژی کلی */}
+                          <div className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-amber-200 text-xs space-y-2">
+                            <span className="font-bold text-slate-700 dark:text-slate-300 block">
+                              استراتژی حل تعارضات و ادغام:
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              <label className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                                <input
+                                  type="radio"
+                                  name="sync_strategy"
+                                  value="smart_merge"
+                                  checked={syncStrategy === 'smart_merge'}
+                                  onChange={() => setSyncStrategy('smart_merge')}
+                                />
+                                <div>
+                                  <span className="font-bold block text-[11px]">ادغام هوشمند و ثبت نسخه (پیش‌فرض)</span>
+                                  <span className="text-[10px] text-slate-400">تغییرات با ثبت نسخه جدید در تاریخچه اعمال می‌شود</span>
+                                </div>
+                              </label>
+                              <label className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                                <input
+                                  type="radio"
+                                  name="sync_strategy"
+                                  value="keep_existing"
+                                  checked={syncStrategy === 'keep_existing'}
+                                  onChange={() => setSyncStrategy('keep_existing')}
+                                />
+                                <div>
+                                  <span className="font-bold block text-[11px]">حفظ کامل داده‌های فعلی پایگاه داده</span>
+                                  <span className="text-[10px] text-slate-400">فقط رکوردهای جدید اضافه شده و قبلی‌ها حفظ می‌شوند</span>
+                                </div>
+                              </label>
+                              <label className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                                <input
+                                  type="radio"
+                                  name="sync_strategy"
+                                  value="apply_incoming"
+                                  checked={syncStrategy === 'apply_incoming'}
+                                  onChange={() => setSyncStrategy('apply_incoming')}
+                                />
+                                <div>
+                                  <span className="font-bold block text-[11px]">اعمال تغییرات ارسالی با ثبت لاگ</span>
+                                  <span className="text-[10px] text-slate-400">مقادیر جدید جایگزین شده و سابقه کامل ثبت می‌گردد</span>
+                                </div>
+                              </label>
+                            </div>
+                          </div>
+
+                          {/* جدول مقایسه تغییرات (Side-by-side Diff Table) */}
+                          {showConflictTable && (
+                            <div className="max-h-60 overflow-y-auto rounded-lg border border-amber-200 bg-white dark:bg-slate-900 text-xs">
+                              <table className="w-full text-right">
+                                <thead className="bg-amber-100/60 dark:bg-amber-950/60 text-slate-700 dark:text-slate-300 font-bold sticky top-0">
+                                  <tr>
+                                    <th className="p-2">نوع</th>
+                                    <th className="p-2">عنوان رکورد</th>
+                                    <th className="p-2">فیلد تغییریافته</th>
+                                    <th className="p-2 text-rose-700">مقدار در دیتابیس فعلی</th>
+                                    <th className="p-2 text-emerald-700">مقدار در فایل دریافتی</th>
+                                    <th className="p-2 text-center">تصمیم رکورد</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-amber-100">
+                                  {previewData.conflicts.map((conflict: any) =>
+                                    conflict.diffs.map((d: any, idx: number) => (
+                                      <tr key={`${conflict.key}_${idx}`} className="hover:bg-amber-50/40">
+                                        <td className="p-2 text-slate-500 font-medium">
+                                          {conflict.type === 'node' ? 'گره دانشی' : 'نظام مسائل'}
+                                        </td>
+                                        <td className="p-2 font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px]">
+                                          {conflict.title}
+                                        </td>
+                                        <td className="p-2 text-amber-800 font-medium">{d.label || d.field}</td>
+                                        <td className="p-2 text-rose-600 bg-rose-50/50 rounded font-mono text-[11px]">
+                                          {String(d.currentDb)}
+                                        </td>
+                                        <td className="p-2 text-emerald-600 bg-emerald-50/50 rounded font-mono text-[11px]">
+                                          {String(d.incomingFile)}
+                                        </td>
+                                        <td className="p-2 text-center">
+                                          <select
+                                            value={conflictResolutions[conflict.key] || 'incoming'}
+                                            onChange={(e) => setConflictResolutions(prev => ({
+                                              ...prev,
+                                              [conflict.key]: e.target.value as 'incoming' | 'existing'
+                                            }))}
+                                            className="p-1 border border-slate-300 rounded text-[10px] bg-white dark:bg-slate-800"
+                                          >
+                                            <option value="incoming">پذیرش فایل ارسالی</option>
+                                            <option value="existing">حفظ دیتابیس فعلی</option>
+                                          </select>
+                                        </td>
+                                      </tr>
+                                    ))
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* تاییدیه دستی کاربر جهت همگام‌سازی */}
+                      <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-start gap-2.5">
+                        <input
+                          type="checkbox"
+                          id="manual_confirm_sync"
+                          checked={manualConfirmChecked}
+                          onChange={(e) => setManualConfirmChecked(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <label htmlFor="manual_confirm_sync" className="text-xs text-slate-700 dark:text-slate-300 font-medium cursor-pointer leading-relaxed">
+                          <b>تایید دستی کاربر:</b> من اطلاعات فایل و مغایرت‌های بالا را بررسی نمودم و با اعمال تغییرات در قالب نسخه جدید در پایگاه داده لوکال موافقم (دیتای قبلی بازنویسی نشده و در لاگ تاریخچه نسخه‌ها محفوظ خواهد ماند).
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* پیام نتیجه همگام‌سازی */}
+                  {syncSummary && (
+                    <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 space-y-1.5 mb-4">
+                      <div className="font-bold flex items-center gap-1 text-emerald-600">
+                        <CheckCircle2 size={16} />
+                        همگام‌سازی و ثبت نسخه با موفقیت انجام شد:
+                      </div>
+                      <div>درخت دانشی یگان: <b>{syncSummary.totalNodes || (syncSummary.nodesCreated + syncSummary.nodesUpdated)}</b> گره ({syncSummary.nodesCreated} جدید، {syncSummary.nodesUpdated} به‌روزرسانی با ثبت لاگ، {syncSummary.nodesKept || 0} حفظ نسخه قبلی)</div>
+                      <div>نظام مسائل: <b>{syncSummary.totalIssues || (syncSummary.issuesCreated + syncSummary.issuesUpdated)}</b> مسئله ({syncSummary.issuesCreated} جدید، {syncSummary.issuesUpdated} به‌روزرسانی با ثبت لاگ، {syncSummary.issuesKept || 0} حفظ نسخه قبلی)</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* دکمه‌های عملیاتی */}
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={handlePreviewExcel}
+                    disabled={!selectedFile || isPreviewLoading || isUploading}
+                    className="flex-1 py-3 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    {isPreviewLoading ? <RefreshCw size={15} className="animate-spin" /> : <Eye size={15} />}
+                    پیش‌نمایش، اعتبارسنجی و تشخیص مغایرت‌ها
+                  </button>
+                  <button
+                    onClick={handleSyncToDatabase}
+                    disabled={!selectedFile || isUploading || !previewData || !manualConfirmChecked}
+                    className="flex-1 py-3 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/20 disabled:opacity-40 transition-all cursor-pointer"
+                    title={!manualConfirmChecked ? 'لطفاً ابتدا چک‌باکس تایید دستی را علامت بزنید' : ''}
+                  >
+                    {isUploading ? <RefreshCw size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                    تایید دستی و ثبت نسخه در دیتابیس
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ۲. داشبورد مرکزی مدیریت نسخه‌ها و لاگ تغییرات */}
+          {exchangeSubTab === 'versions_dashboard' && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-700">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <History size={18} className="text-blue-500" />
+                    داشبورد مرکزی مدیریت نسخه‌ها و لاگ تغییرات همگام‌سازی (کاملاً آفلاین)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    فهرست تمام بسته‌های تبادل اطلاعات سی‌دی، ورژنبندی دقیق رکوردها، سوابق قبل و بعد تغییرات و ابزار حل تعارض و بازگردانی
+                  </p>
+                </div>
+                <button
+                  onClick={fetchVersions}
+                  disabled={loadingVersions}
+                  className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                >
+                  <RefreshCw size={14} className={loadingVersions ? 'animate-spin' : ''} />
+                  تازه‌سازی نسخه‌ها
+                </button>
+              </div>
+
+              {/* جدول نسخه‌های ثبت‌شده */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="py-3 px-4">شماره نسخه</th>
+                      <th className="py-3 px-4">عنوان و فایل منبع</th>
+                      <th className="py-3 px-4">یگان و دوره</th>
+                      <th className="py-3 px-4">کاربر ثبت‌کننده</th>
+                      <th className="py-3 px-4">تاریخ و زمان</th>
+                      <th className="py-3 px-4 text-center">آمار تغییرات</th>
+                      <th className="py-3 px-4 text-center">وضعیت</th>
+                      <th className="py-3 px-4 text-center">عملیات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {versionsList.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center py-8 text-slate-400">
+                          {loadingVersions ? 'در حال بارگذاری لیست نسخه‌ها...' : 'هیچ نسخه‌ای برای این یگان یا دوره ثبت نشده است. پس از همگام‌سازی فایل اکسل یگان، نسخه‌ها در اینجا لیست خواهند شد.'}
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      versionsList.map((ver) => (
+                        <tr key={ver.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/30 transition-colors">
+                          <td className="py-3 px-4">
+                            <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-bold font-mono">
+                              v{ver.version_number}.0
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-slate-800 dark:text-slate-200">{ver.version_label}</div>
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">{ver.file_name}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-slate-700 dark:text-slate-300">{ver.unit_name || `یگان ${ver.unit_id}`}</div>
+                            <div className="text-[11px] text-slate-400">{ver.period_name || `دوره ${ver.period_id}`}</div>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                            {ver.user_name || 'کاربر سیستم'}
+                          </td>
+                          <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
+                            {ver.created_at ? format(new Date(ver.created_at), 'yyyy/MM/dd - HH:mm') : '-'}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="inline-flex items-center gap-1.5 text-[11px]">
+                              <span className="text-emerald-600 font-bold">+{ver.summary?.nodesCreated || 0}</span>
+                              <span className="text-amber-600 font-bold">~{ver.summary?.nodesUpdated || 0}</span>
+                              <span className="text-slate-400">| مسائل:</span>
+                              <span className="text-emerald-600 font-bold">+{ver.summary?.issuesCreated || 0}</span>
+                              <span className="text-amber-600 font-bold">~{ver.summary?.issuesUpdated || 0}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                              ver.status === 'active'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
+                            }`}>
+                              {ver.status === 'active' ? 'نسخه فعال' : 'بازگردانی شده'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => fetchVersionLogs(ver)}
+                                className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                                title="مشاهده ریز تغییرات فیلدها و تصمیمات حل تعارض"
+                              >
+                                <FileDiff size={13} />
+                                لاگ تغییرات
+                              </button>
+                              {ver.status === 'active' && (
+                                <button
+                                  onClick={() => handleRollbackVersion(ver.id)}
+                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-300 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                                  title="بازگردانی به مقادیر قبل از اعمال این نسخه"
+                                >
+                                  <Undo2 size={13} />
+                                  Rollback
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* ۳. تحلیل و وضعیت ساختار یگان‌ها */}
+          {exchangeSubTab === 'unit_analytics' && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <GitBranch size={18} className="text-blue-500" />
+                    وضعیت پوشش اطلاعات یگان‌ها ({viewModeScope === 'aggregate' ? 'گزارش تجمیعی' : 'گزارش تفکیکی'})
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    فهرست یگان‌های تحت پوشش، تعداد درختواره‌ها، گره‌های دانشی و مسائل ثبت‌شده در دوره انتخابی
+                  </p>
+                </div>
+
+                {/* کارت‌های خلاصه آماری تجمیعی */}
+                <div className="flex items-center gap-3">
+                  <div className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl text-center">
+                    <div className="text-xs text-blue-600 dark:text-blue-400">کل یگان‌ها</div>
+                    <div className="font-bold text-sm text-slate-800 dark:text-slate-100">{statsAggregated.totalUnits}</div>
+                  </div>
+                  <div className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 rounded-xl text-center">
+                    <div className="text-xs text-emerald-600 dark:text-emerald-400">کل گره‌های دانشی</div>
+                    <div className="font-bold text-sm text-slate-800 dark:text-slate-100">{statsAggregated.totalNodes}</div>
+                  </div>
+                  <div className="px-3 py-1.5 bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl text-center">
+                    <div className="text-xs text-purple-600 dark:text-purple-400">کل مسائل ثبت‌شده</div>
+                    <div className="font-bold text-sm text-slate-800 dark:text-slate-100">{statsAggregated.totalIssues}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* جدول آمار یگان‌ها */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="py-3 px-4">شناسه</th>
+                      <th className="py-3 px-4">نام یگان سازمانی</th>
+                      <th className="py-3 px-4">رده بالادست (نیرو)</th>
+                      <th className="py-3 px-4 text-center">تعداد درختواره</th>
+                      <th className="py-3 px-4 text-center">گره‌های دانشی</th>
+                      <th className="py-3 px-4 text-center">مسائل شناسنامه‌دار</th>
+                      <th className="py-3 px-4 text-center">عملیات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {unitStats.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-6 text-slate-400">
+                          هیچ اطلاعاتی برای این فیلتر یافت نشد.
+                        </td>
+                      </tr>
+                    ) : (
+                      unitStats.map((item) => (
+                        <tr key={item.unit_id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/30 transition-colors">
+                          <td className="py-3 px-4 font-mono text-slate-400">{item.unit_id}</td>
+                          <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-200">{item.unit_name}</td>
+                          <td className="py-3 px-4 text-slate-500">{item.base_name}</td>
+                          <td className="py-3 px-4 text-center">
+                            <span className={`px-2 py-0.5 rounded-full font-bold ${
+                              item.tree_count > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {item.tree_count}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center font-bold text-emerald-600 dark:text-emerald-400">
+                            {item.node_count}
+                          </td>
+                          <td className="py-3 px-4 text-center font-bold text-purple-600 dark:text-purple-400">
+                            {item.issue_count}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              onClick={() => {
+                                setSelectedBaseId(String(item.base_id));
+                                setSelectedUnitId(String(item.unit_id));
+                                setExchangeSubTab('exchange_sync');
+                                toast.success(`یگان «${item.unit_name}» انتخاب شد.`);
+                              }}
+                              className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 transition-colors cursor-pointer"
+                            >
+                              انتخاب جهت کار با قالب
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

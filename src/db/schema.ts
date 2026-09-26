@@ -476,6 +476,46 @@ export const treeMerges = sqliteTable('tree_merges', {
 }));
 
 // ============================================
+// ۶-ب. سیستم مدیریت نسخه‌ها و تاریخچه تغییرات همگام‌سازی (Offline Sync Versions & Record Audit)
+// ============================================
+export const syncVersions = sqliteTable('sync_versions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  unitId: integer('unit_id').references(() => units.id, { onDelete: 'cascade' }),
+  periodId: integer('period_id').references(() => periods.id, { onDelete: 'cascade' }),
+  versionNumber: integer('version_number').notNull().default(1),
+  versionLabel: text('version_label').notNull(),
+  fileName: text('file_name'),
+  sourceType: text('source_type').default('excel_cd'),
+  appliedBy: integer('applied_by').references(() => users.id, { onDelete: 'set null' }),
+  userName: text('user_name'),
+  summary: text('summary', { mode: 'json' }),
+  status: text('status').default('active'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  syncUnitIdx: index('sync_versions_unit_idx').on(table.unitId),
+  syncPeriodIdx: index('sync_versions_period_idx').on(table.periodId),
+}));
+
+export const recordVersionLogs = sqliteTable('record_version_logs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  versionId: integer('version_id').references(() => syncVersions.id, { onDelete: 'cascade' }).notNull(),
+  entityType: text('entity_type').notNull(), // 'tree_node' | 'issue'
+  entityId: integer('entity_id').notNull(),
+  entityTitle: text('entity_title').notNull(),
+  action: text('action').notNull(), // 'create' | 'update' | 'conflict_merge' | 'keep_existing'
+  fieldName: text('field_name'),
+  oldValue: text('old_value'),
+  newValue: text('new_value'),
+  conflictDetected: integer('conflict_detected').default(0),
+  resolutionChoice: text('resolution_choice'), // 'incoming' | 'existing' | 'smart_merge'
+  resolvedBy: text('resolved_by'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  recordVersionIdx: index('record_version_logs_version_idx').on(table.versionId),
+  recordEntityIdx: index('record_version_logs_entity_idx').on(table.entityType, table.entityId),
+}));
+
+// ============================================
 // ۷. روابط (Relations)
 // ============================================
 

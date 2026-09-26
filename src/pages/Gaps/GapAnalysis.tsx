@@ -159,39 +159,29 @@ export function GapAnalysis() {
 
   const navigate = useNavigate();
 
+  // بارگذاری درختواره‌های انتخاب‌شده توسط کاربر (یا از کش سشن)
+  useEffect(() => {
+    if (requiredTreeId) {
+      fetchRequiredTree(requiredTreeId);
+      fetchGaps({ treeId: requiredTreeId, page: 1, limit: 20 });
+    }
+  }, [requiredTreeId, fetchRequiredTree]);
+
   useEffect(() => {
     if (producedTreeId) {
       fetchProducedTree(producedTreeId);
     }
   }, [producedTreeId, fetchProducedTree]);
 
+  // بارگذاری فهرست درختواره‌ها در آغاز
   useEffect(() => {
     fetchTrees();
-    fetchGaps({ page: 1, limit: 20 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // اگر کاربر به صفحه برگشت و گپ‌هایی وجود داشت، درختواره مربوطه را بارگذاری می‌کنیم
-  useEffect(() => {
-    if (gaps.length > 0 && !requiredTreeData && !loading) {
-      const firstGap = gaps[0];
-      const treeIdFromGap = firstGap?.requiredNode?.treeId;
-
-      if (treeIdFromGap) {
-        if (treeIdFromGap !== requiredTreeId) {
-          setRequiredTreeId(treeIdFromGap);
-        }
-
-        if (!producedTreeId && producedTreeId !== 0) {
-          const producedId = firstGap?.producedNode?.treeId;
-          setProducedTreeId(producedId || 0);
-        }
-
-        fetchRequiredTree(treeIdFromGap);
-      }
+    // اگر کاربر قبلاً در این سشن درختی انتخاب کرده بود، گپ‌های آن بارگذاری شود؛ در غیر این صورت خالی می‌ماند
+    if (requiredTreeId) {
+      fetchGaps({ treeId: requiredTreeId, page: 1, limit: 20 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gaps, requiredTreeData, loading]);
+  }, []);
 
   const requiredTrees = trees.filter(t => t.type === 'required');
   const producedTrees = trees.filter(t => t.type === 'produced');
@@ -636,6 +626,15 @@ export function GapAnalysis() {
             />
           </div>
         </div>
+
+        {(!requiredTreeId || producedTreeId === null) && (
+          <div className="mt-4 p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl flex items-center gap-2.5 text-xs text-amber-800">
+            <Info size={16} className="text-amber-600 shrink-0" />
+            <span>
+              جهت آغاز فرایند تحلیل شکاف، ابتدا درختواره مورد نیاز و درختواره تولیدشده (یا گزینه «بدون درختواره») را از کادرهای بالا انتخاب فرمایید. انتخاب شما در طول استفاده از سامانه ذخیره می‌شود و پس از خروج پاک خواهد شد.
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ═══════════════ شرح تحلیل (گزارش توضیحی موتور) ═══════════════ */}

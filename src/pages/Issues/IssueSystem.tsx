@@ -416,8 +416,8 @@ export function IssueSystem() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+      {/* Stats Cards - با چیدمان واکنش‌گرا و گسترش خودکار باکس اعتبارات بدون سرریز */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 xl:grid-cols-7 gap-3">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-3 sm:p-4 flex items-center gap-3 min-w-0">
           <div className="p-2.5 sm:p-3 bg-purple-50 rounded-lg shrink-0">
             <FileText size={20} className="text-purple-600" />
@@ -463,33 +463,40 @@ export function IssueSystem() {
             <p className="text-xl sm:text-2xl font-bold text-indigo-600">{formatNumber(stats.avgCompletion)}٪</p>
           </div>
         </div>
-        {/* باکس جمع اعتبارات — با پهنای دو برابری و جلوگیری از سرریز ارقام بزرگ */}
-        <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-3 sm:p-4 flex items-center gap-3 min-w-0 overflow-hidden col-span-2 sm:col-span-1 lg:col-span-2">
+        {/* باکس جمع اعتبارات — با گسترش منعطف و خودکار، بدون سرریز در تمام اندازه‌های صفحه */}
+        <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-3 sm:p-4 flex items-center gap-3 col-span-2 sm:col-span-2 md:col-span-3 lg:col-span-2 xl:col-span-2 min-w-[210px] max-w-full transition-all">
           <div className="p-2.5 sm:p-3 bg-amber-50 rounded-lg shrink-0">
-            <Coins size={20} className="text-amber-600" />
+            <Coins size={22} className="text-amber-600" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs text-gray-500 font-medium truncate">جمع اعتبارات</p>
-            <div className="flex items-baseline gap-1 mt-0.5 min-w-0">
-              <span className="text-base sm:text-lg font-bold text-amber-600 truncate block" title={formatCurrency(stats.totalBudget, true)}>
+          <div className="min-w-0 flex-1 flex flex-col justify-center overflow-hidden">
+            <div className="flex items-center justify-between gap-1">
+              <p className="text-xs text-gray-500 font-medium truncate">جمع اعتبارات</p>
+              <span className="text-[10px] text-amber-700 font-bold px-1.5 py-0.5 bg-amber-100/80 rounded shrink-0">
+                ریال
+              </span>
+            </div>
+            <div className="flex items-baseline flex-wrap gap-1 mt-0.5 min-w-0 max-w-full">
+              <span
+                className="text-sm sm:text-base md:text-lg xl:text-xl font-black text-amber-600 tracking-tight break-all tabular-nums leading-tight select-all block"
+                title={`${formatCurrency(stats.totalBudget, true)} (${formatNumber(stats.totalBudget)} ریال)`}
+              >
                 {formatNumber(stats.totalBudget)}
               </span>
-              <span className="text-[11px] text-amber-700 font-medium shrink-0">ریال</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Filters Toolbar - کامپکت، ریسپانسیو و بدون سرریز */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-3 sm:p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 xl:grid-cols-12 gap-2.5 items-center">
-          {/* جستجو */}
-          <div className="relative col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-2 xl:col-span-4 min-w-0">
-            <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+      {/* Filters Toolbar - کامپکت، منعطف و بدون سرریز در تمام ابعاد نمایشگر */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-3.5 sm:p-4">
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+          {/* بخش جستجو با ابعاد منعطف و جلوگیری از سرریز */}
+          <div className="relative flex-1 min-w-[220px] max-w-full">
+            <Search size={17} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="جستجو در عنوان، حوزه..."
-              className="w-full pr-9 pl-8 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm outline-none focus:ring-2 focus:ring-purple-500 transition-all bg-gray-50/50 focus:bg-white"
+              placeholder="جستجو در عنوان، حوزه، شرح نیاز..."
+              className="w-full pr-10 pl-9 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-gray-50/50 focus:bg-white text-gray-800 placeholder-gray-400"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
@@ -497,7 +504,7 @@ export function IssueSystem() {
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-full transition-colors"
                 title="پاک کردن جستجو"
               >
                 <X size={14} />
@@ -505,86 +512,89 @@ export function IssueSystem() {
             )}
           </div>
 
-          {/* وضعیت */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1 xl:col-span-2 min-w-0">
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 truncate"
-            >
-              <option value="all">📌 همه وضعیت‌ها</option>
-              <option value="pending">⏳ در انتظار</option>
-              <option value="in_progress">🔄 در حال اجرا</option>
-              <option value="completed">✅ تکمیل شده</option>
-              <option value="canceled">❌ لغو شده</option>
-              <option value="on_hold">⏸️ متوقف</option>
-            </select>
-          </div>
+          {/* فیلترها و دکمه پاک‌سازی با چیدمان منعطف grid/flex */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 items-center w-full lg:w-auto shrink-0">
+            {/* وضعیت */}
+            <div className="min-w-0">
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 truncate"
+              >
+                <option value="all">📌 همه وضعیت‌ها</option>
+                <option value="pending">⏳ در انتظار</option>
+                <option value="in_progress">🔄 در حال اجرا</option>
+                <option value="completed">✅ تکمیل شده</option>
+                <option value="canceled">❌ لغو شده</option>
+                <option value="on_hold">⏸️ متوقف</option>
+              </select>
+            </div>
 
-          {/* اولویت */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1 xl:col-span-2 min-w-0">
-            <select
-              value={priorityFilter}
-              onChange={e => setPriorityFilter(e.target.value)}
-              className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 truncate"
-            >
-              <option value="all">🎯 همه اولویت‌ها</option>
-              <option value="خیلی زیاد">🔥 خیلی زیاد</option>
-              <option value="زیاد">⬆️ زیاد</option>
-              <option value="متوسط">➖ متوسط</option>
-              <option value="کم">⬇️ کم</option>
-            </select>
-          </div>
+            {/* اولویت */}
+            <div className="min-w-0">
+              <select
+                value={priorityFilter}
+                onChange={e => setPriorityFilter(e.target.value)}
+                className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 truncate"
+              >
+                <option value="all">🎯 همه اولویت‌ها</option>
+                <option value="خیلی زیاد">🔥 خیلی زیاد</option>
+                <option value="زیاد">⬆️ زیاد</option>
+                <option value="متوسط">➖ متوسط</option>
+                <option value="کم">⬇️ کم</option>
+              </select>
+            </div>
 
-          {/* دسته‌بندی */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1 xl:col-span-2 min-w-0">
-            <select
-              value={categoryFilter}
-              onChange={e => setCategoryFilter(e.target.value)}
-              className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 truncate"
-            >
-              <option value="all">🏷️ همه دسته‌ها</option>
-              <option value="عمومی">عمومی</option>
-              <option value="فنی و مهندسی">فنی و مهندسی</option>
-              <option value="مدیریتی و سازمانی">مدیریتی و سازمانی</option>
-              <option value="فرهنگی و اجتماعی">فرهنگی و اجتماعی</option>
-              <option value="علمی و پژوهشی">علمی و پژوهشی</option>
-              <option value="اقتصادی و مالی">اقتصادی و مالی</option>
-              <option value="حقوقی و تقنینی">حقوقی و تقنینی</option>
-              <option value="زیرساختی و لجستیک">زیرساختی و لجستیک</option>
-            </select>
-          </div>
+            {/* دسته‌بندی */}
+            <div className="min-w-0">
+              <select
+                value={categoryFilter}
+                onChange={e => setCategoryFilter(e.target.value)}
+                className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 truncate"
+              >
+                <option value="all">🏷️ همه دسته‌ها</option>
+                <option value="عمومی">عمومی</option>
+                <option value="فنی و مهندسی">فنی و مهندسی</option>
+                <option value="مدیریتی و سازمانی">مدیریتی و سازمانی</option>
+                <option value="فرهنگی و اجتماعی">فرهنگی و اجتماعی</option>
+                <option value="علمی و پژوهشی">علمی و پژوهشی</option>
+                <option value="اقتصادی و مالی">اقتصادی و مالی</option>
+                <option value="حقوقی و تقنینی">حقوقی و تقنینی</option>
+                <option value="زیرساختی و لجستیک">زیرساختی و لجستیک</option>
+              </select>
+            </div>
 
-          {/* زمان‌بندی */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1 xl:col-span-1 min-w-0">
-            <select
-              value={timeFrameFilter}
-              onChange={e => setTimeFrameFilter(e.target.value)}
-              className="w-full px-2 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 truncate"
-            >
-              <option value="all">⏳ زمان‌بندی</option>
-              <option value="کوتاه‌مدت">کوتاه‌مدت</option>
-              <option value="میان‌مدت">میان‌مدت</option>
-              <option value="بلندمدت">بلندمدت</option>
-            </select>
-          </div>
+            {/* زمان‌بندی */}
+            <div className="min-w-0">
+              <select
+                value={timeFrameFilter}
+                onChange={e => setTimeFrameFilter(e.target.value)}
+                className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 truncate"
+              >
+                <option value="all">⏳ زمان‌بندی</option>
+                <option value="کوتاه‌مدت">کوتاه‌مدت</option>
+                <option value="میان‌مدت">میان‌مدت</option>
+                <option value="بلندمدت">بلندمدت</option>
+              </select>
+            </div>
 
-          {/* پاک‌سازی */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1 xl:col-span-1 min-w-0">
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setStatusFilter('all');
-                setPriorityFilter('all');
-                setCategoryFilter('all');
-                setTimeFrameFilter('all');
-              }}
-              className="w-full px-2 py-2 text-gray-500 hover:text-red-600 hover:bg-red-50 border border-gray-200 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
-              title="پاک کردن تمام فیلترها"
-            >
-              <Filter size={14} />
-              <span>پاک‌سازی</span>
-            </button>
+            {/* پاک‌سازی فیلترها */}
+            <div className="col-span-2 sm:col-span-1 md:col-span-1 min-w-0">
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('all');
+                  setPriorityFilter('all');
+                  setCategoryFilter('all');
+                  setTimeFrameFilter('all');
+                }}
+                className="w-full px-2.5 py-2 text-gray-500 hover:text-red-600 hover:bg-red-50 border border-gray-200 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
+                title="پاک کردن تمام فیلترها"
+              >
+                <RotateCcw size={13} />
+                <span>حذف فیلتر</span>
+              </button>
+            </div>
           </div>
         </div>
 

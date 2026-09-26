@@ -309,6 +309,43 @@ export function initDb() {
     );
     CREATE INDEX IF NOT EXISTS tree_merges_tree_idx ON tree_merges(tree_id);
 
+    -- سوابق و مدیریت نسخه‌های همگام‌سازی (Offline Sync Versions)
+    CREATE TABLE IF NOT EXISTS sync_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      unit_id INTEGER REFERENCES units(id) ON DELETE CASCADE,
+      period_id INTEGER REFERENCES periods(id) ON DELETE CASCADE,
+      version_number INTEGER NOT NULL DEFAULT 1,
+      version_label TEXT NOT NULL,
+      file_name TEXT,
+      source_type TEXT DEFAULT 'excel_cd',
+      applied_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      user_name TEXT,
+      summary TEXT,
+      status TEXT DEFAULT 'active',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS sync_versions_unit_idx ON sync_versions(unit_id);
+    CREATE INDEX IF NOT EXISTS sync_versions_period_idx ON sync_versions(period_id);
+
+    -- لاگ جزئیات تغییرات و حل تعارضات هر رکورد (Record Version Logs)
+    CREATE TABLE IF NOT EXISTS record_version_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version_id INTEGER NOT NULL REFERENCES sync_versions(id) ON DELETE CASCADE,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER NOT NULL,
+      entity_title TEXT NOT NULL,
+      action TEXT NOT NULL,
+      field_name TEXT,
+      old_value TEXT,
+      new_value TEXT,
+      conflict_detected INTEGER DEFAULT 0,
+      resolution_choice TEXT,
+      resolved_by TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS record_version_logs_version_idx ON record_version_logs(version_id);
+    CREATE INDEX IF NOT EXISTS record_version_logs_entity_idx ON record_version_logs(entity_type, entity_id);
+
     -- ============================================
     -- ۴. نظام مسائل
     -- ============================================

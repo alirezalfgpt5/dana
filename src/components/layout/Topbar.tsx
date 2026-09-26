@@ -85,9 +85,9 @@ export function Topbar() {
             <span className="brand-gradient-text">DANA</span>
           </h1>
           <div className="hidden md:flex items-center before:content-[''] before:w-px before:h-5 before:bg-gray-200 dark:before:bg-[#2d2d44] before:mx-2">
-            <div className="w-44 lg:w-56 overflow-hidden relative">
-              <p className="text-sm whitespace-nowrap animate-[marquee_15s_linear_infinite] hover:animate-none" style={{ color: 'var(--text-muted)' }}>
-                {systemName || 'سیستم مدیریت دانش'}
+            <div className="w-48 lg:w-60 overflow-hidden relative py-0.5">
+              <p className="text-sm whitespace-nowrap animate-marquee cursor-default font-medium" style={{ color: 'var(--text-muted)' }}>
+                {systemName || 'سیستم مدیریت دانش و نظام مسائل (دانا)'}
               </p>
             </div>
           </div>
