@@ -51,7 +51,74 @@ templateRoutes.get('/', async (req, res) => {
 });
 
 // ============================================
-// ۲. دریافت یک قالب
+// ۲. دریافت انواع قالب (یکتا)
+// ============================================
+
+templateRoutes.get('/types', async (req, res) => {
+  try {
+    const result = await db.selectDistinct({ type: templates.type }).from(templates);
+    res.json(result.map((t) => t.type));
+  } catch (error) {
+    console.error('❌ Error fetching template types:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============================================
+// ۳. دریافت آمار قالب‌ها
+// ============================================
+
+templateRoutes.get('/stats', async (req, res) => {
+  try {
+    const allTemplates = await db.select().from(templates);
+
+    const stats = await Promise.all(
+      allTemplates.map(async (template) => {
+        const assetCount = await db.select({ count: sql<number>`count(*)` })
+          .from(knowledgeAssets)
+          .where(eq(knowledgeAssets.templateId, template.id));
+
+        const issueCount = await db.select({ count: sql<number>`count(*)` })
+          .from(issueTemplates)
+          .where(eq(issueTemplates.templateId, template.id));
+
+        return {
+          id: template.id,
+          type: template.type,
+          title: template.title,
+          assetCount: assetCount[0]?.count || 0,
+          issueCount: issueCount[0]?.count || 0,
+          totalUsage: (assetCount[0]?.count || 0) + (issueCount[0]?.count || 0),
+          isActive: template.isActive,
+        };
+      })
+    );
+
+    const total = allTemplates.length;
+    const active = allTemplates.filter((t) => t.isActive === 1).length;
+    const totalUsage = stats.reduce((sum, s) => sum + s.totalUsage, 0);
+
+    const byType = stats.reduce((acc: Record<string, number>, s) => {
+      acc[s.type] = (acc[s.type] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.json({
+      total,
+      active,
+      inactive: total - active,
+      totalUsage,
+      byType,
+      details: stats,
+    });
+  } catch (error) {
+    console.error('❌ Error fetching template stats:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============================================
+// ۴. دریافت یک قالب
 // ============================================
 
 templateRoutes.get('/:id', async (req, res) => {
@@ -90,20 +157,6 @@ templateRoutes.get('/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error fetching template:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// ============================================
-// ۳. دریافت انواع قالب (یکتا)
-// ============================================
-
-templateRoutes.get('/types', async (req, res) => {
-  try {
-    const result = await db.selectDistinct({ type: templates.type }).from(templates);
-    res.json(result.map((t) => t.type));
-  } catch (error) {
-    console.error('❌ Error fetching template types:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -395,59 +448,6 @@ templateRoutes.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('❌ [DELETE] Unhandled error:', error);
     return res.status(500).json({ error: 'خطای سرور' });
-  }
-});
-
-// ============================================
-// ۷. دریافت آمار قالب‌ها
-// ============================================
-
-templateRoutes.get('/stats', async (req, res) => {
-  try {
-    const allTemplates = await db.select().from(templates);
-
-    const stats = await Promise.all(
-      allTemplates.map(async (template) => {
-        const assetCount = await db.select({ count: sql<number>`count(*)` })
-          .from(knowledgeAssets)
-          .where(eq(knowledgeAssets.templateId, template.id));
-
-        const issueCount = await db.select({ count: sql<number>`count(*)` })
-          .from(issueTemplates)
-          .where(eq(issueTemplates.templateId, template.id));
-
-        return {
-          id: template.id,
-          type: template.type,
-          title: template.title,
-          assetCount: assetCount[0]?.count || 0,
-          issueCount: issueCount[0]?.count || 0,
-          totalUsage: (assetCount[0]?.count || 0) + (issueCount[0]?.count || 0),
-          isActive: template.isActive,
-        };
-      })
-    );
-
-    const total = allTemplates.length;
-    const active = allTemplates.filter((t) => t.isActive === 1).length;
-    const totalUsage = stats.reduce((sum, s) => sum + s.totalUsage, 0);
-
-    const byType = stats.reduce((acc: Record<string, number>, s) => {
-      acc[s.type] = (acc[s.type] || 0) + 1;
-      return acc;
-    }, {});
-
-    res.json({
-      total,
-      active,
-      inactive: total - active,
-      totalUsage,
-      byType,
-      details: stats,
-    });
-  } catch (error) {
-    console.error('❌ Error fetching template stats:', error);
-    res.status(500).json({ error: 'Server error' });
   }
 });
 

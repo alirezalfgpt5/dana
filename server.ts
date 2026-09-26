@@ -338,8 +338,14 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     if (!user) {
       return res.status(401).json({ message: 'نام کاربری یا رمز عبور اشتباه است' });
     }
-    const roleDef = await db.query.roles.findFirst({ where: (roles, { eq }) => eq(roles.name, user.role || "user") });
-    const permissions = roleDef && roleDef.permissions ? JSON.parse(roleDef.permissions) : [];
+    let permissions: string[] = [];
+    if (roleDef && roleDef.permissions) {
+      try {
+        permissions = typeof roleDef.permissions === 'string' ? JSON.parse(roleDef.permissions) : roleDef.permissions;
+      } catch {
+        permissions = [];
+      }
+    }
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
