@@ -18,6 +18,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "axios": "^1.20.0",
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "file:./src/db/better-sqlite3-shim",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "d3": "^7.9.0",

@@ -268,7 +268,9 @@ export function createIssuesSheet(
     'تیم حل مسئله', 'بیان مسئله', 'اطلاعات قرارداد', 'مقطع ۲۰ درصد', 'مقطع ۵۰ درصد',
     'مقطع ۱۰۰ درصد', 'کاربست', 'وضعیت'
   ];
-  sheet.columns = headers.map(h => ({ header: h, width: 20 }));
+  headers.forEach((_, idx) => {
+    sheet.getColumn(idx + 1).width = 20;
+  });
   const headerRow = sheet.addRow(headers);
   headerRow.font = { name: EXCEL_FONT_NAME, bold: true, size: 11, color: { argb: EXCEL_COLORS.headerText } };
   headerRow.alignment = { horizontal: 'center', vertical: 'middle' };

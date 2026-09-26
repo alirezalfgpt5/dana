@@ -205,9 +205,9 @@ export function Outputs() {
           </button>
           <button
             onClick={handleExport}
-            disabled={!selectedTreeId || isExporting}
+            disabled={(!selectedTreeId && outputType !== 'issues') || isExporting}
             className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              !selectedTreeId || isExporting
+              (!selectedTreeId && outputType !== 'issues') || isExporting
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg shadow-blue-200/50'
             }`}

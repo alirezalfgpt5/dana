@@ -124,8 +124,8 @@ export function calculateFinancialMetrics(
   const approvalGap = app - req;
   const unassignedBalance = Math.max(0, app - ass);
   
-  const assignedPercent = app > 0 ? Math.min(100, Math.round((ass / app) * 100)) : 0;
-  const approvalPercent = req > 0 ? Math.min(100, Math.round((app / req) * 100)) : (app > 0 ? 100 : 0);
+  const assignedPercent = app > 0 ? Math.round((ass / app) * 100) : 0;
+  const approvalPercent = req > 0 ? Math.round((app / req) * 100) : (app > 0 ? 100 : 0);
 
   let status: FinancialCalculationResult['status'] = 'no_budget';
   let statusLabel = 'فاقد اعتبار ثبت شده';

@@ -18,9 +18,10 @@ export function toPersianDigits(input: number | string | null | undefined): stri
 /**
  * تبدیل ارقام فارسی یا عربی به ارقام انگلیسی
  */
-export function toLatinDigits(input: string): string {
-  if (!input) return '';
-  return input
+export function toLatinDigits(input: string | number | null | undefined): string {
+  if (input === null || input === undefined || input === '') return '';
+  const str = String(input);
+  return str
     .replace(/[۰-۹]/g, (w) => String(PERSIAN_DIGITS.indexOf(w)))
     .replace(/[٠-٩]/g, (w) => String(ARABIC_DIGITS.indexOf(w)));
 }
@@ -115,8 +116,9 @@ export function formatCurrency(
 /**
  * تجزیه مقدار ورودی کاربر به عدد خالص (جهت ذخیره در فرم‌ها و دیتابیس)
  */
-export function parseNumberInput(input: string): number {
-  if (!input) return 0;
+export function parseNumberInput(input: string | number | null | undefined): number {
+  if (typeof input === 'number') return isNaN(input) ? 0 : input;
+  if (input === null || input === undefined || input === '') return 0;
   const clean = toLatinDigits(input).replace(/[^\d.-]/g, '');
   const parsed = parseFloat(clean);
   return isNaN(parsed) ? 0 : parsed;

@@ -168,7 +168,7 @@ export function Dashboard() {
     lines.push(row('شناسه', 'عنوان دانش مورد نیاز', 'عنوان دانش موجود متناظر', 'سطح اولویت/بحرانیت', 'وضعیت شکاف', 'درصد تطبیق'));
     if (gaps && gaps.length > 0) {
       gaps.forEach(g => {
-        const gapStatusLabel = g.status === 'filled' ? 'پوشش‌داده‌شده' : 'باز (پوشش‌نیافته)';
+        const gapStatusLabel = g.status === 'filled' ? 'پوشش‌داده‌شده' : g.status === 'partially_filled' ? 'نیمه‌پر (پوشش جزئی)' : 'باز (پوشش‌نیافته)';
         const priorityLabel = 
           g.priority === 'critical' ? 'بحرانی' :
           g.priority === 'high' ? 'بالا' :

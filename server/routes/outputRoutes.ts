@@ -757,7 +757,9 @@ outputRoutes.get('/full-report', async (req, res) => {
         'تیم حل مسئله', 'بیان مسئله', 'اطلاعات قرارداد', 'مقطع ۲۰ درصد', 'مقطع ۵۰ درصد',
         'مقطع ۱۰۰ درصد', 'کاربست', 'وضعیت'
       ];
-      sheet5.columns = headers5.map(h => ({ header: h, width: 20 }));
+      headers5.forEach((_, idx) => {
+        sheet5.getColumn(idx + 1).width = 20;
+      });
 
       const headerRow5 = sheet5.addRow(headers5);
       headerRow5.font = { name: 'Vazirmatn', bold: true, size: 11, color: { argb: 'FFFFFFFF' } };

@@ -185,7 +185,17 @@ export function toD3Format(nodes: TreeNode[]): any {
     };
   }
   
-  return roots.length > 0 ? convertNode(roots[0]) : null;
+  if (roots.length === 0) return null;
+  if (roots.length === 1) return convertNode(roots[0]);
+  return {
+    id: 0,
+    title: 'ریشه درختواره',
+    level: 'R',
+    isGap: false,
+    gapStatus: null,
+    templateIds: [],
+    children: roots.map(convertNode),
+  };
 }
 
 // ============================================
@@ -210,7 +220,7 @@ export function compareTrees(
 
   for (const required of requiredLeaves) {
     // جستجوی تطابق دقیق
-    const exactMatch = producedLeaves.find(p => p.title === required.title);
+    const exactMatch = producedLeaves.find(p => p.title.trim() === required.title.trim());
     
     if (exactMatch) {
       // بررسی تطابق قالب‌ها
@@ -223,11 +233,11 @@ export function compareTrees(
         partial.push(required);
       }
     } else {
-      // جستجوی تطابق فازی
-      const keywords = required.title.split(' ');
-      const fuzzyMatch = producedLeaves.find(p => 
+      // جستجوی تطابق فازی با نادیده گرفتن کلمات خالی یا تک حرفی
+      const keywords = required.title.split(/\s+/).map(k => k.trim()).filter(k => k.length >= 2);
+      const fuzzyMatch = keywords.length > 0 ? producedLeaves.find(p => 
         keywords.some(k => p.title.includes(k))
-      );
+      ) : null;
       
       if (fuzzyMatch) {
         partial.push(required);
