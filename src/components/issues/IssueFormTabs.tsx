@@ -1,42 +1,27 @@
 // src/components/issues/IssueFormTabs.tsx
-// فرم تب‌بندی شده برای ثبت/ویرایش مسئله - نسخه نهایی ۳.۰
+// فرم تب‌بندی شده برای ثبت/ویرایش مسئله - نسخه ماژولار و بهینه‌سازی شده ۳.۰
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Save, X, Plus, Trash2, Calendar, FileText, 
-  Users, Coins, Clock, CheckCircle, AlertCircle,
-  Building2, UserCog, File as FileIcon, Link, Settings, 
-  ClipboardList, BookOpen, RefreshCw, Upload,
-  Download, Eye, EyeOff, HelpCircle
+  Save, X, FileText, 
+  Users, Coins, Clock, CheckCircle, 
+  UserCog, File as FileIcon, Settings, 
+  ClipboardList, RefreshCw 
 } from 'lucide-react';
-import RawDatePicker from 'react-multi-date-picker';
-import rawPersian from 'react-date-object/calendars/persian';
-import rawPersianFa from 'react-date-object/locales/persian_fa';
-import rawTransition from 'react-element-popper/animations/transition';
 import toast from 'react-hot-toast';
-import { SearchableSelect } from '../ui/SearchableSelect';
 import { api } from '../../services/api';
-import { formatCurrency, parseNumberInput, formatNumber } from '../../utils/numberFormat';
-
-// Safe extraction of CJS/ESM exports for react-multi-date-picker and plugins
-const resolveComponent = (comp: any) => {
-  if (!comp) return null;
-  if (comp.$$typeof || typeof comp === 'function') return comp;
-  if (comp.default?.$$typeof || typeof comp.default === 'function') return comp.default;
-  if (comp.default?.default?.$$typeof || typeof comp.default?.default === 'function') return comp.default.default;
-  return comp.default || comp;
-};
-
-const DatePicker: any = resolveComponent(RawDatePicker);
-const persian: any = (rawPersian as any)?.default || rawPersian;
-const persian_fa: any = (rawPersianFa as any)?.default || rawPersianFa;
-const transition: any = () => {
-  try {
-    const fn = (rawTransition as any)?.default || rawTransition;
-    if (typeof fn === 'function') return fn();
-  } catch {}
-  return undefined;
-};
+import { TeamMember, NeedStatementData, ContractData, ExecutiveContractData, StageData, ApplicationData } from './tabs/types';
+import { GeneralTab } from './tabs/GeneralTab';
+import { ProjectsTab } from './tabs/ProjectsTab';
+import { CollaborationTab } from './tabs/CollaborationTab';
+import { BudgetTab } from './tabs/BudgetTab';
+import { ActionsTab } from './tabs/ActionsTab';
+import { TeamTab } from './tabs/TeamTab';
+import { NeedTab } from './tabs/NeedTab';
+import { ExecutiveContractTab } from './tabs/ExecutiveContractTab';
+import { ContractTab } from './tabs/ContractTab';
+import { StagesTab } from './tabs/StagesTab';
+import { ApplicationTab } from './tabs/ApplicationTab';
 
 interface IssueFormTabsProps {
   initialData?: any;
@@ -113,33 +98,6 @@ export function IssueFormTabs({
     templateIds: [],
   });
 
-  // تبدیل امن مقادیر تاریخ به شیء قابل خواندن برای DatePicker
-  const safeDateForPicker = (val: any) => {
-    if (!val) return null;
-    if (typeof val === 'string') {
-      if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(val)) {
-        return val;
-      }
-      const d = new Date(val);
-      if (!isNaN(d.getTime())) return d;
-      return val;
-    }
-    return val;
-  };
-
-  // قالب‌بندی امن خروجی انتخاب تاریخ به رشته جلالی
-  const formatPickerDate = (date: any) => {
-    if (!date) return '';
-    if (date.format) return date.format('YYYY/MM/DD');
-    if (date.toDate) {
-      try {
-        const d = date.toDate();
-        if (!isNaN(d.getTime())) return d.toISOString();
-      } catch {}
-    }
-    return String(date);
-  };
-
   const issueCategories = [
     'فنی و مهندسی',
     'عملیاتی و رزمی',
@@ -152,89 +110,83 @@ export function IssueFormTabs({
     'عمومی و سایر'
   ];
 
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
-  const [needStatementData, setNeedStatementData] = useState<any>({
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [needStatementData, setNeedStatementData] = useState<NeedStatementData>({
     user: '',
     problem: '',
     suggestedBudget: 0,
     level: '',
-    file: null as File | null,
+    file: null,
     approvalStatus: 'pending',
     approvalDate: '',
     approvedAmount: 0,
   });
-  const [contractData, setContractData] = useState<any>({
+  const [contractData, setContractData] = useState<ContractData>({
     number: '',
     executor: '',
-    collaborators: [] as string[],
-    agents: [] as string[],
+    collaborators: [],
+    agents: [],
     date: '',
     duration: 0,
     startDate: '',
     amount: 0,
+    file: null,
   });
-  const [executiveContractData, setExecutiveContractData] = useState<any>({
-    file: null as File | null,
+  const [executiveContractData, setExecutiveContractData] = useState<ExecutiveContractData>({
+    file: null,
     minutes: '',
   });
-  const [stage20Data, setStage20Data] = useState<any>({
+  const [stage20Data, setStage20Data] = useState<StageData>({
     proposal: '',
-    file: null as File | null,
+    file: null,
     defenseDate: '',
     minutes: '',
-    minutesFile: null as File | null,
-    recordsFiles: [] as File[],
+    minutesFile: null,
+    recordsFiles: [],
     paidAmount: 0,
     paymentDate: '',
   });
-  const [stage50Data, setStage50Data] = useState<any>({
-    file: null as File | null,
+  const [stage50Data, setStage50Data] = useState<StageData>({
+    file: null,
     defenseDate: '',
     minutes: '',
-    minutesFile: null as File | null,
-    recordsFiles: [] as File[],
+    minutesFile: null,
+    recordsFiles: [],
     paidAmount: 0,
     paymentDate: '',
   });
-  const [stage100Data, setStage100Data] = useState<any>({
-    file: null as File | null,
+  const [stage100Data, setStage100Data] = useState<StageData>({
+    file: null,
     defenseDate: '',
     minutes: '',
-    minutesFile: null as File | null,
-    recordsFiles: [] as File[],
+    minutesFile: null,
+    recordsFiles: [],
     paidAmount: 0,
     paymentDate: '',
   });
-  const [applicationData, setApplicationData] = useState<any>({
+  const [applicationData, setApplicationData] = useState<ApplicationData>({
     resultReflection: '',
     applicationType: '',
     applicationDate: '',
     minutes: '',
-    minutesFile: null as File | null,
-    recordsFiles: [] as File[],
+    minutesFile: null,
+    recordsFiles: [],
     workingGroup: '',
   });
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [domainNodes, setDomainNodes] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [researchItems, setResearchItems] = useState<any[]>([]);
   
   const [dynamicKnowledgeTypes, setDynamicKnowledgeTypes] = useState<string[]>(knowledgeTypes);
   const [dynamicResearchProjectTypes, setDynamicResearchProjectTypes] = useState<string[]>(researchProjectTypes);
   const [dynamicEventTypes, setDynamicEventTypes] = useState<string[]>(eventTypes);
-
   const [dynamicProjectLevels, setDynamicProjectLevels] = useState<string[]>(projectLevels);
   const [dynamicApprovalAuthorities, setDynamicApprovalAuthorities] = useState<string[]>(approvalAuthorities);
   const [dynamicKnowledgeProjectTypes, setDynamicKnowledgeProjectTypes] = useState<string[]>(knowledgeProjectTypes);
   const [dynamicScientificDiplomacyLevels, setDynamicScientificDiplomacyLevels] = useState<string[]>(scientificDiplomacyLevels);
   const [dynamicConfidentialityLevels, setDynamicConfidentialityLevels] = useState<string[]>(confidentialityLevels);
-  const [dynamicActionPriorities, setDynamicActionPriorities] = useState<string[]>(['خیلی زیاد', 'زیاد', 'متوسط']);
+  const [dynamicActionPriorities] = useState<string[]>(['خیلی زیاد', 'زیاد', 'متوسط']);
 
-
-  
   useEffect(() => {
     if (formData.researchItemId && researchItems.length > 0) {
       const rItem = researchItems.find(r => String(r.id) === String(formData.researchItemId));
@@ -246,41 +198,56 @@ export function IssueFormTabs({
   }, [formData.researchItemId, researchItems]);
 
   useEffect(() => {
-    // Fetch domain nodes, research items, and dynamic metadata
     const fetchData = async () => {
       try {
-        const nodes = await api.get('/api/trees/domain-nodes/all');
-        setDomainNodes(nodes as unknown as any[]);
+        const [nodesRes, researchRes] = await Promise.all([
+          api.get('/api/trees/nodes/leaves') as Promise<any>,
+          api.get('/api/research') as Promise<any>
+        ]);
         
-        const research = await api.get('/api/research/all/with-nodes');
-        setResearchItems(research as unknown as any[]);
-        
-        // Fetch dynamic metadata
-        const fetchMeta = async (path: string, setter: React.Dispatch<React.SetStateAction<string[]>>) => {
+        let nodes: any[] = [];
+        if (Array.isArray(nodesRes)) {
+          nodes = nodesRes;
+        } else if (nodesRes && Array.isArray(nodesRes.data)) {
+          nodes = nodesRes.data;
+        }
+        setDomainNodes(nodes);
+
+        let rItems: any[] = [];
+        if (Array.isArray(researchRes)) {
+          rItems = researchRes;
+        } else if (researchRes && Array.isArray(researchRes.data)) {
+          rItems = researchRes.data;
+        }
+        setResearchItems(rItems);
+
+        // واکشی متادیتاهای داینامیک
+        const fetchMeta = async (path: string, setter: (val: string[]) => void, defaultVal: string[]) => {
           try {
             const data = await api.get('/api/metadata/' + path) as unknown as any[];
-            if (data && data.length > 0) setter(data.map(d => d.name));
-          } catch (e) {
-            console.error('Error fetching ' + path);
+            if (Array.isArray(data) && data.length > 0) {
+              setter(data.map((item: any) => item.name || item.title || item));
+            }
+          } catch {
+            setter(defaultVal);
           }
         };
 
         await Promise.all([
-          fetchMeta('knowledge-types', setDynamicKnowledgeTypes),
-          fetchMeta('research-project-types', setDynamicResearchProjectTypes),
-          fetchMeta('event-types', setDynamicEventTypes),
-          fetchMeta('project-levels', setDynamicProjectLevels),
-          fetchMeta('approval-authorities', setDynamicApprovalAuthorities),
-          fetchMeta('knowledge-project-types', setDynamicKnowledgeProjectTypes),
-          fetchMeta('scientific-diplomacy-levels', setDynamicScientificDiplomacyLevels),
-          fetchMeta('confidentiality-levels', setDynamicConfidentialityLevels),
-          fetchMeta('action-priorities', setDynamicActionPriorities),
+          fetchMeta('knowledge-types', setDynamicKnowledgeTypes, knowledgeTypes),
+          fetchMeta('research-project-types', setDynamicResearchProjectTypes, researchProjectTypes),
+          fetchMeta('event-types', setDynamicEventTypes, eventTypes),
+          fetchMeta('project-levels', setDynamicProjectLevels, projectLevels),
+          fetchMeta('approval-authorities', setDynamicApprovalAuthorities, approvalAuthorities),
+          fetchMeta('knowledge-project-types', setDynamicKnowledgeProjectTypes, knowledgeProjectTypes),
+          fetchMeta('scientific-diplomacy-levels', setDynamicScientificDiplomacyLevels, scientificDiplomacyLevels),
+          fetchMeta('confidentiality-levels', setDynamicConfidentialityLevels, confidentialityLevels),
         ]);
-
-      } catch (err) {
-        console.error('Error fetching data:', err);
+      } catch (err: any) {
+        console.error('Error fetching issue form metadata:', err);
       }
     };
+
     fetchData();
   }, []);
 
@@ -302,7 +269,6 @@ export function IssueFormTabs({
 
   useEffect(() => {
     if (initialData) {
-      // استخراج و سینک صحیح شناسه‌های قالب‌ها جهت چک‌باکس‌های فرم
       const initialTemplateIds = (initialData.templateIds && Array.isArray(initialData.templateIds))
         ? initialData.templateIds.map(String)
         : Array.isArray(initialData.templates)
@@ -509,7 +475,6 @@ export function IssueFormTabs({
   };
 
   const handleFileUpload = (field: string, file: File | null) => {
-    // در اینجا می‌توانید منطق آپلود فایل را پیاده‌سازی کنید
     toast.success(`📎 فایل "${file?.name}" برای ${field} انتخاب شد`);
   };
 
@@ -594,7 +559,7 @@ export function IssueFormTabs({
       }
       
     } catch (error) {
-      // خطا قبلاً مدیریت شده
+      console.error('Error saving issue:', error);
     }
   };
 
@@ -607,1220 +572,110 @@ export function IssueFormTabs({
            s === 'on_hold' ? '⏸️ متوقف' : s,
   }));
 
-  const renderGeneralTab = () => (
-    <div className="space-y-4">
-      {formData.gapId && !formData.researchItemId && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl flex gap-3 items-start">
-          <AlertCircle className="text-blue-500 shrink-0 mt-0.5" size={18} />
-          <div className="text-sm">
-            <strong className="font-bold block mb-1">تبدیل شکاف به مسئله و آیتم پژوهشی</strong>
-            شما در حال تعریف یک مسئله جدید برای حل یک <b>شکاف دانشی</b> هستید. پس از ذخیره، سیستم به‌طور خودکار یک <b>آیتم پژوهشی</b> برای این شکاف ایجاد کرده و آن را به این مسئله متصل می‌کند.
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            🔍 مرتبط با آیتم پژوهشی (اختیاری - بر اساس شکاف دانشی)
-          </label>
-          <SearchableSelect
-            options={researchItems.map(r => ({ 
-              value: String(r.id), 
-              label: `${r.node?.title || 'نامشخص'} - ${r.treeName} (${r.status === 'proposed' ? 'پیشنهادی' : 'تایید شده'})` 
-            }))}
-            value={formData.researchItemId ? String(formData.researchItemId) : ''}
-            onChange={val => handleChange('researchItemId', val)}
-            placeholder={formData.gapId ? "یک آیتم پژوهشی به‌صورت خودکار ایجاد خواهد شد" : "انتخاب آیتم پژوهشی برای پر کردن شکاف..."}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            📂 حوزه <span className="text-red-500">*</span>
-          </label>
-          <SearchableSelect
-  options={(() => {
-    // اطمینان از اینکه domainNodes یک آرایه است
-    const nodesArray = Array.isArray(domainNodes) ? domainNodes : [];
-    const opts = nodesArray.map((n: any) => ({ 
-      value: String(n.id), 
-      label: `${n.title} (${n.treeName})` 
-    }));
-    if (formData.domainNodeId && formData.domain && !opts.find(o => o.value === String(formData.domainNodeId))) {
-      opts.unshift({ value: String(formData.domainNodeId), label: formData.domain });
-    }
-    return opts;
-  })()}
-  value={formData.domainNodeId ? String(formData.domainNodeId) : ''}
-  onChange={val => handleChange('domainNodeId', val)}
-  placeholder="انتخاب حوزه..."
-/>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            📌 عنوان مسئله <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            required
-            value={formData.title}
-            onChange={e => handleChange('title', e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="عنوان عینی و شفاف..."
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          🧭 جهت‌گیری راه‌حل
-        </label>
-        <textarea
-          value={formData.solutionDirection || ''}
-          onChange={e => handleChange('solutionDirection', e.target.value)}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm min-h-[60px]"
-          placeholder="رویکرد کلی برای حل مسئله..."
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            🏷️ دسته‌بندی مسئله
-          </label>
-          <SearchableSelect
-            options={issueCategories.map(cat => ({ value: cat, label: cat }))}
-            value={formData.category || ''}
-            onChange={(val) => handleChange('category', val || '')}
-            placeholder="انتخاب دسته‌بندی مسئله..."
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            🏢 دستگاه یا یگان مسئول
-          </label>
-          <input
-            type="text"
-            value={formData.responsibleUnit || ''}
-            onChange={e => handleChange('responsibleUnit', e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="واحد متولی اجرا..."
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            🔒 سطح محرمانگی
-          </label>
-          <SearchableSelect
-            options={dynamicConfidentialityLevels.map(c => ({ value: c, label: c }))}
-            value={formData.confidentialityLevel}
-            onChange={(val) => handleChange('confidentialityLevel', val || 'عمومی')}
-            placeholder="انتخاب سطح محرمانگی..."
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            🎯 اولویت اقدام
-          </label>
-          <SearchableSelect
-            options={dynamicActionPriorities.map(p => ({ value: p, label: p }))}
-            value={formData.actionPriority}
-            onChange={(val) => handleChange('actionPriority', val || 'متوسط')}
-            placeholder="انتخاب اولویت..."
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            📅 تاریخ تصویب
-          </label>
-          <div className="relative">
-            <DatePicker
-              value={safeDateForPicker(formData.approvalDate)}
-              onChange={(date: any) => handleChange('approvalDate', formatPickerDate(date))}
-              calendar={persian}
-              locale={persian_fa}
-              animations={[transition()]}
-              format="YYYY/MM/DD"
-              inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-right font-sans text-sm pr-10"
-              containerClassName="w-full"
-              placeholder="انتخاب تاریخ..."
-            />
-            <Calendar size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            🏛️ مرجع تصویب
-          </label>
-          <SearchableSelect
-            options={dynamicApprovalAuthorities.map(a => ({ value: a, label: a }))}
-            value={formData.approvalAuthority}
-            onChange={(val) => handleChange('approvalAuthority', val || '')}
-            placeholder="انتخاب مرجع تصویب..."
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            📚 نوع‌شناسی دانش
-          </label>
-          <SearchableSelect
-            options={dynamicKnowledgeTypes.map(k => ({ value: k, label: k }))}
-            value={formData.knowledgeType}
-            onChange={(val) => handleChange('knowledgeType', val || '')}
-            placeholder="انتخاب نوع دانش..."
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            📊 سطح پروژه
-          </label>
-          <SearchableSelect
-            options={dynamicProjectLevels.map(p => ({ value: p, label: p }))}
-            value={formData.projectLevel}
-            onChange={(val) => handleChange('projectLevel', val || 'سطح1')}
-            placeholder="انتخاب سطح پروژه..."
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          📋 قالب‌های مجاز
-          <span className="text-xs text-gray-400 mr-1">(سینک با آیتم پژوهشی / درختواره مورد نیاز)</span>
-        </label>
-        <div className="space-y-3 p-3 border border-gray-200 rounded-xl max-h-48 overflow-y-auto scrollbar-hide bg-gray-50/50">
-          {Object.keys(groupedTemplates).length > 0 ? (
-            Object.entries(groupedTemplates).map(([type, group]: [string, any]) => {
-              const rootChecked = formData.templateIds?.includes(String(group.root.id)) || false;
-              return (
-              <div key={type} className="space-y-1.5 bg-white p-2.5 rounded-lg border border-gray-200">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rootChecked}
-                    onChange={() => handleTemplateToggle(String(group.root.id))}
-                    className="w-3.5 h-3.5 text-blue-600 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-xs font-bold text-gray-700">{type}</span>
-                  <span className="text-[10px] text-gray-400 font-normal mr-auto bg-gray-100 px-1.5 py-0.5 rounded">
-                    نوع قالب
-                  </span>
-                </label>
-                {group.children.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-gray-100">
-                    {group.children.map((template: any) => {
-                      const isChecked = formData.templateIds?.includes(String(template.id)) || false;
-                      return (
-                        <label
-                          key={template.id}
-                          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] cursor-pointer transition-all
-                            ${isChecked
-                               ? 'bg-blue-100 border border-blue-300 text-blue-700'
-                               : 'bg-gray-50 border border-gray-200 text-gray-600 hover:border-blue-300'
-                            }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => handleTemplateToggle(String(template.id))}
-                            className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                          />
-                          <span>{template.title}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )})
-          ) : (
-            <span className="text-sm text-gray-400">هیچ قالبی تعریف نشده است</span>
-          )}
-        </div>
-        <p className="text-[10px] text-gray-400 mt-1">
-          💡 قالب‌ها با درختواره مورد نیاز سینک می‌شوند
-        </p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          📌 وضعیت
-        </label>
-        <SearchableSelect
-          options={statusOptions}
-          value={formData.status}
-          onChange={(val) => handleChange('status', val || 'pending')}
-          placeholder="انتخاب وضعیت..."
-        />
-      </div>
-    </div>
-  );
-
-  const renderProjectsTab = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            🔬 پروژه پژوهشی
-          </label>
-          <SearchableSelect
-            options={dynamicResearchProjectTypes.map(r => ({ value: r, label: r }))}
-            value={formData.researchProjectType}
-            onChange={(val) => handleChange('researchProjectType', val || '')}
-            placeholder="انتخاب نوع پروژه پژوهشی..."
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            📚 پروژه دانشی
-          </label>
-          <SearchableSelect
-            options={dynamicKnowledgeProjectTypes.map(k => ({ value: k, label: k }))}
-            value={formData.knowledgeProjectType}
-            onChange={(val) => handleChange('knowledgeProjectType', val || '')}
-            placeholder="انتخاب نوع پروژه دانشی..."
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          🎪 رویدادها
-        </label>
-        <SearchableSelect
-          options={dynamicEventTypes.map(e => ({ value: e, label: e }))}
-          value={formData.events}
-          onChange={(val) => handleChange('events', val || '')}
-          placeholder="انتخاب رویداد..."
-        />
-      </div>
-
-      <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-4">
-        <h4 className="font-medium text-gray-700 text-sm mb-3">🏗️ اطلاعات کلان‌پروژه</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">عنوان کلان‌پروژه</label>
-            <input
-              type="text"
-              value={formData.macroProject?.title || ''}
-              onChange={e => handleChange('macroProject', { ...formData.macroProject, title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-              placeholder="عنوان..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">مدیر/مسئول</label>
-            <input
-              type="text"
-              value={formData.macroProject?.manager || ''}
-              onChange={e => handleChange('macroProject', { ...formData.macroProject, manager: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-              placeholder="نام مسئول..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">شماره نامه ابلاغی</label>
-            <input
-              type="text"
-              value={formData.macroProject?.letterNumber || ''}
-              onChange={e => handleChange('macroProject', { ...formData.macroProject, letterNumber: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-              placeholder="شماره نامه..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">تاریخ نامه ابلاغی</label>
-            <input
-              type="text"
-              value={formData.macroProject?.letterDate || ''}
-              onChange={e => handleChange('macroProject', { ...formData.macroProject, letterDate: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-              placeholder="تاریخ نامه..."
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-xs font-medium text-gray-600 mb-1">آپلود نامه ابلاغی (فایل)</label>
-            <input
-              type="file"
-              onChange={e => handleChange('macroProject', { ...formData.macroProject, file: e.target.files?.[0] || null })}
-              className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">توضیحات تکمیلی</label>
-          <textarea
-            value={formData.macroProject?.description || formData.macroProject?.text || ''}
-            onChange={e => handleChange('macroProject', { ...formData.macroProject, description: e.target.value, text: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm min-h-[80px]"
-            placeholder="توضیحات کلان‌پروژه..."
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderCollaborationTab = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          🌐 دیپلماسی علمی
-        </label>
-        <SearchableSelect
-          options={dynamicScientificDiplomacyLevels.map(s => ({ value: s, label: s }))}
-          value={formData.scientificDiplomacy}
-          onChange={(val) => handleChange('scientificDiplomacy', val || '')}
-          placeholder="انتخاب سطح دیپلماسی علمی..."
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          🤝 همکاری با کجاها
-        </label>
-        <input
-          type="text"
-          value={formData.collaborators || ''}
-          onChange={e => handleChange('collaborators', e.target.value)}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
-          placeholder="نام دستگاه‌ها یا نهادهای همکار..."
-        />
-      </div>
-
-      <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-4">
-        <h4 className="font-medium text-gray-700 text-sm mb-3">🌐 جزئیات شبکه همکاران</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">همکاران داخلی</label>
-            <input
-              type="text"
-              value={formData.collaborationNetwork?.internal || ''}
-              onChange={e => handleChange('collaborationNetwork', { ...formData.collaborationNetwork, internal: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-              placeholder="شوراها و دبیرخانه‌های داخلی..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">همکاران خارجی/بین‌المللی</label>
-            <input
-              type="text"
-              value={formData.collaborationNetwork?.external || ''}
-              onChange={e => handleChange('collaborationNetwork', { ...formData.collaborationNetwork, external: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-              placeholder="نهادهای بین‌المللی..."
-            />
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">توضیحات شبکه</label>
-          <textarea
-            value={formData.collaborationNetwork?.description || formData.collaborationNetwork?.text || ''}
-            onChange={e => handleChange('collaborationNetwork', { ...formData.collaborationNetwork, description: e.target.value, text: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm min-h-[80px]"
-            placeholder="توضیحات نحوه همکاری..."
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderBudgetTab = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          📄 عنوان دانش و پژوهش مرجع تصویب
-        </label>
-        <input
-          type="text"
-          value={formData.referenceDocument || ''}
-          onChange={e => handleChange('referenceDocument', e.target.value)}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
-          placeholder="ارجاع به سند بالادستی..."
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            💰 اعتبار / بودجه مورد نیاز (ریال)
-          </label>
-          <div className="relative">
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">ریال</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={formData.requiredBudget !== undefined && formData.requiredBudget !== null ? formatNumber(formData.requiredBudget) : ''}
-              onChange={e => handleChange('requiredBudget', parseNumberInput(e.target.value))}
-              className="w-full px-4 pr-12 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
-              placeholder="۰"
-            />
-          </div>
-          {Number(formData.requiredBudget) > 0 && (
-            <p className="text-xs text-blue-600 mt-1 font-medium">
-              {formatCurrency(formData.requiredBudget, true)}
-            </p>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            ✅ اعتبار / بودجه مصوب (ریال)
-          </label>
-          <div className="relative">
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">ریال</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={formData.approvedBudget !== undefined && formData.approvedBudget !== null ? formatNumber(formData.approvedBudget) : ''}
-              onChange={e => handleChange('approvedBudget', parseNumberInput(e.target.value))}
-              className="w-full px-4 pr-12 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
-              placeholder="۰"
-            />
-          </div>
-          {Number(formData.approvedBudget) > 0 && (
-            <p className="text-xs text-emerald-600 mt-1 font-medium">
-              {formatCurrency(formData.approvedBudget, true)}
-            </p>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            📤 اعتبار / بودجه واگذار شده (ریال)
-          </label>
-          <div className="relative">
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">ریال</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={formData.assignedBudget !== undefined && formData.assignedBudget !== null ? formatNumber(formData.assignedBudget) : ''}
-              onChange={e => handleChange('assignedBudget', parseNumberInput(e.target.value))}
-              className="w-full px-4 pr-12 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
-              placeholder="۰"
-            />
-          </div>
-          {Number(formData.assignedBudget) > 0 && (
-            <p className="text-xs text-purple-600 mt-1 font-medium">
-              {formatCurrency(formData.assignedBudget, true)}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            ⏱️ زمان به ماه
-          </label>
-          <input
-            type="number"
-            value={formData.expectedMonths || 0}
-            onChange={e => handleChange('expectedMonths', parseInt(e.target.value) || 0)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="تعداد ماه مورد انتظار..."
-            min="0"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            📊 درصد انجام
-          </label>
-          <div className="flex items-center gap-3">
-            <input
-              type="number"
-              value={formData.completionPercent ?? 0}
-              onChange={e => handleChange('completionPercent', e.target.value === '' ? 0 : Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-              className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
-              placeholder="۰"
-              min="0"
-              max="100"
-            />
-            <span className="text-sm text-gray-400">%</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderActionsTab = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          ✅ اهم اقدامات صورت‌گرفته
-        </label>
-        <textarea
-          value={formData.actionsTaken || ''}
-          onChange={e => handleChange('actionsTaken', e.target.value)}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm min-h-[80px]"
-          placeholder="شرح اقدامات اجرا شده..."
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          🚧 گلوگاه‌ها
-        </label>
-        <textarea
-          value={formData.bottlenecks || ''}
-          onChange={e => handleChange('bottlenecks', e.target.value)}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm min-h-[80px]"
-          placeholder="موانع و چالش‌های موجود..."
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          📋 اوامر
-        </label>
-        <textarea
-          value={formData.orders || ''}
-          onChange={e => handleChange('orders', e.target.value)}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm min-h-[80px]"
-          placeholder="دستورات ویژه یا ابلاغی..."
-        />
-      </div>
-    </div>
-  );
-
-  const renderTeamTab = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h4 className="font-bold text-gray-700 text-sm">👥 کارگروه حل نظام مسائل</h4>
-        <button
-          type="button"
-          onClick={handleAddTeamMember}
-          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1"
-        >
-          <Plus size={14} />
-          افزودن عضو
-        </button>
-      </div>
-
-      {teamMembers.length === 0 ? (
-        <div className="text-center py-8 text-gray-400 text-sm border border-dashed border-gray-200 rounded-xl">
-          <Users size={32} className="mx-auto mb-2 text-gray-300" />
-          <p>هیچ عضوی به کارگروه اضافه نشده است</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {teamMembers.map((member, index) => (
-            <div key={member.id} className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
-              <span className="text-xs font-bold text-gray-400 w-6">{index + 1}</span>
-              <input
-                type="text"
-                placeholder="👤 نام"
-                value={member.name}
-                onChange={e => handleTeamMemberChange(member.id, 'name', e.target.value)}
-                className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-              />
-              <input
-                type="text"
-                placeholder="🎖️ درجه"
-                value={member.rank}
-                onChange={e => handleTeamMemberChange(member.id, 'rank', e.target.value)}
-                className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-              />
-              <input
-                type="text"
-                placeholder="🏢 یگان"
-                value={member.unit}
-                onChange={e => handleTeamMemberChange(member.id, 'unit', e.target.value)}
-                className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-              />
-              <input
-                type="text"
-                placeholder="📞 تلفن"
-                value={member.phone}
-                onChange={e => handleTeamMemberChange(member.id, 'phone', e.target.value)}
-                className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-              />
-              <button
-                type="button"
-                onClick={() => handleRemoveTeamMember(member.id)}
-                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <p className="text-[10px] text-gray-400">
-        📝 شامل: درجه، نام، نشان، یگان، تلفن
-      </p>
-    </div>
-  );
-
-  const renderNeedTab = () => (
-    <div className="space-y-4">
-      
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">👤 کاربر ذینفع</label>
-          <input
-            type="text"
-            value={needStatementData?.user || ''}
-            onChange={e => setNeedStatementData({...needStatementData, user: e.target.value})}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="نام کاربر ذینفع..."
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">📊 سطح</label>
-          <input
-            type="text"
-            value={needStatementData?.level || ''}
-            onChange={e => setNeedStatementData({...needStatementData, level: e.target.value})}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="سطح نیاز..."
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">📝 بیان مسئله</label>
-        <textarea
-          value={needStatementData?.problem || ''}
-          onChange={e => setNeedStatementData({...needStatementData, problem: e.target.value})}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 focus:bg-white text-sm min-h-[60px]"
-          placeholder="شرح مسئله..."
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">💰 اعتبار پیشنهادی (ریال)</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={needStatementData?.suggestedBudget !== undefined && needStatementData?.suggestedBudget !== null ? formatNumber(needStatementData.suggestedBudget) : ''}
-            onChange={e => setNeedStatementData({...needStatementData, suggestedBudget: parseNumberInput(e.target.value)})}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="۰"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">📎 فایل</label>
-          <input
-            type="file"
-            onChange={e => {
-              const file = e.target.files?.[0] || null;
-              setNeedStatementData({...needStatementData, file});
-              if (file) handleFileUpload('بیانیه نیاز', file);
-            }}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 focus:bg-white text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">📌 وضعیت تصویب</label>
-          <select
-            value={needStatementData?.approvalStatus || 'pending'}
-            onChange={e => setNeedStatementData({...needStatementData, approvalStatus: e.target.value})}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-          >
-            <option value="pending">⏳ در انتظار</option>
-            <option value="approved">✅ تصویب شد</option>
-            <option value="rejected">❌ تصویب نشد</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">📅 تاریخ تصویب</label>
-          <div className="relative">
-            <DatePicker
-              value={safeDateForPicker(needStatementData?.approvalDate)}
-              onChange={(date: any) => setNeedStatementData({...needStatementData, approvalDate: formatPickerDate(date)})}
-              calendar={persian}
-              locale={persian_fa}
-              format="YYYY/MM/DD"
-              inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 focus:bg-white text-sm pr-10"
-              containerClassName="w-full"
-              placeholder="انتخاب تاریخ..."
-            />
-            <Calendar size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">💰 مبلغ تصویب (ریال)</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={needStatementData?.approvedAmount !== undefined && needStatementData?.approvedAmount !== null ? formatNumber(needStatementData.approvedAmount) : ''}
-            onChange={e => setNeedStatementData({...needStatementData, approvedAmount: parseNumberInput(e.target.value)})}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="۰"
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-    const renderExecutiveContractTab = () => (
-    <div className="space-y-4">
-      
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          متن صورتجلسه
-        </label>
-        <textarea
-          value={executiveContractData?.minutes || ''}
-          onChange={e => setExecutiveContractData({...executiveContractData, minutes: e.target.value})}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm min-h-[100px]"
-          placeholder="شرح صورتجلسه..."
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          آپلود فایل صورتجلسه
-        </label>
-        <input
-          type="file"
-          onChange={e => setExecutiveContractData({...executiveContractData, file: e.target.files?.[0] || null})}
-          className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-        />
-      </div>
-    </div>
-  );
-
-  const renderContractTab = () => (
-    <div className="space-y-4">
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">🔢 شماره قرارداد</label>
-          <input
-            type="text"
-            value={contractData?.number || ''}
-            onChange={e => setContractData({...contractData, number: e.target.value})}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="شماره قرارداد..."
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">👤 مجری</label>
-          <input
-            type="text"
-            value={contractData?.executor || ''}
-            onChange={e => setContractData({...contractData, executor: e.target.value})}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="نام مجری..."
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">🤝 همکاران مجری</label>
-        <input
-          type="text"
-          value={Array.isArray(contractData?.collaborators) ? contractData.collaborators.join(', ') : (contractData?.collaborators || '')}
-          onChange={e => setContractData({...contractData, collaborators: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-          placeholder="نام همکاران (با کاما جدا کنید)..."
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">🧑‍🏫 عوامل (استاد راهنما، ارزیاب، مشاور)</label>
-        <input
-          type="text"
-          value={Array.isArray(contractData?.agents) ? contractData.agents.join(', ') : (contractData?.agents || '')}
-          onChange={e => setContractData({...contractData, agents: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-          placeholder="استاد راهنما، ارزیاب، مشاور..."
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">📅 تاریخ قرارداد</label>
-          <div className="relative">
-            <DatePicker
-              value={safeDateForPicker(contractData?.date)}
-              onChange={(date: any) => setContractData({...contractData, date: formatPickerDate(date)})}
-              calendar={persian}
-              locale={persian_fa}
-              format="YYYY/MM/DD"
-              inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm pr-10"
-              containerClassName="w-full"
-              placeholder="انتخاب تاریخ..."
-            />
-            <Calendar size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">📅 تاریخ شروع</label>
-          <div className="relative">
-            <DatePicker
-              value={safeDateForPicker(contractData?.startDate)}
-              onChange={(date: any) => setContractData({...contractData, startDate: formatPickerDate(date)})}
-              calendar={persian}
-              locale={persian_fa}
-              format="YYYY/MM/DD"
-              inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm pr-10"
-              containerClassName="w-full"
-              placeholder="انتخاب تاریخ..."
-            />
-            <Calendar size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">⏱️ مدت (ماه)</label>
-          <input
-            type="number"
-            value={contractData?.duration || 0}
-            onChange={e => setContractData({...contractData, duration: parseInt(e.target.value) || 0})}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="۰"
-            min="0"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">💰 مبلغ قرارداد (ریال)</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={contractData?.amount !== undefined && contractData?.amount !== null ? formatNumber(contractData.amount) : ''}
-            onChange={e => setContractData({...contractData, amount: parseNumberInput(e.target.value)})}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="۰"
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderStagesTab = () => (
-    <div className="space-y-6">
-      
-
-      {/* مرحله ۲۰ درصد */}
-      <div className="border border-blue-200 rounded-xl p-4 bg-blue-50/30">
-        <h4 className="font-bold text-gray-700 text-sm mb-3 flex items-center gap-2">
-          <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">📌 مقطع ۲۰%</span>
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📄 پروپوزال</label>
-            <input
-              type="text"
-              value={stage20Data?.proposal || ''}
-              onChange={e => setStage20Data({...stage20Data, proposal: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-              placeholder="عنوان پروپوزال..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📎 فایل</label>
-            <input
-              type="file"
-              onChange={e => {
-                const file = e.target.files?.[0] || null;
-                setStage20Data({...stage20Data, file});
-                if (file) handleFileUpload('مقطع ۲۰٪', file);
-              }}
-              className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ دفاع</label>
-            <div className="relative">
-              <DatePicker
-                value={safeDateForPicker(stage20Data?.defenseDate)}
-                onChange={(date: any) => setStage20Data({...stage20Data, defenseDate: formatPickerDate(date)})}
-                calendar={persian}
-                locale={persian_fa}
-                format="YYYY/MM/DD"
-                inputClass="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm pr-8"
-                containerClassName="w-full"
-                placeholder="انتخاب تاریخ..."
-              />
-              <Calendar size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📋 صورتجلسه</label>
-            <input
-              type="text"
-              value={stage20Data?.minutes || ''}
-              onChange={e => setStage20Data({...stage20Data, minutes: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-              placeholder="شماره صورتجلسه..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">💰 اعتبار پرداختی (ریال)</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={stage20Data?.paidAmount !== undefined && stage20Data?.paidAmount !== null ? formatNumber(stage20Data.paidAmount) : ''}
-              onChange={e => setStage20Data({...stage20Data, paidAmount: parseNumberInput(e.target.value)})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
-              placeholder="۰"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ پرداخت</label>
-            <div className="relative">
-              <DatePicker
-                value={safeDateForPicker(stage20Data?.paymentDate)}
-                onChange={(date: any) => setStage20Data({...stage20Data, paymentDate: formatPickerDate(date)})}
-                calendar={persian}
-                locale={persian_fa}
-                format="YYYY/MM/DD"
-                inputClass="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm pr-8"
-                containerClassName="w-full"
-                placeholder="انتخاب تاریخ..."
-              />
-              <Calendar size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* مرحله ۵۰ درصد */}
-      <div className="border border-yellow-200 rounded-xl p-4 bg-yellow-50/30">
-        <h4 className="font-bold text-gray-700 text-sm mb-3 flex items-center gap-2">
-          <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-xs">📌 مقطع ۵۰%</span>
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📎 فایل</label>
-            <input
-              type="file"
-              onChange={e => {
-                const file = e.target.files?.[0] || null;
-                setStage50Data({...stage50Data, file});
-                if (file) handleFileUpload('مقطع ۵۰٪', file);
-              }}
-              className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white text-sm file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-yellow-50 file:text-yellow-700"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ دفاع</label>
-            <div className="relative">
-              <DatePicker
-                value={safeDateForPicker(stage50Data?.defenseDate)}
-                onChange={(date: any) => setStage50Data({...stage50Data, defenseDate: formatPickerDate(date)})}
-                calendar={persian}
-                locale={persian_fa}
-                format="YYYY/MM/DD"
-                inputClass="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white text-sm pr-8"
-                containerClassName="w-full"
-                placeholder="انتخاب تاریخ..."
-              />
-              <Calendar size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📋 صورتجلسه</label>
-            <input
-              type="text"
-              value={stage50Data?.minutes || ''}
-              onChange={e => setStage50Data({...stage50Data, minutes: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white text-sm"
-              placeholder="شماره صورتجلسه..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">💰 اعتبار پرداختی (ریال)</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={stage50Data?.paidAmount !== undefined && stage50Data?.paidAmount !== null ? formatNumber(stage50Data.paidAmount) : ''}
-              onChange={e => setStage50Data({...stage50Data, paidAmount: parseNumberInput(e.target.value)})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white text-sm"
-              placeholder="۰"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ پرداخت</label>
-            <div className="relative">
-              <DatePicker
-                value={safeDateForPicker(stage50Data?.paymentDate)}
-                onChange={(date: any) => setStage50Data({...stage50Data, paymentDate: formatPickerDate(date)})}
-                calendar={persian}
-                locale={persian_fa}
-                format="YYYY/MM/DD"
-                inputClass="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white text-sm pr-8"
-                containerClassName="w-full"
-                placeholder="انتخاب تاریخ..."
-              />
-              <Calendar size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* مرحله ۱۰۰ درصد */}
-      <div className="border border-green-200 rounded-xl p-4 bg-green-50/30">
-        <h4 className="font-bold text-gray-700 text-sm mb-3 flex items-center gap-2">
-          <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs">📌 مقطع ۱۰۰%</span>
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📎 فایل</label>
-            <input
-              type="file"
-              onChange={e => {
-                const file = e.target.files?.[0] || null;
-                setStage100Data({...stage100Data, file});
-                if (file) handleFileUpload('مقطع ۱۰۰٪', file);
-              }}
-              className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none bg-white text-sm file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ دفاع</label>
-            <div className="relative">
-              <DatePicker
-                value={safeDateForPicker(stage100Data?.defenseDate)}
-                onChange={(date: any) => setStage100Data({...stage100Data, defenseDate: formatPickerDate(date)})}
-                calendar={persian}
-                locale={persian_fa}
-                format="YYYY/MM/DD"
-                inputClass="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none bg-white text-sm pr-8"
-                containerClassName="w-full"
-                placeholder="انتخاب تاریخ..."
-              />
-              <Calendar size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📋 صورتجلسه</label>
-            <input
-              type="text"
-              value={stage100Data?.minutes || ''}
-              onChange={e => setStage100Data({...stage100Data, minutes: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none bg-white text-sm"
-              placeholder="شماره صورتجلسه..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">💰 اعتبار پرداختی (ریال)</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={stage100Data?.paidAmount !== undefined && stage100Data?.paidAmount !== null ? formatNumber(stage100Data.paidAmount) : ''}
-              onChange={e => setStage100Data({...stage100Data, paidAmount: parseNumberInput(e.target.value)})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none bg-white text-sm"
-              placeholder="۰"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">📅 تاریخ پرداخت</label>
-            <div className="relative">
-              <DatePicker
-                value={safeDateForPicker(stage100Data?.paymentDate)}
-                onChange={(date: any) => setStage100Data({...stage100Data, paymentDate: formatPickerDate(date)})}
-                calendar={persian}
-                locale={persian_fa}
-                format="YYYY/MM/DD"
-                inputClass="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none bg-white text-sm pr-8"
-                containerClassName="w-full"
-                placeholder="انتخاب تاریخ..."
-              />
-              <Calendar size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderApplicationTab = () => (
-    <div className="space-y-4">
-      
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">📤 انعکاس نتایج به کاربر</label>
-        <textarea
-          value={applicationData?.resultReflection || ''}
-          onChange={e => setApplicationData({...applicationData, resultReflection: e.target.value})}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none bg-gray-50/50 focus:bg-white text-sm min-h-[60px]"
-          placeholder="نحوه انعکاس نتایج به کاربر..."
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">📊 نوع کاربست</label>
-          <input
-            type="text"
-            value={applicationData?.applicationType || ''}
-            onChange={e => setApplicationData({...applicationData, applicationType: e.target.value})}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-            placeholder="نوع کاربست..."
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">📅 تاریخ کاربست</label>
-          <div className="relative">
-            <DatePicker
-              value={safeDateForPicker(applicationData?.applicationDate)}
-              onChange={(date: any) => setApplicationData({...applicationData, applicationDate: formatPickerDate(date)})}
-              calendar={persian}
-              locale={persian_fa}
-              format="YYYY/MM/DD"
-              inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none bg-gray-50/50 focus:bg-white text-sm pr-10"
-              containerClassName="w-full"
-              placeholder="انتخاب تاریخ..."
-            />
-            <Calendar size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">📋 صورتجلسه کاربست</label>
-        <input
-          type="text"
-          value={applicationData?.minutes || ''}
-          onChange={e => setApplicationData({...applicationData, minutes: e.target.value})}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-          placeholder="شماره صورتجلسه..."
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">👥 کارگروه کاربست</label>
-        <input
-          type="text"
-          value={applicationData?.workingGroup || ''}
-          onChange={e => setApplicationData({...applicationData, workingGroup: e.target.value})}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none bg-gray-50/50 focus:bg-white text-sm"
-          placeholder="نام کارگروه کاربست..."
-        />
-      </div>
-    </div>
-  );
-
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'general': return renderGeneralTab();
-      case 'projects': return renderProjectsTab();
-      case 'collaboration': return renderCollaborationTab();
-      case 'budget': return renderBudgetTab();
-      case 'actions': return renderActionsTab();
-      case 'team': return renderTeamTab();
-      case 'need': return renderNeedTab();
-      case 'contract': return renderContractTab();
-      case 'executive_contract': return renderExecutiveContractTab();
-      case 'stages': return renderStagesTab();
-      case 'application': return renderApplicationTab();
-      default: return null;
+      case 'general':
+        return (
+          <GeneralTab
+            formData={formData}
+            handleChange={handleChange}
+            researchItems={researchItems}
+            domainNodes={domainNodes}
+            issueCategories={issueCategories}
+            dynamicConfidentialityLevels={dynamicConfidentialityLevels}
+            dynamicActionPriorities={dynamicActionPriorities}
+            dynamicApprovalAuthorities={dynamicApprovalAuthorities}
+            dynamicKnowledgeTypes={dynamicKnowledgeTypes}
+            dynamicProjectLevels={dynamicProjectLevels}
+            groupedTemplates={groupedTemplates}
+            handleTemplateToggle={handleTemplateToggle}
+            statusOptions={statusOptions}
+          />
+        );
+      case 'projects':
+        return (
+          <ProjectsTab
+            formData={formData}
+            handleChange={handleChange}
+            dynamicResearchProjectTypes={dynamicResearchProjectTypes}
+            dynamicKnowledgeProjectTypes={dynamicKnowledgeProjectTypes}
+            dynamicEventTypes={dynamicEventTypes}
+          />
+        );
+      case 'collaboration':
+        return (
+          <CollaborationTab
+            formData={formData}
+            handleChange={handleChange}
+            dynamicScientificDiplomacyLevels={dynamicScientificDiplomacyLevels}
+          />
+        );
+      case 'budget':
+        return (
+          <BudgetTab
+            formData={formData}
+            handleChange={handleChange}
+          />
+        );
+      case 'actions':
+        return (
+          <ActionsTab
+            formData={formData}
+            handleChange={handleChange}
+          />
+        );
+      case 'team':
+        return (
+          <TeamTab
+            teamMembers={teamMembers}
+            handleAddTeamMember={handleAddTeamMember}
+            handleRemoveTeamMember={handleRemoveTeamMember}
+            handleTeamMemberChange={handleTeamMemberChange}
+          />
+        );
+      case 'need':
+        return (
+          <NeedTab
+            needStatementData={needStatementData}
+            setNeedStatementData={setNeedStatementData}
+            handleFileUpload={handleFileUpload}
+          />
+        );
+      case 'contract':
+        return (
+          <ContractTab
+            contractData={contractData}
+            setContractData={setContractData}
+          />
+        );
+      case 'executive_contract':
+        return (
+          <ExecutiveContractTab
+            executiveContractData={executiveContractData}
+            setExecutiveContractData={setExecutiveContractData}
+          />
+        );
+      case 'stages':
+        return (
+          <StagesTab
+            stage20Data={stage20Data}
+            setStage20Data={setStage20Data}
+            stage50Data={stage50Data}
+            setStage50Data={setStage50Data}
+            stage100Data={stage100Data}
+            setStage100Data={setStage100Data}
+            handleFileUpload={handleFileUpload}
+          />
+        );
+      case 'application':
+        return (
+          <ApplicationTab
+            applicationData={applicationData}
+            setApplicationData={setApplicationData}
+          />
+        );
+      default:
+        return null;
     }
   };
 
@@ -1843,14 +698,14 @@ export function IssueFormTabs({
         </div>
         <button
           onClick={onCancel}
-          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
         >
           <X size={20} />
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex overflow-x-auto gap-1 p-3 border-b border-gray-200 bg-gray-50/50 flex-shrink-0">
+      <div className="flex overflow-x-auto gap-1 p-3 border-b border-gray-200 bg-gray-50/50 flex-shrink-0 scrollbar-thin">
         {tabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1858,7 +713,7 @@ export function IssueFormTabs({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 isActive
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-200/50'
                   : 'text-gray-600 hover:bg-gray-100'
@@ -1883,7 +738,7 @@ export function IssueFormTabs({
         <button
           type="button"
           onClick={onCancel}
-          className="px-5 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium transition-all duration-200"
+          className="px-5 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer"
         >
           ❌ انصراف
         </button>
@@ -1891,7 +746,7 @@ export function IssueFormTabs({
           type="submit"
           form="issueForm"
           disabled={loading}
-          className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg ${
+          className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg cursor-pointer ${
             loading
               ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
               : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-purple-200/50'

@@ -401,12 +401,12 @@ export function IssueSystem() {
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-sm font-bold text-gray-700">وضعیت مسائل صفحه جاری (نمودار پیشرفت)</h3>
-            <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded-full">{stats.total} مسئله</span>
+            <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded-full">{formatNumber(stats.total)} مسئله</span>
           </div>
           <div className="flex h-4 bg-gray-100 rounded-full overflow-hidden">
-            <div style={{ width: `${stats.total > 0 ? (stats.completed / stats.total) * 100 : 0}%` }} className="bg-green-500 flex items-center justify-center text-[10px] text-white font-bold transition-all">{stats.completed > 0 && stats.completed}</div>
-            <div style={{ width: `${stats.total > 0 ? (stats.inProgress / stats.total) * 100 : 0}%` }} className="bg-blue-500 flex items-center justify-center text-[10px] text-white font-bold transition-all">{stats.inProgress > 0 && stats.inProgress}</div>
-            <div style={{ width: `${stats.total > 0 ? (stats.pending / stats.total) * 100 : 0}%` }} className="bg-yellow-500 flex items-center justify-center text-[10px] text-white font-bold transition-all">{stats.pending > 0 && stats.pending}</div>
+            <div style={{ width: `${stats.total > 0 ? (stats.completed / stats.total) * 100 : 0}%` }} className="bg-green-500 flex items-center justify-center text-[10px] text-white font-bold transition-all">{stats.completed > 0 && formatNumber(stats.completed)}</div>
+            <div style={{ width: `${stats.total > 0 ? (stats.inProgress / stats.total) * 100 : 0}%` }} className="bg-blue-500 flex items-center justify-center text-[10px] text-white font-bold transition-all">{stats.inProgress > 0 && formatNumber(stats.inProgress)}</div>
+            <div style={{ width: `${stats.total > 0 ? (stats.pending / stats.total) * 100 : 0}%` }} className="bg-yellow-500 flex items-center justify-center text-[10px] text-white font-bold transition-all">{stats.pending > 0 && formatNumber(stats.pending)}</div>
           </div>
           <div className="flex items-center gap-4 mt-3 text-xs text-gray-500 justify-center">
             <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-green-500" /> تکمیل شده</div>
@@ -417,152 +417,175 @@ export function IssueSystem() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 flex items-center gap-4">
-          <div className="p-3 bg-purple-50 rounded-lg">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-3 sm:p-4 flex items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 bg-purple-50 rounded-lg shrink-0">
             <FileText size={20} className="text-purple-600" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-gray-400">کل مسائل</p>
-            <p className="text-2xl font-bold text-gray-800">{stats.total}</p>
+            <p className="text-xl sm:text-2xl font-bold text-gray-800">{formatNumber(stats.total)}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-yellow-200 p-4 flex items-center gap-4">
-          <div className="p-3 bg-yellow-50 rounded-lg">
+        <div className="bg-white rounded-xl shadow-sm border border-yellow-200 p-3 sm:p-4 flex items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 bg-yellow-50 rounded-lg shrink-0">
             <Clock size={20} className="text-yellow-600" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-gray-400">در انتظار</p>
-            <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+            <p className="text-xl sm:text-2xl font-bold text-yellow-600">{formatNumber(stats.pending)}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4 flex items-center gap-4">
-          <div className="p-3 bg-blue-50 rounded-lg">
+        <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-3 sm:p-4 flex items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 bg-blue-50 rounded-lg shrink-0">
             <RefreshCw size={20} className="text-blue-600" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-gray-400">در حال اجرا</p>
-            <p className="text-2xl font-bold text-blue-600">{stats.inProgress}</p>
+            <p className="text-xl sm:text-2xl font-bold text-blue-600">{formatNumber(stats.inProgress)}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 flex items-center gap-4">
-          <div className="p-3 bg-green-50 rounded-lg">
+        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-3 sm:p-4 flex items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 bg-green-50 rounded-lg shrink-0">
             <CheckCircle size={20} className="text-green-600" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-gray-400">تکمیل شده</p>
-            <p className="text-2xl font-bold text-green-600">{stats.completed}</p>
+            <p className="text-xl sm:text-2xl font-bold text-green-600">{formatNumber(stats.completed)}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4 flex items-center gap-4">
-          <div className="p-3 bg-amber-50 rounded-lg">
-            <Coins size={20} className="text-amber-600" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-medium">جمع اعتبارات</p>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-xl font-bold text-amber-600" title={formatCurrency(stats.totalBudget, true)}>
-                {formatNumber(stats.totalBudget)}
-              </span>
-              <span className="text-xs text-amber-700 font-medium">ریال</span>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 flex items-center gap-4">
-          <div className="p-3 bg-indigo-50 rounded-lg">
+        <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-3 sm:p-4 flex items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 bg-indigo-50 rounded-lg shrink-0">
             <TrendingUp size={20} className="text-indigo-600" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-gray-400">میانگین پیشرفت</p>
-            <p className="text-2xl font-bold text-indigo-600">{stats.avgCompletion}%</p>
+            <p className="text-xl sm:text-2xl font-bold text-indigo-600">{formatNumber(stats.avgCompletion)}٪</p>
+          </div>
+        </div>
+        {/* باکس جمع اعتبارات — با پهنای دو برابری و جلوگیری از سرریز ارقام بزرگ */}
+        <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-3 sm:p-4 flex items-center gap-3 min-w-0 overflow-hidden col-span-2 sm:col-span-1 lg:col-span-2">
+          <div className="p-2.5 sm:p-3 bg-amber-50 rounded-lg shrink-0">
+            <Coins size={20} className="text-amber-600" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-gray-500 font-medium truncate">جمع اعتبارات</p>
+            <div className="flex items-baseline gap-1 mt-0.5 min-w-0">
+              <span className="text-base sm:text-lg font-bold text-amber-600 truncate block" title={formatCurrency(stats.totalBudget, true)}>
+                {formatNumber(stats.totalBudget)}
+              </span>
+              <span className="text-[11px] text-amber-700 font-medium shrink-0">ریال</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4">
-        {/* ریسپانسیو: در موبایل ستونی، در تبلت/دسکتاپ ردیفی با امکان شکستن خط (flex-wrap) تا هرگز سرریز نشود */}
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
-          {/* جستجو: در موبایل تمام‌عرض، در تبلت خط خودش را می‌گیرد، در دسکتاپ کنار فیلترها جمع می‌شود */}
-          <div className="relative min-w-0 w-full sm:basis-full lg:basis-0 lg:flex-1">
-            <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      {/* Filters Toolbar - کامپکت، ریسپانسیو و بدون سرریز */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-3 sm:p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 xl:grid-cols-12 gap-2.5 items-center">
+          {/* جستجو */}
+          <div className="relative col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-2 xl:col-span-4 min-w-0">
+            <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="🔍 جستجو در عنوان، حوزه..."
-              className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500 transition-all bg-gray-50/50 focus:bg-white"
+              placeholder="جستجو در عنوان، حوزه..."
+              className="w-full pr-9 pl-8 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm outline-none focus:ring-2 focus:ring-purple-500 transition-all bg-gray-50/50 focus:bg-white"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
             {searchTerm && (
               <button
+                type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+                title="پاک کردن جستجو"
               >
-                <X size={16} />
+                <X size={14} />
               </button>
             )}
           </div>
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 min-w-[140px] sm:flex-1"
-          >
-            <option value="all">📌 همه وضعیت‌ها</option>
-            <option value="pending">⏳ در انتظار</option>
-            <option value="in_progress">🔄 در حال اجرا</option>
-            <option value="completed">✅ تکمیل شده</option>
-            <option value="canceled">❌ لغو شده</option>
-            <option value="on_hold">⏸️ متوقف</option>
-          </select>
-          <select
-            value={priorityFilter}
-            onChange={e => setPriorityFilter(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 min-w-[140px] sm:flex-1"
-          >
-            <option value="all">🎯 همه اولویت‌ها</option>
-            <option value="خیلی زیاد">🔥 خیلی زیاد</option>
-            <option value="زیاد">⬆️ زیاد</option>
-            <option value="متوسط">➖ متوسط</option>
-            <option value="کم">⬇️ کم</option>
-          </select>
-          <select
-            value={categoryFilter}
-            onChange={e => setCategoryFilter(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 min-w-[140px] sm:flex-1"
-          >
-            <option value="all">🏷️ همه دسته‌ها</option>
-            <option value="عمومی">عمومی</option>
-            <option value="فنی و مهندسی">فنی و مهندسی</option>
-            <option value="مدیریتی و سازمانی">مدیریتی و سازمانی</option>
-            <option value="فرهنگی و اجتماعی">فرهنگی و اجتماعی</option>
-            <option value="علمی و پژوهشی">علمی و پژوهشی</option>
-            <option value="اقتصادی و مالی">اقتصادی و مالی</option>
-            <option value="حقوقی و تقنینی">حقوقی و تقنینی</option>
-            <option value="زیرساختی و لجستیک">زیرساختی و لجستیک</option>
-          </select>
-          <select
-            value={timeFrameFilter}
-            onChange={e => setTimeFrameFilter(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 min-w-[140px] sm:flex-1"
-          >
-            <option value="all">⏳ همه زمان‌بندی‌ها</option>
-            <option value="کوتاه‌مدت">کوتاه‌مدت</option>
-            <option value="میان‌مدت">میان‌مدت</option>
-            <option value="بلندمدت">بلندمدت</option>
-          </select>
-          <button
-            onClick={() => {
-              setSearchTerm('');
-              setStatusFilter('all');
-              setPriorityFilter('all');
-              setCategoryFilter('all');
-              setTimeFrameFilter('all');
-            }}
-            className="px-4 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 flex-shrink-0 self-start"
-          >
-            <Filter size={16} />
-            🧹 پاک کردن
-          </button>
+
+          {/* وضعیت */}
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1 xl:col-span-2 min-w-0">
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 truncate"
+            >
+              <option value="all">📌 همه وضعیت‌ها</option>
+              <option value="pending">⏳ در انتظار</option>
+              <option value="in_progress">🔄 در حال اجرا</option>
+              <option value="completed">✅ تکمیل شده</option>
+              <option value="canceled">❌ لغو شده</option>
+              <option value="on_hold">⏸️ متوقف</option>
+            </select>
+          </div>
+
+          {/* اولویت */}
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1 xl:col-span-2 min-w-0">
+            <select
+              value={priorityFilter}
+              onChange={e => setPriorityFilter(e.target.value)}
+              className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 truncate"
+            >
+              <option value="all">🎯 همه اولویت‌ها</option>
+              <option value="خیلی زیاد">🔥 خیلی زیاد</option>
+              <option value="زیاد">⬆️ زیاد</option>
+              <option value="متوسط">➖ متوسط</option>
+              <option value="کم">⬇️ کم</option>
+            </select>
+          </div>
+
+          {/* دسته‌بندی */}
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1 xl:col-span-2 min-w-0">
+            <select
+              value={categoryFilter}
+              onChange={e => setCategoryFilter(e.target.value)}
+              className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 truncate"
+            >
+              <option value="all">🏷️ همه دسته‌ها</option>
+              <option value="عمومی">عمومی</option>
+              <option value="فنی و مهندسی">فنی و مهندسی</option>
+              <option value="مدیریتی و سازمانی">مدیریتی و سازمانی</option>
+              <option value="فرهنگی و اجتماعی">فرهنگی و اجتماعی</option>
+              <option value="علمی و پژوهشی">علمی و پژوهشی</option>
+              <option value="اقتصادی و مالی">اقتصادی و مالی</option>
+              <option value="حقوقی و تقنینی">حقوقی و تقنینی</option>
+              <option value="زیرساختی و لجستیک">زیرساختی و لجستیک</option>
+            </select>
+          </div>
+
+          {/* زمان‌بندی */}
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1 xl:col-span-1 min-w-0">
+            <select
+              value={timeFrameFilter}
+              onChange={e => setTimeFrameFilter(e.target.value)}
+              className="w-full px-2 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500 truncate"
+            >
+              <option value="all">⏳ زمان‌بندی</option>
+              <option value="کوتاه‌مدت">کوتاه‌مدت</option>
+              <option value="میان‌مدت">میان‌مدت</option>
+              <option value="بلندمدت">بلندمدت</option>
+            </select>
+          </div>
+
+          {/* پاک‌سازی */}
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1 xl:col-span-1 min-w-0">
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('all');
+                setPriorityFilter('all');
+                setCategoryFilter('all');
+                setTimeFrameFilter('all');
+              }}
+              className="w-full px-2 py-2 text-gray-500 hover:text-red-600 hover:bg-red-50 border border-gray-200 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
+              title="پاک کردن تمام فیلترها"
+            >
+              <Filter size={14} />
+              <span>پاک‌سازی</span>
+            </button>
+          </div>
         </div>
 
         {/* فیلترهای فعال */}
@@ -703,7 +726,7 @@ export function IssueSystem() {
                     <h4 className="font-bold text-gray-800 text-sm mt-1.5">{issue.title}</h4>
                     <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400 flex-wrap">
                       <div className="flex items-center gap-1.5">
-                        <span>📊 پیشرفت: {issue.completionPercent || 0}%</span>
+                        <span>📊 پیشرفت: {formatNumber(issue.completionPercent || 0)}٪</span>
                         <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                           <div 
                             className={`h-full rounded-full ${
@@ -951,7 +974,7 @@ export function IssueSystem() {
                   <div className="mb-2">
                     <div className="flex justify-between items-center text-[11px] text-gray-400 mb-1">
                       <span>پیشرفت</span>
-                      <span className="font-bold text-gray-700">{issue.completionPercent || 0}%</span>
+                      <span className="font-bold text-gray-700">{formatNumber(issue.completionPercent || 0)}٪</span>
                     </div>
                     <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div 

@@ -81,20 +81,27 @@ export async function apiClient<T = any>(
     if (!res.ok) {
       // اگر ۴۰۱ بود، فقط یک‌بار پیام بده و به اسکرین‌لاک برو (نه صفحه لاگین)
       if (res.status === 401) {
-        // ⚠️ Dedup: فقط اولین ۴۰۱ پیام می‌دهد و قفل می‌کند — نه ۵۰ بار پیام پشت هم
-        if (!(window as any)._sessionExpiredHandled) {
-          (window as any)._sessionExpiredHandled = true;
-          toast.error('نشست شما منقضی شد — برای ادامه، رمز عبور خود را وارد کنید', {
-            id: 'session-expired',
-            duration: 5000,
-          });
-          // 🟢 قفل صفحه (اسکرین‌لاک) به‌جای ردن به صفحه لاگین:
-          // داده‌ها و وضعیت کاربر حفظ می‌شود و با رمز صحیح ادامه می‌دهد
-          import('../store').then(({ useSecurityStore }) => {
-            useSecurityStore.getState().setLocked(true);
-            // توکن نامعتبر حذف می‌شود اما user و همه stateها حفظ می‌مانند
-            useAuthStore.setState({ token: null });
-          });
+        const currentPath = (window.location.pathname || '/') + (window.location.hash || '');
+        const onPublicRoute = currentPath.includes('/login');
+        const { user, token } = useAuthStore.getState();
+        
+        // فقط اگر کاربر قبلاً وارد شده بود و در صفحه لاگین نیست
+        if (user && token && !onPublicRoute) {
+          // ⚠️ Dedup: فقط اولین ۴۰۱ پیام می‌دهد و قفل می‌کند — نه ۵۰ بار پیام پشت هم
+          if (!(window as any)._sessionExpiredHandled) {
+            (window as any)._sessionExpiredHandled = true;
+            toast.error('نشست شما منقضی شد — برای ادامه، رمز عبور خود را وارد کنید', {
+              id: 'app-auth-expired',
+              duration: 5000,
+            });
+            // 🟢 قفل صفحه (اسکرین‌لاک) به‌جای ردن به صفحه لاگین:
+            // داده‌ها و وضعیت کاربر حفظ می‌شود و با رمز صحیح ادامه می‌دهد
+            import('../store').then(({ useSecurityStore }) => {
+              useSecurityStore.getState().setLocked(true);
+              // توکن نامعتبر حذف می‌شود اما user و همه stateها حفظ می‌مانند
+              useAuthStore.setState({ token: null });
+            });
+          }
         }
         throw new Error('Unauthorized');
       }

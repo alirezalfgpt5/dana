@@ -121,7 +121,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               >
                 <span>{col.title}</span>
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${col.badgeColor}`}>
-                  {colIssues.length}
+                  {formatNumber(colIssues.length)}
                 </span>
               </div>
 
@@ -206,7 +206,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                               <div className="mb-2.5">
                                 <div className="flex justify-between items-center text-[11px] text-gray-500 mb-1">
                                   <span>پیشرفت</span>
-                                  <span className="font-bold">{completion}%</span>
+                                  <span className="font-bold">{formatNumber(completion)}٪</span>
                                 </div>
                                 <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                                   <div

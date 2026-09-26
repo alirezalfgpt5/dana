@@ -53,11 +53,16 @@ export default function App() {
   const fetchSystemSettings = useUIStore((state) => state.fetchSystemSettings);
   const fetchMetadata = useUIStore((state) => state.fetchMetadata);
   const logout = useAuthStore((state) => state.logout);
+  const user = useAuthStore((state) => state.user);
+  const token = useAuthStore((state) => state.token);
 
   useEffect(() => {
     fetchSystemSettings();
-    fetchMetadata();
-  }, [fetchSystemSettings, fetchMetadata]);
+    // فقط وقتی کاربر لاگین معتبر دارد متادیتا دریافت شود
+    if (user && token) {
+      fetchMetadata();
+    }
+  }, [fetchSystemSettings, fetchMetadata, user, token]);
 
   useEffect(() => {
     if (darkMode) {
@@ -69,10 +74,17 @@ export default function App() {
 
   useEffect(() => {
     const handleAuthError = (e: any) => {
-      // محافظت مضاعف: در صفحه عمومی لاگین یا بدون نشست فعال، این پیام نمایش داده نمی‌شود
-      const path = window.location.pathname || '/';
-      if (path === '/login' || path.startsWith('/login/') || !useAuthStore.getState().token) return;
-      toast.error(e.detail || 'نشست شما منقضی شده است', { id: 'app-auth-expired' });
+      // اگر کاربر در صفحه لاگین است یا اصلاً لاگین نکرده، پیام انقضا نمایش داده نشود
+      const path = (window.location.pathname || '/') + (window.location.hash || '');
+      const isLogin = path.includes('/login');
+      const { user: curUser, token: curToken } = useAuthStore.getState();
+      
+      if (isLogin || !curUser || !curToken) {
+        logout();
+        return;
+      }
+      
+      toast.error(e.detail || 'نشست شما منقضی شده است. لطفا دوباره وارد شوید.', { id: 'app-auth-expired' });
       logout();
     };
     

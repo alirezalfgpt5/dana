@@ -180,7 +180,7 @@ export function IssueFilters({
       {/* فیلترهای پیشرفته (قابل باز/بسته شدن) */}
       {isExpanded && (
         <div className="mt-4 pt-4 border-t border-gray-200 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {/* حوزه */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">

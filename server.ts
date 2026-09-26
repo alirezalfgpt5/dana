@@ -228,6 +228,22 @@ app.post('/api/backup/create', requireAuth, async (req, res) => {
   }
 });
 
+// تنظیمات عمومی سیستم برای صفحه ورود و هدر عمومی بدون نیاز به احراز هویت (جلوگیری از ۴۰۱ در بدو ورود)
+app.get('/api/metadata/system-settings', async (req: any, res: any) => {
+  try {
+    const { systemSettings } = await import('./src/db/schema.js');
+    const settings = await db.select().from(systemSettings);
+    const settingsObj: Record<string, string> = {};
+    settings.forEach(s => {
+      settingsObj[s.key] = s.value;
+    });
+    res.json(settingsObj);
+  } catch (error) {
+    console.error('❌ Error fetching public system settings:', error);
+    res.status(500).json({ error: 'خطا در دریافت تنظیمات سیستم' });
+  }
+});
+
 app.use('/api/metadata', requireAuth, metadataRoutes);
 app.use('/api/trees', requireAuth, treeRoutes);
 app.use('/api/templates', requireAuth, templateRoutes);

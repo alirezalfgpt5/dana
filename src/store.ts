@@ -148,8 +148,8 @@ let lastAuthErrorTime = 0;
 
 // مسیرهای عمومی (بدون نیاز به نشست) — روی این مسیرها هرگز پیام «نشست منقضی» نمایش داده نمی‌شود
 const isPublicRoute = () => {
-  const path = window.location.pathname || '/';
-  return path === '/login' || path.startsWith('/login/');
+  const path = (window.location.pathname || '/') + (window.location.hash || '');
+  return path.includes('/login');
 };
 
 const dispatchNetworkError = (detail: string) => {
@@ -160,15 +160,16 @@ const dispatchNetworkError = (detail: string) => {
   }
 };
 
-// ⚠️ تنها نقطه ارسال رویداد «نشست منقضی» — همه مسیرها (fetch پچ‌شده و safeFetchJson) از همین
+// ⚠️ تنها نقطه ارسال رویداد «نشست منقضی» — همه مسیرها از همین
 // تابع مشترک استفاده می‌کنند تا پیام فقط یک‌بار و فقط وقتی نشست فعالی وجود دارد صادر شود.
 export const dispatchAuthError = (detail: string) => {
+  const { token, user } = useAuthStore.getState();
   // بدون نشست فعال (کاربر لاگین نکرده یا توکن قبلاً پاک شده) — نشستی برای انقضا وجود ندارد
-  if (!useAuthStore.getState().token) return;
-  // در مسیرهای عمومی مثل صفحه لاگین، ۴۰۱ طبیعی است و نباید پیام انقضای نشست بدهد
+  if (!token || !user) return;
+  // در مسیرهای عمومی مثل صفحه لاگین، نباید پیام انقضای نشست بدهد
   if (isPublicRoute()) return;
   const now = Date.now();
-  if (now - lastAuthErrorTime > 3000) {
+  if (now - lastAuthErrorTime > 4000) {
     lastAuthErrorTime = now;
     window.dispatchEvent(new CustomEvent('auth-error', { detail }));
   }
@@ -189,8 +190,7 @@ const safeFetchJson = async (url: string, options: any = {}) => {
     const res = await fetch(url, options);
     if (!res.ok) {
       if (res.status === 401) {
-        // فقط وقتی نشست فعالی وجود دارد و در مسیر عمومی نیستیم (dispatchAuthError خودش محافظت می‌کند)
-        dispatchAuthError('نشست شما منقضی شده است. لطفا دوباره وارد شوید.');
+        // window.customFetch رویداد dispatchAuthError را مدیریت می‌کند
       } else {
         dispatchNetworkError(`خطای سرور: ${res.status}`);
       }

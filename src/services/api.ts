@@ -37,17 +37,20 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // 🟢 بدون نشست فعال یا در مسیر عمومی لاگین، ۴۰۱ طبیعی است و نباید پیام انقضای نشست بدهد
-      const currentPath = window.location.pathname || '/';
-      const onPublicRoute = currentPath === '/login' || currentPath.startsWith('/login/');
-      const hasSession = !!useAuthStore.getState().token;
+      const currentPath = (window.location.pathname || '/') + (window.location.hash || '');
+      const onPublicRoute = currentPath.includes('/login');
+      const { user, token } = useAuthStore.getState();
+      const hasSession = !!(user && token);
       if (hasSession && !onPublicRoute && !isAuthRedirecting) {
         isAuthRedirecting = true;
-        toast.error('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.', { id: 'session-expired' });
+        toast.error('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.', { id: 'app-auth-expired' });
         useAuthStore.getState().logout();
         setTimeout(() => {
           isAuthRedirecting = false;
           window.location.href = '/login';
         }, 1500);
+      } else if (!hasSession || onPublicRoute) {
+        useAuthStore.getState().logout();
       }
       return Promise.reject(new Error('Unauthorized'));
     }
