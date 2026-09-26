@@ -6,6 +6,7 @@ import BetterSqlite3Compat from './sqlite-adapter.js';
 import * as schema from './schema.js';
 import path from 'path';
 import fs from 'fs';
+import { runComprehensiveSeed } from './seeds.js';
 
 // ============================================
 // ۱. اتصال به پایگاه داده
@@ -865,6 +866,15 @@ export function initDb() {
     } catch {}
   } catch (e) {
     console.error('Error migrating period_id / source_issue_id:', e);
+  }
+
+  // ============================================
+  // ۲-۳. اجرای سیدر جامع و کامل اطلاعات کلیه بخش‌ها (Comprehensive Seeding)
+  // ============================================
+  try {
+    runComprehensiveSeed(sqlite);
+  } catch (e) {
+    console.error('Error running comprehensive seed:', e);
   }
   
   console.log('🎉 Database initialization completed!');
