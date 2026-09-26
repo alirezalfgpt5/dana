@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Search, FileText, LayoutTemplate, Layers, AlertCircle, File as FileIcon } from 'lucide-react';
+import { Search, FileText, LayoutTemplate, Layers, AlertCircle, File as FileIcon, Building2 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { getTreeOrgText } from '../utils/orgHelper';
 
 export const DeepSearch: React.FC = () => {
   const [query, setQuery] = useState('');
@@ -137,8 +138,24 @@ export const DeepSearch: React.FC = () => {
               <ul className="space-y-3">
                 {results.trees.map(tree => (
                   <li key={tree.id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                    <div className="font-semibold">{tree.name}</div>
-                    <div className="text-sm text-gray-500 mt-1 line-clamp-2">{tree.description}</div>
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-gray-800">{tree.name}</div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                        tree.type === 'required' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                        tree.type === 'produced' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        'bg-purple-50 text-purple-700 border border-purple-200'
+                      }`}>
+                        {tree.type === 'required' ? 'مورد نیاز' : tree.type === 'produced' ? 'تولید شده' : 'پژوهشی'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1">
+                      <Building2 size={12} className="text-gray-400 shrink-0" />
+                      <span>ساختار سازمانی:</span>
+                      <span className="text-slate-600 font-medium">{getTreeOrgText(tree)}</span>
+                    </div>
+                    {tree.description && (
+                      <div className="text-xs text-gray-500 mt-1 line-clamp-2">{tree.description}</div>
+                    )}
                   </li>
                 ))}
               </ul>

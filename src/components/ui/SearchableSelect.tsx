@@ -4,9 +4,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, Check, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
-interface Option {
+export interface Option {
   value: string | number;
   label: string;
+  sublabel?: string;
+  icon?: React.ReactNode;
 }
 
 interface SearchableSelectProps {
@@ -103,6 +105,7 @@ export function SearchableSelect({
     const searchLower = searchTerm.toLowerCase();
     return (
       opt.label.toLowerCase().includes(searchLower) ||
+      (opt.sublabel && opt.sublabel.toLowerCase().includes(searchLower)) ||
       String(opt.value).toLowerCase().includes(searchLower)
     );
   });
@@ -185,9 +188,20 @@ export function SearchableSelect({
                 }`}
                 onClick={() => handleSelect(opt)}
               >
-                {opt.label}
+                <div className="flex flex-col text-right min-w-0 pr-1 flex-1">
+                  <span className="truncate leading-snug">{opt.label}</span>
+                  {opt.sublabel && (
+                    <span className={`text-[11px] truncate mt-0.5 font-normal ${
+                      isSelected
+                        ? isDark ? 'text-blue-300/80' : 'text-blue-600/80'
+                        : isDark ? 'text-gray-400' : 'text-gray-400'
+                    }`}>
+                      {opt.sublabel}
+                    </span>
+                  )}
+                </div>
                 {isSelected && (
-                  <Check size={14} className={isDark ? 'text-blue-400' : 'text-blue-600'} />
+                  <Check size={14} className={`shrink-0 mr-2 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
                 )}
               </div>
             );
@@ -214,17 +228,28 @@ export function SearchableSelect({
         } ${
           isDark
             ? 'bg-[#2d2d44] border-transparent text-white hover:border-blue-500 rounded-md text-sm border'
-            : 'bg-white border-gray-200 text-gray-800 hover:border-blue-400 rounded-xl px-3 py-2.5 border'
+            : 'bg-white border-gray-200 text-gray-800 hover:border-blue-400 rounded-xl px-3 py-2 border'
         }`}
         onClick={() => !disabled && setIsOpen(!isOpen)}
       >
-        <span
-          className={`text-sm truncate pr-2 ${
-            !selectedOption ? (isDark ? 'text-gray-400' : 'text-gray-400') : ''
-          }`}
-        >
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
+        <div className="flex-1 min-w-0 pr-2 text-right">
+          {selectedOption ? (
+            <div className="flex flex-col truncate">
+              <span className="text-sm truncate font-medium text-gray-800 leading-snug">
+                {selectedOption.label}
+              </span>
+              {selectedOption.sublabel && (
+                <span className={`text-[11px] truncate font-normal mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
+                  {selectedOption.sublabel}
+                </span>
+              )}
+            </div>
+          ) : (
+            <span className={`text-sm truncate ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
+              {placeholder}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           {allowClear && selectedOption && (
             <div

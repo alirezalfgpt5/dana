@@ -22,6 +22,7 @@ import { format } from 'date-fns-jalali';
 import { KanbanBoard } from '../../components/issues/KanbanBoard';
 import { IssueDetailsModal } from '../../components/issues/IssueDetailsModal';
 import { formatCurrency, formatNumber } from '../../utils/numberFormat';
+import { getIssueOrgText } from '../../utils/orgHelper';
 import toast from 'react-hot-toast';
 
 export function IssueSystem() {
@@ -765,6 +766,11 @@ export function IssueSystem() {
                       )}
                     </div>
                     <h4 className="font-bold text-gray-800 text-sm mt-1.5">{issue.title}</h4>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-1 flex-wrap">
+                      <Building2 size={12} className="text-gray-400 shrink-0" />
+                      <span>ساختار سازمانی / مالک:</span>
+                      <span className="font-medium text-slate-600">{getIssueOrgText(issue)}</span>
+                    </div>
                     <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400 flex-wrap">
                       <div className="flex items-center gap-1.5">
                         <span>📊 پیشرفت: {formatNumber(issue.completionPercent || 0)}٪</span>
@@ -972,9 +978,14 @@ export function IssueSystem() {
                     </span>
                   </div>
 
-                  <h4 className="font-bold text-gray-800 text-sm line-clamp-2 mb-1.5 leading-snug">
+                  <h4 className="font-bold text-gray-800 text-sm line-clamp-2 mb-1 leading-snug">
                     {issue.title}
                   </h4>
+                  <div className="flex items-center gap-1 text-[11px] text-gray-400 mb-2 truncate">
+                    <Building2 size={12} className="shrink-0 text-gray-400" />
+                    <span>ساختار سازمانی:</span>
+                    <span className="text-slate-600 font-medium truncate">{getIssueOrgText(issue)}</span>
+                  </div>
 
                   <div className="space-y-1 mb-2 text-xs text-gray-500">
                     <div className="flex items-center gap-1 text-slate-600 truncate">

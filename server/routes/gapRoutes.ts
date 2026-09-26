@@ -16,6 +16,8 @@ import {
   issues,
   gapAnalysisRuns,
   gapReviews,
+  bases,
+  units,
 } from '../../src/db/schema.js';
 import { eq, and, isNull, not, like, desc, inArray, or, sql } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
@@ -31,7 +33,6 @@ import {
   type EngineAsset,
   type GapAnalysisEngineOptions,
 } from '../../src/utils/gapAnalysisEngine.js';
-import { bases, units } from '../../src/db/schema.js';
 import { getUserOrgScope } from '../utils/orgAccess.js';
 import { sqlite } from '../../src/db/index.js';
 
@@ -260,17 +261,51 @@ gapRoutes.get('/', async (req, res) => {
       .offset(offset)
       .orderBy(desc(gaps.createdAt));
 
-    // دریافت اطلاعات تکمیلی گره‌ها
+    // دریافت اطلاعات تکمیلی گره‌ها و ساختار سازمانی مالک
+    const reqNodeIds = result.map(g => g.requiredNodeId).filter(Boolean);
+    const prodNodeIds = result.map(g => g.producedNodeId).filter(Boolean) as number[];
+    const allNodeIds = Array.from(new Set([...reqNodeIds, ...prodNodeIds]));
+    
+    let allNodes: any[] = [];
+    if (allNodeIds.length > 0) {
+      allNodes = await db.select().from(treeNodes).where(inArray(treeNodes.id, allNodeIds));
+    }
+    const treeIds = Array.from(new Set(allNodes.map(n => n.treeId).filter(Boolean)));
+    
+    let treesWithOrg: any[] = [];
+    if (treeIds.length > 0) {
+      treesWithOrg = await db.select({
+        id: knowledgeTrees.id,
+        name: knowledgeTrees.name,
+        type: knowledgeTrees.type,
+        baseName: bases.name,
+        unitName: units.name,
+      })
+      .from(knowledgeTrees)
+      .leftJoin(bases, eq(knowledgeTrees.baseId, bases.id))
+      .leftJoin(units, eq(knowledgeTrees.unitId, units.id))
+      .where(inArray(knowledgeTrees.id, treeIds));
+    }
+    const treeOrgMap = new Map(treesWithOrg.map(t => {
+      const org = [t.baseName, t.unitName].filter(Boolean).join(' • ') || 'ستاد کل آجا';
+      return [t.id, { ...t, orgStructure: org }];
+    }));
+
     const enrichedGaps = await Promise.all(result.map(async (gap) => {
-      const requiredNode = await db.query.treeNodes.findFirst({
+      const requiredNode = allNodes.find(n => n.id === gap.requiredNodeId) || await db.query.treeNodes.findFirst({
         where: eq(treeNodes.id, gap.requiredNodeId),
       });
 
       const producedNode = gap.producedNodeId
-        ? await db.query.treeNodes.findFirst({
+        ? (allNodes.find(n => n.id === gap.producedNodeId) || await db.query.treeNodes.findFirst({
             where: eq(treeNodes.id, gap.producedNodeId),
-          })
+          }))
         : null;
+
+      const reqTree = requiredNode ? treeOrgMap.get(requiredNode.treeId) : null;
+      const prodTree = producedNode ? treeOrgMap.get(producedNode.treeId) : null;
+
+      const orgStructure = reqTree?.orgStructure || (gap.metadata as any)?.ownerPath || 'ستاد کل آجا';
 
       const researchItem = await db.query.researchItems.findFirst({
         where: eq(researchItems.gapId, gap.id),
@@ -280,10 +315,21 @@ gapRoutes.get('/', async (req, res) => {
         where: eq(issues.researchItemId, researchItem.id),
       }) : null;
 
+      const metadata = {
+        ...(typeof gap.metadata === 'object' && gap.metadata !== null ? gap.metadata : {}),
+        ownerPath: (gap.metadata as any)?.ownerPath || orgStructure,
+        requiredTreeName: reqTree?.name || null,
+        producedTreeName: prodTree?.name || null,
+      };
+
       return {
         ...gap,
         requiredNode,
         producedNode,
+        orgStructure,
+        requiredOrgStructure: reqTree?.orgStructure || null,
+        producedOrgStructure: prodTree?.orgStructure || null,
+        metadata,
         hasResearch: !!researchItem,
         researchItemId: researchItem?.id || null,
         researchItem: researchItem || null,

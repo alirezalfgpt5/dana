@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns-jalali';
 import { formatCurrency, formatNumber } from '../../utils/numberFormat';
+import { getIssueOrgText } from '../../utils/orgHelper';
 
 interface IssueDetailsModalProps {
   issue: any;
@@ -86,6 +87,11 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
               <h3 className="font-bold text-gray-800 text-base mt-1 line-clamp-1">
                 {issue.title}
               </h3>
+              <div className="text-xs text-gray-500 flex items-center gap-1.5 mt-1">
+                <Building2 size={13} className="text-gray-400 shrink-0" />
+                <span>ساختار سازمانی / مالک:</span>
+                <span className="font-semibold text-slate-700">{getIssueOrgText(issue)}</span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">

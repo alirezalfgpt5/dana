@@ -10,7 +10,8 @@ import {
   CheckCircle, AlertCircle, Clock,
   Filter, HelpCircle, Zap, Edit2, Upload,
   FileText, Info, Layers, Sparkles, TrendingUp, ChevronDown, RotateCcw, ListChecks,
-  Database, UserCheck, Ban, ShieldCheck, History, GitBranch as PathIcon, XCircle
+  Database, UserCheck, Ban, ShieldCheck, History, GitBranch as PathIcon, XCircle,
+  Building2
 } from 'lucide-react';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RelationalView } from '../../components/gaps/RelationalView';
@@ -18,6 +19,7 @@ import toast from 'react-hot-toast';
 import { TreeGraphView } from '../Trees/components/TreeGraphView';
 import { useNavigate } from 'react-router-dom';
 import ExcelIcon from '../../components/icon/ExcelIcon';
+import { getTreeOrgText, getGapOrgText } from '../../utils/orgHelper';
 
 /** برچسب فارسی سطوح درختواره */
 const LEVEL_LABELS: Record<string, string> = {
@@ -190,7 +192,8 @@ export function GapAnalysis() {
     { value: '0', label: 'بدون درختواره تولید شده (ندارد)' },
     ...producedTrees.map(t => ({
       value: String(t.id),
-      label: t.name,
+      label: `${t.name} (تولید شده)`,
+      sublabel: `ساختار سازمانی: ${getTreeOrgText(t)}`,
     }))
   ];
 
@@ -606,7 +609,8 @@ export function GapAnalysis() {
             <SearchableSelect
               options={requiredTrees.map(t => ({
                 value: String(t.id),
-                label: t.name,
+                label: `${t.name} (مورد نیاز)`,
+                sublabel: `ساختار سازمانی: ${getTreeOrgText(t)}`,
               }))}
               value={requiredTreeId ? String(requiredTreeId) : ''}
               onChange={(val) => setRequiredTreeId(val ? parseInt(val as string) : null)}
@@ -626,6 +630,34 @@ export function GapAnalysis() {
             />
           </div>
         </div>
+
+        {/* کادرهای نمایش شفاف ساختار سازمانی و مالک هر درختواره */}
+        {(requiredTreeId || (producedTreeId !== null && producedTreeId !== 0)) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 pt-3 border-t border-slate-100 text-xs">
+            {requiredTreeId ? (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50/70 border border-blue-100/90 text-slate-700">
+                <Building2 size={16} className="text-blue-600 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-[11px] text-blue-700 font-bold block">مالک درختواره دانشی مورد نیاز:</span>
+                  <span className="font-semibold text-slate-800 truncate block mt-0.5">
+                    {getTreeOrgText(requiredTrees.find(t => t.id === requiredTreeId))}
+                  </span>
+                </div>
+              </div>
+            ) : <div />}
+            {producedTreeId !== null && producedTreeId !== 0 ? (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100/90 text-slate-700">
+                <Building2 size={16} className="text-emerald-600 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-[11px] text-emerald-700 font-bold block">مالک درختواره دانشی تولید شده:</span>
+                  <span className="font-semibold text-slate-800 truncate block mt-0.5">
+                    {getTreeOrgText(producedTrees.find(t => t.id === producedTreeId))}
+                  </span>
+                </div>
+              </div>
+            ) : <div />}
+          </div>
+        )}
 
         {(!requiredTreeId || producedTreeId === null) && (
           <div className="mt-4 p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl flex items-center gap-2.5 text-xs text-amber-800">
@@ -1015,23 +1047,31 @@ export function GapAnalysis() {
                         <td className="px-4 py-3.5 text-gray-400 text-xs">{index + 1}</td>
                         <td className="px-4 py-3.5">
                           <div className="font-medium text-gray-800">{gap.requiredNode?.title || 'نامشخص'}</div>
-                          {gap.requiredNode?.level && (
-                            <span className="text-[10px] text-gray-400">
-                              سطح: {LEVEL_LABELS[gap.requiredNode.level] || gap.requiredNode.level}
-                            </span>
-                          )}
-                          {/* 🟢 مسیر ساختاری + مالک گره (مطابق ساختار آجا/نیرو/رده) */}
-                          {(gap.metadata?.structuralPath || gap.metadata?.ownerPath) && (
-                            <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1" dir="rtl">
-                              <PathIcon size={10} />
-                              <span title="مسیر ساختاری درختواره (ریشه تا گره)">
-                                {gap.metadata?.structuralPath}
+                          
+                          {/* 🟢 نمایش برجسته و خوانای ساختار سازمانی مالک گره دانشی */}
+                          <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                            <span className="inline-flex items-center gap-1">
+                              <Building2 size={12} className="text-gray-400 shrink-0" />
+                              <span>ساختار سازمانی:</span>
+                              <span className="font-medium text-slate-600">
+                                {getGapOrgText(gap) || (requiredTreeId ? getTreeOrgText(requiredTrees.find(t => t.id === requiredTreeId)) : 'ستاد کل آجا')}
                               </span>
-                              {gap.metadata?.ownerPath && (
-                                <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500 border border-indigo-100 mr-1">
-                                  {gap.metadata.ownerPath}
-                                </span>
-                              )}
+                            </span>
+                            {gap.requiredNode?.level && (
+                              <>
+                                <span className="text-gray-300">•</span>
+                                <span>سطح: {LEVEL_LABELS[gap.requiredNode.level] || gap.requiredNode.level}</span>
+                              </>
+                            )}
+                          </div>
+
+                          {/* 🟢 مسیر ساختاری از ریشه تا برگ */}
+                          {gap.metadata?.structuralPath && (
+                            <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1" dir="rtl">
+                              <PathIcon size={10} className="shrink-0" />
+                              <span title="مسیر ساختاری درختواره (ریشه تا گره)" className="truncate max-w-sm">
+                                {gap.metadata.structuralPath}
+                              </span>
                             </div>
                           )}
                           {/* 🟢 نشان بازنگری دستی کاربر */}

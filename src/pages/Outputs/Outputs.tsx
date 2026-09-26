@@ -22,6 +22,7 @@ import RawExcelIcon from '../../components/icon/ExcelIcon';
 import rawTransition from 'react-element-popper/animations/transition';
 import toast from 'react-hot-toast';
 import { TreeGraphView } from '../Trees/components/TreeGraphView';
+import { getTreeOrgText } from '../../utils/orgHelper';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { formatNumber } from '../../utils/numberFormat';
 
@@ -150,6 +151,7 @@ export function Outputs() {
   const treeOptions = trees.map(t => ({
     value: String(t.id),
     label: `${t.name} (${t.type === 'required' ? 'مورد نیاز' : t.type === 'produced' ? 'تولیدشده' : 'پژوهشی'})`,
+    sublabel: `ساختار سازمانی: ${getTreeOrgText(t)}`,
   }));
 
   const outputTypeOptions = [

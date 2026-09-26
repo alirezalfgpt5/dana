@@ -869,13 +869,10 @@ export function initDb() {
   }
 
   // ============================================
-  // ۲-۳. اجرای سیدر جامع و کامل اطلاعات کلیه بخش‌ها (Comprehensive Seeding)
+  // ۲-۳. سیدر داده‌ها طبق درخواست کاربر دستی است (Manual Console Seed)
+  // دستور اجرا در کنسول: npm run seed
   // ============================================
-  try {
-    runComprehensiveSeed(sqlite);
-  } catch (e) {
-    console.error('Error running comprehensive seed:', e);
-  }
+  console.log('💡 [DANA Database] سید خودکار غیرفعال است. جهت اجرای سید دستی از دستور "npm run seed" در کنسول استفاده فرمایید.');
   
   console.log('🎉 Database initialization completed!');
 }

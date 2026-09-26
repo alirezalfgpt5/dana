@@ -8,7 +8,7 @@ import { useGapAnalysis } from '../../hooks/useGapAnalysis';
 import { 
   Database, Search, X, Download, RefreshCw,
   CheckCircle, AlertCircle, Clock, 
-  Filter, Target, HelpCircle, Trash2, Edit2, Settings
+  Filter, Target, HelpCircle, Trash2, Edit2, Settings, Building2
 } from 'lucide-react';
 
 import { api } from '../../services/api';
@@ -16,6 +16,7 @@ import ExcelIcon from '../../components/icon/ExcelIcon';
 import { AdvancedQueryBuilder, FilterGroup } from '../../components/ui/AdvancedQueryBuilder';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { TreeGraphView } from '../Trees/components/TreeGraphView';
+import { getTreeOrgText } from '../../utils/orgHelper';
 import toast from 'react-hot-toast';
 
 export function ResearchTree() {
@@ -329,12 +330,22 @@ export function ResearchTree() {
             <SearchableSelect
               options={researchTrees.map(t => ({
                 value: String(t.id),
-                label: t.name,
+                label: `${t.name} (پژوهشی)`,
+                sublabel: `ساختار سازمانی: ${getTreeOrgText(t)}`,
               }))}
               value={selectedTreeId ? String(selectedTreeId) : ''}
               onChange={(val) => setSelectedTreeId(val ? parseInt(val as string) : null)}
               placeholder="انتخاب درختواره پژوهشی..."
             />
+            {selectedTreeId && tree && (
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-400">
+                <Building2 size={13} className="text-gray-400 shrink-0" />
+                <span>ساختار سازمانی:</span>
+                <span className="text-gray-500 font-medium">{getTreeOrgText(tree)}</span>
+                <span className="text-gray-300">•</span>
+                <span className="text-purple-600 font-medium">پژوهشی</span>
+              </div>
+            )}
           </div>
         </div>
 

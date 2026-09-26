@@ -8,12 +8,13 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { 
   Plus, Copy, Download, Trash2, Search, Edit2, X, 
   Eye, EyeOff, GitBranch, HelpCircle, RefreshCw, 
-  Maximize2, Minimize2 
+  Maximize2, Minimize2, Building2 
 , Circle, CheckCircle } from 'lucide-react';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import toast from 'react-hot-toast';
 import { useSimulatedFullscreen } from '../../hooks/useSimulatedFullscreen';
+import { getTreeOrgText } from '../../utils/orgHelper';
 
 // کامپوننت‌ها
 import { TreeHelp } from './components/TreeHelp';
@@ -569,16 +570,26 @@ export function ProducedTree() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">انتخاب درختواره</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">انتخاب درختواره دانشی تولید شده</label>
             <SearchableSelect
               options={filteredTrees.map(t => ({ 
                 value: String(t.id), 
-                label: `${t.name} (${t.type === 'produced' ? 'تولید شده' : t.type})` 
+                label: `${t.name} (تولید شده)`,
+                sublabel: `ساختار سازمانی: ${getTreeOrgText(t)}`,
               }))}
               value={selectedTreeId ? String(selectedTreeId) : ''}
               onChange={(val) => setSelectedTreeId(val ? parseInt(val as string) : null)}
-              placeholder="انتخاب درختواره..." 
+              placeholder="انتخاب درختواره دانشی تولید شده..." 
             />
+            {selectedTreeId && tree && (
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-400">
+                <Building2 size={13} className="text-gray-400 shrink-0" />
+                <span>ساختار سازمانی:</span>
+                <span className="text-gray-500 font-medium">{getTreeOrgText(tree)}</span>
+                <span className="text-gray-300">•</span>
+                <span className="text-emerald-600 font-medium">تولید شده</span>
+              </div>
+            )}
           </div>
           <div className="sm:w-48">
             <label className="block text-xs font-medium text-gray-600 mb-1.5">جستجو</label>
@@ -650,6 +661,8 @@ export function ProducedTree() {
             // Props برای تلفیق هدر
             treeName={tree.name}
             treeDescription={tree.description || ''}
+            orgStructure={getTreeOrgText(tree)}
+            treeType="produced"
             nodeCount={nodes.length}
             onAddRootNode={handleAddRootNode}
             onToggleFullscreen={toggleFullscreen}

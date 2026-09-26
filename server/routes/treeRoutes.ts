@@ -13,6 +13,8 @@ import {
   templates,
   templateInstances,
   issues,
+  bases,
+  units,
 } from '../../src/db/schema.js';
 import { eq, and, isNull, not, inArray, or, like, desc } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
@@ -133,12 +135,30 @@ async function hasTreeAccess(user: any, treeId: number) {
 // ۱. مدیریت درختواره‌ها (CRUD)
 // ============================================
 
-// دریافت لیست درختواره‌ها با فیلتر
+// دریافت لیست درختواره‌ها با فیلتر و ساختار سازمانی
 treeRoutes.get('/', async (req, res) => {
   try {
     const { type, periodId, baseId, unitId, isActive, mode } = req.query;
     
-    let query = db.select().from(knowledgeTrees);
+    let query = db.select({
+      id: knowledgeTrees.id,
+      name: knowledgeTrees.name,
+      type: knowledgeTrees.type,
+      description: knowledgeTrees.description,
+      periodId: knowledgeTrees.periodId,
+      baseId: knowledgeTrees.baseId,
+      unitId: knowledgeTrees.unitId,
+      metadata: knowledgeTrees.metadata,
+      isActive: knowledgeTrees.isActive,
+      createdAt: knowledgeTrees.createdAt,
+      updatedAt: knowledgeTrees.updatedAt,
+      baseName: bases.name,
+      unitName: units.name,
+    })
+    .from(knowledgeTrees)
+    .leftJoin(bases, eq(knowledgeTrees.baseId, bases.id))
+    .leftJoin(units, eq(knowledgeTrees.unitId, units.id));
+
     const conditions: any[] = [];
 
     if (type) {
@@ -171,26 +191,65 @@ treeRoutes.get('/', async (req, res) => {
     }
 
     const result = await query.orderBy(knowledgeTrees.createdAt);
-    res.json(result);
+    
+    // افزودن ساختار سازمانی کامل
+    const enriched = result.map((t) => {
+      let orgStructure = '';
+      if (t.baseName && t.unitName) {
+        orgStructure = `${t.baseName} • ${t.unitName}`;
+      } else if (t.unitName) {
+        orgStructure = t.unitName;
+      } else if (t.baseName) {
+        orgStructure = t.baseName;
+      } else {
+        orgStructure = 'ستاد کل آجا';
+      }
+      return {
+        ...t,
+        orgStructure,
+      };
+    });
+
+    res.json(enriched);
   } catch (error) {
     console.error('Error fetching trees:', error);
     res.status(500).json({ error: 'خطا در دریافت لیست درختواره‌ها' });
   }
 });
 
-// دریافت یک درختواره با تمام گره‌ها
+// دریافت یک درختواره با تمام گره‌ها و ساختار سازمانی
 treeRoutes.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const treeId = parseInt(id);
     
-    const tree = await db.query.knowledgeTrees.findFirst({
-      where: eq(knowledgeTrees.id, treeId),
-    });
+    const treeArr = await db.select({
+      id: knowledgeTrees.id,
+      name: knowledgeTrees.name,
+      type: knowledgeTrees.type,
+      description: knowledgeTrees.description,
+      periodId: knowledgeTrees.periodId,
+      baseId: knowledgeTrees.baseId,
+      unitId: knowledgeTrees.unitId,
+      metadata: knowledgeTrees.metadata,
+      isActive: knowledgeTrees.isActive,
+      createdAt: knowledgeTrees.createdAt,
+      updatedAt: knowledgeTrees.updatedAt,
+      baseName: bases.name,
+      unitName: units.name,
+    })
+    .from(knowledgeTrees)
+    .leftJoin(bases, eq(knowledgeTrees.baseId, bases.id))
+    .leftJoin(units, eq(knowledgeTrees.unitId, units.id))
+    .where(eq(knowledgeTrees.id, treeId));
     
-    if (!tree) {
+    if (treeArr.length === 0) {
       return res.status(404).json({ error: 'درختواره یافت نشد' });
     }
+
+    const tree = treeArr[0] as any;
+    const orgStructure = [tree.baseName, tree.unitName].filter(Boolean).join(' • ') || 'ستاد کل آجا';
+    tree.orgStructure = orgStructure;
     
     res.setHeader('Content-Type', 'application/json');
     res.write('{');
@@ -988,27 +1047,90 @@ treeRoutes.get('/nodes/:nodeId/path', async (req, res) => {
 });
 
 export default treeRoutes;
-// دریافت گره‌های شاخه و زیرشاخه برای سیستم مسائل
+// دریافت گره‌های شاخه، زیرشاخه و برگ همراه با ساختار سازمانی برای سیستم مسائل و فرم‌ها
 treeRoutes.get('/domain-nodes/all', async (req, res) => {
   try {
     const nodes = await db.select()
       .from(treeNodes)
-      .where(or(eq(treeNodes.level, 'B'), eq(treeNodes.level, 'SB')));
+      .where(or(eq(treeNodes.level, 'B'), eq(treeNodes.level, 'SB'), eq(treeNodes.level, 'L'), eq(treeNodes.level, 'Q')));
       
-    // join tree to get tree name
-    const result = await Promise.all(nodes.map(async (n) => {
-      const tree = await db.query.knowledgeTrees.findFirst({ where: eq(knowledgeTrees.id, n.treeId) });
+    const allTrees = await db.select({
+      id: knowledgeTrees.id,
+      name: knowledgeTrees.name,
+      type: knowledgeTrees.type,
+      baseName: bases.name,
+      unitName: units.name,
+    })
+    .from(knowledgeTrees)
+    .leftJoin(bases, eq(knowledgeTrees.baseId, bases.id))
+    .leftJoin(units, eq(knowledgeTrees.unitId, units.id));
+
+    const treeMap = new Map(allTrees.map(t => [t.id, t]));
+
+    const result = nodes.map((n) => {
+      const tree = treeMap.get(n.treeId);
+      const orgStructure = [tree?.baseName, tree?.unitName].filter(Boolean).join(' • ') || 'ستاد کل آجا';
       return {
         id: n.id,
         title: n.title,
         level: n.level,
-        treeName: tree?.name || 'نامشخص'
+        treeId: n.treeId,
+        treeName: tree?.name || 'نامشخص',
+        treeType: tree?.type || 'required',
+        baseName: tree?.baseName || null,
+        unitName: tree?.unitName || null,
+        orgStructure,
+        templateIds: n.templateIds,
       };
-    }));
+    });
 
     res.json(result);
   } catch (error) {
     console.error('Error fetching domain nodes:', error);
     res.status(500).json({ error: 'خطا در دریافت گره‌های دانشی متصل به مسائل' });
+  }
+});
+
+// دریافت برگ‌ها و شاخه‌ها با اطلاعات سازمانی
+treeRoutes.get('/nodes/leaves', async (req, res) => {
+  try {
+    const nodes = await db.select()
+      .from(treeNodes)
+      .where(or(eq(treeNodes.level, 'L'), eq(treeNodes.level, 'Q'), eq(treeNodes.level, 'B'), eq(treeNodes.level, 'SB')));
+      
+    const allTrees = await db.select({
+      id: knowledgeTrees.id,
+      name: knowledgeTrees.name,
+      type: knowledgeTrees.type,
+      baseName: bases.name,
+      unitName: units.name,
+    })
+    .from(knowledgeTrees)
+    .leftJoin(bases, eq(knowledgeTrees.baseId, bases.id))
+    .leftJoin(units, eq(knowledgeTrees.unitId, units.id));
+
+    const treeMap = new Map(allTrees.map(t => [t.id, t]));
+
+    const result = nodes.map((n) => {
+      const tree = treeMap.get(n.treeId);
+      const orgStructure = [tree?.baseName, tree?.unitName].filter(Boolean).join(' • ') || 'ستاد کل آجا';
+      return {
+        id: n.id,
+        title: n.title,
+        level: n.level,
+        treeId: n.treeId,
+        treeName: tree?.name || 'نامشخص',
+        treeType: tree?.type || 'required',
+        baseName: tree?.baseName || null,
+        unitName: tree?.unitName || null,
+        orgStructure,
+        templateIds: n.templateIds,
+      };
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching leaves:', error);
+    res.status(500).json({ error: 'خطا در دریافت برگ‌های دانشی' });
   }
 });

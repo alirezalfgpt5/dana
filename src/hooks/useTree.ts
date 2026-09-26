@@ -31,6 +31,9 @@ interface KnowledgeTree {
   periodId: number | null;
   baseId: number | null;
   unitId: number | null;
+  baseName?: string | null;
+  unitName?: string | null;
+  orgStructure?: string | null;
   isActive: number;
   metadata: any;
   createdAt: string;

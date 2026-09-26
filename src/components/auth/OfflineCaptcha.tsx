@@ -242,30 +242,80 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
       const w = canvas.width;
       const h = canvas.height;
 
+      // ۱. گرادیان پس‌زمینه
       const grad = ctx.createLinearGradient(0, 0, w, h);
-      grad.addColorStop(0, '#f8fafc');
-      grad.addColorStop(1, '#f1f5f9');
+      grad.addColorStop(0, '#eef2ff');
+      grad.addColorStop(0.5, '#f8fafc');
+      grad.addColorStop(1, '#e0e7ff');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
-      for (let i = 0; i < 3; i++) {
-        ctx.strokeStyle = 'rgba(99, 102, 241, 0.25)';
-        ctx.lineWidth = 1.2;
+      // ۲. شبکه خطوط زمینه (Grid lines)
+      ctx.lineWidth = 0.6;
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.18)';
+      for (let x = 0; x < w; x += 12) {
         ctx.beginPath();
-        ctx.moveTo(Math.random() * w, Math.random() * h);
-        ctx.lineTo(Math.random() * w, Math.random() * h);
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y < h; y += 10) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
         ctx.stroke();
       }
 
+      // ۳. خطوط متقاطع و منحنی‌های نویز پس‌زمینه
+      const lineColors = [
+        'rgba(99, 102, 241, 0.45)',
+        'rgba(236, 72, 153, 0.4)',
+        'rgba(16, 185, 129, 0.4)',
+        'rgba(245, 158, 11, 0.45)',
+        'rgba(139, 92, 246, 0.5)'
+      ];
+
+      for (let i = 0; i < 5; i++) {
+        ctx.strokeStyle = lineColors[i % lineColors.length];
+        ctx.lineWidth = Math.random() * 1.2 + 0.8;
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * 20, Math.random() * h);
+        ctx.bezierCurveTo(
+          w * 0.3, Math.random() * h,
+          w * 0.7, Math.random() * h,
+          w - Math.random() * 20, Math.random() * h
+        );
+        ctx.stroke();
+      }
+
+      // ۴. نقاط نویز تصادفی
+      for (let i = 0; i < 40; i++) {
+        ctx.fillStyle = lineColors[Math.floor(Math.random() * lineColors.length)];
+        ctx.beginPath();
+        ctx.arc(Math.random() * w, Math.random() * h, Math.random() * 1.5 + 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       ctx.font = 'bold 16px Vazirmatn, Tahoma, sans-serif';
-      ctx.fillStyle = '#334155';
+      ctx.fillStyle = '#1e1b4b';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(qText, w / 2, h / 2);
+
+      // ۵. خط موج‌دار رو گذر
+      ctx.strokeStyle = 'rgba(79, 70, 229, 0.35)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (let x = 0; x < w; x += 5) {
+        const y = h / 2 + Math.sin(x * 0.08) * 8;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
     }, 40);
   }, []);
 
-  // ۳. چالش کد تصویری
+  // ۳. چالش کد تصویری (حروف و رقم همراه با خطوط، شبکه و نویز پس‌زمینه)
   const generateText = useCallback(() => {
     setIsVerified(false);
     onVerifyRef.current(false);
@@ -287,27 +337,139 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
       const w = canvas.width;
       const h = canvas.height;
 
+      // ۱. گرادیان پس‌زمینه
       const grad = ctx.createLinearGradient(0, 0, w, h);
-      grad.addColorStop(0, '#f1f5f9');
-      grad.addColorStop(1, '#e2e8f0');
+      grad.addColorStop(0, '#eef2ff');
+      grad.addColorStop(0.3, '#f1f5f9');
+      grad.addColorStop(0.7, '#fce7f3');
+      grad.addColorStop(1, '#e0e7ff');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
-      const charWidth = w / (code.length + 1);
+      // ۲. الگوی شبکه خطوط شطرنجی و مورب (Background Grid & Diagonal Lines)
+      ctx.lineWidth = 0.7;
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
+      for (let x = 0; x < w; x += 12) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y < h; y += 9) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // خطوط مورب شبکه
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.18)';
+      for (let d = -h; d < w + h; d += 16) {
+        ctx.beginPath();
+        ctx.moveTo(d, 0);
+        ctx.lineTo(d + h, h);
+        ctx.stroke();
+      }
+
+      // ۳. خطوط منحنی بزیه و خطوط تداخلی رنگی (Interference Curves)
+      const lineColors = [
+        'rgba(79, 70, 229, 0.55)',   // Indigo
+        'rgba(219, 39, 119, 0.5)',   // Pink
+        'rgba(5, 150, 105, 0.5)',    // Emerald
+        'rgba(217, 119, 6, 0.5)',    // Amber
+        'rgba(124, 58, 237, 0.55)',  // Purple
+        'rgba(37, 99, 235, 0.5)'     // Blue
+      ];
+
+      // رسم ۶ خط منحنی و شکسته در زوایای مختلف در بک‌گراند
+      for (let i = 0; i < 6; i++) {
+        ctx.strokeStyle = lineColors[i % lineColors.length];
+        ctx.lineWidth = Math.random() * 1.5 + 0.8;
+        ctx.beginPath();
+        const startY = Math.random() * h;
+        const endY = Math.random() * h;
+        const cp1x = w * (0.2 + Math.random() * 0.3);
+        const cp1y = Math.random() * h;
+        const cp2x = w * (0.5 + Math.random() * 0.4);
+        const cp2y = Math.random() * h;
+
+        ctx.moveTo(0, startY);
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, w, endY);
+        ctx.stroke();
+      }
+
+      // ۴. خطوط مستقیم متقاطع (Intersecting scratch lines)
+      for (let i = 0; i < 5; i++) {
+        ctx.strokeStyle = lineColors[(i + 2) % lineColors.length];
+        ctx.lineWidth = Math.random() * 1.2 + 0.7;
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * (w * 0.4), Math.random() * h);
+        ctx.lineTo(w * 0.6 + Math.random() * (w * 0.4), Math.random() * h);
+        ctx.stroke();
+      }
+
+      // ۵. نقاط نویز تصادفی (Noise Speckles)
+      for (let i = 0; i < 70; i++) {
+        ctx.fillStyle = lineColors[Math.floor(Math.random() * lineColors.length)];
+        ctx.beginPath();
+        ctx.arc(
+          Math.random() * w,
+          Math.random() * h,
+          Math.random() * 1.6 + 0.4,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      }
+
+      // ۶. رسم کاراکترهای حروف و ارقام با چرخش و سایه
+      const charWidth = w / (code.length + 0.8);
+      const textColors = ['#312e81', '#1e1b4b', '#4338ca', '#701a75', '#0f172a'];
+
       for (let i = 0; i < code.length; i++) {
         ctx.save();
-        const x = (i + 0.9) * charWidth;
-        const y = h / 2 + (Math.random() * 4 - 2);
-        const angle = (Math.random() - 0.5) * 0.35;
+        const x = (i + 0.75) * charWidth;
+        const y = h / 2 + (Math.random() * 5 - 2.5);
+        const angle = (Math.random() - 0.5) * 0.42; // چرخش تا حدود ±۱۲ درجه
         ctx.translate(x, y);
         ctx.rotate(angle);
-        ctx.font = 'bold 18px Arial, sans-serif';
-        ctx.fillStyle = '#4338ca';
+
+        // سایه کاراکتر
+        ctx.font = 'bold 20px "Segoe UI", Arial, sans-serif';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.fillText(code[i], 1.5, 1.5);
+
+        // رنگ اصلی کاراکتر
+        ctx.fillStyle = textColors[i % textColors.length];
         ctx.fillText(code[i], 0, 0);
         ctx.restore();
       }
+
+      // ۷. خطوط امواج تداخلی روگذر (Foreground Sine Wave Crossing Characters)
+      ctx.strokeStyle = 'rgba(67, 56, 202, 0.45)';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      const waveFreq = Math.random() * 0.04 + 0.05;
+      const waveAmp = Math.random() * 5 + 6;
+      const wavePhase = Math.random() * Math.PI;
+      for (let x = 0; x <= w; x += 3) {
+        const y = h / 2 + Math.sin(x * waveFreq + wavePhase) * waveAmp;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // یک خط بریده‌بریده روگذر دیگر برای امنیت بصری بیشتر
+      ctx.strokeStyle = 'rgba(236, 72, 153, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(5, Math.random() * (h * 0.6) + h * 0.2);
+      ctx.bezierCurveTo(w * 0.35, Math.random() * h, w * 0.65, Math.random() * h, w - 5, Math.random() * (h * 0.6) + h * 0.2);
+      ctx.stroke();
+      ctx.setLineDash([]); // ریست خط‌چین
     }, 40);
   }, []);
 

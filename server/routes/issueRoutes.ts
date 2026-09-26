@@ -14,6 +14,7 @@ import {
   knowledgeTrees,
   templates,
   users, gaps, periods,
+  bases, units,
 } from '../../src/db/schema.js';
 import { eq, and, or, like, isNull, not, desc, inArray, sql } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
@@ -362,11 +363,52 @@ issueRoutes.get('/', async (req, res) => {
         .groupBy(issueAttachments.issueId);
     }
 
+    // استخراج ساختار سازمانی درختواره‌ها
+    const treeIdsFromNodes = Array.from(new Set(allNodes.map(n => n.treeId).filter(Boolean)));
+    let allTreesWithOrg: any[] = [];
+    if (treeIdsFromNodes.length > 0) {
+      allTreesWithOrg = await db.select({
+        id: knowledgeTrees.id,
+        name: knowledgeTrees.name,
+        type: knowledgeTrees.type,
+        baseId: knowledgeTrees.baseId,
+        unitId: knowledgeTrees.unitId,
+        baseName: bases.name,
+        unitName: units.name,
+      })
+      .from(knowledgeTrees)
+      .leftJoin(bases, eq(knowledgeTrees.baseId, bases.id))
+      .leftJoin(units, eq(knowledgeTrees.unitId, units.id))
+      .where(inArray(knowledgeTrees.id, treeIdsFromNodes));
+    }
+    const treeOrgMap = new Map(allTreesWithOrg.map(t => {
+      const org = [t.baseName, t.unitName].filter(Boolean).join(' • ') || 'ستاد کل آجا';
+      return [t.id, { ...t, orgStructure: org }];
+    }));
+
     const enrichedIssues = result.map((issue) => {
       const researchItem = allResearchItems.find(ri => ri.id === issue.researchItemId) || null;
       const node = researchItem ? allNodes.find(n => n.id === researchItem.nodeId) || null : null;
-      const domainNode = issue.domainNodeId ? allNodes.find(n => n.id === issue.domainNodeId) || null : null;
+      const rawDomainNode = issue.domainNodeId ? allNodes.find(n => n.id === issue.domainNodeId) || null : null;
       
+      const targetNode = rawDomainNode || node;
+      const tree = targetNode ? treeOrgMap.get(targetNode.treeId) : null;
+      
+      let orgStructure = '';
+      if (tree?.orgStructure) {
+        orgStructure = tree.orgStructure;
+      } else if (issue.responsibleUnit) {
+        orgStructure = issue.responsibleUnit;
+      } else {
+        orgStructure = 'ستاد کل آجا';
+      }
+
+      const domainNode = rawDomainNode ? {
+        ...rawDomainNode,
+        treeName: tree?.name || null,
+        treeOrg: tree?.orgStructure || null,
+      } : null;
+
       const issueTempRels = allIssueTemplates.filter(it => it.issueId === issue.id);
       const temps = issueTempRels.map(rel => allTemplates.find(t => t.id === rel.templateId)).filter(Boolean);
 
@@ -378,6 +420,8 @@ issueRoutes.get('/', async (req, res) => {
         domainNode,
         researchItem,
         node,
+        orgStructure,
+        responsibleUnit: issue.responsibleUnit || (tree?.unitName) || null,
         templates: temps,
         attachmentsCount: attachment?.count || 0,
       };
@@ -453,6 +497,33 @@ issueRoutes.get('/:id', async (req, res) => {
       ? await db.query.treeNodes.findFirst({ where: eq(treeNodes.id, issue.domainNodeId) })
       : null;
 
+    const targetNode = domainNode || node;
+    let tree: any = null;
+    let orgStructure = '';
+
+    if (targetNode?.treeId) {
+      const treeRes = await db.select({
+        id: knowledgeTrees.id,
+        name: knowledgeTrees.name,
+        type: knowledgeTrees.type,
+        baseName: bases.name,
+        unitName: units.name,
+      })
+      .from(knowledgeTrees)
+      .leftJoin(bases, eq(knowledgeTrees.baseId, bases.id))
+      .leftJoin(units, eq(knowledgeTrees.unitId, units.id))
+      .where(eq(knowledgeTrees.id, targetNode.treeId));
+
+      if (treeRes.length > 0) {
+        tree = treeRes[0];
+        orgStructure = [tree.baseName, tree.unitName].filter(Boolean).join(' • ');
+      }
+    }
+
+    if (!orgStructure) {
+      orgStructure = issue.responsibleUnit || 'ستاد کل آجا';
+    }
+
     const sourceIssue = issue.sourceIssueId
       ? await db.query.issues.findFirst({
           where: eq(issues.id, issue.sourceIssueId),
@@ -463,9 +534,11 @@ issueRoutes.get('/:id', async (req, res) => {
     res.json({
       ...issue,
       domain: domainNode?.title || (issue as any).domain || 'نامشخص',
-      domainNode,
+      domainNode: domainNode ? { ...domainNode, treeName: tree?.name, treeOrg: orgStructure } : null,
       researchItem,
       node,
+      orgStructure,
+      responsibleUnit: issue.responsibleUnit || tree?.unitName || null,
       templates: templatesList,
       templateIds: templateIds.map(String),
       attachments,

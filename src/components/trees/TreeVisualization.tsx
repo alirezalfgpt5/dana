@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import { 
   ZoomIn, ZoomOut, RotateCcw, Settings, Eye, EyeOff, 
   LayoutGrid, Square, GitBranch as GitBranchIcon, 
-  Maximize2, Download, X, Plus, HelpCircle, Minimize2, Activity, Move 
+  Maximize2, Download, X, Plus, HelpCircle, Minimize2, Activity, Move, Building2 
 } from 'lucide-react';
 import { createPortal, flushSync } from 'react-dom';
 import toast from 'react-hot-toast';
@@ -37,6 +37,8 @@ interface TreeVisualizationProps {
   renderLeafActions?: (node: any) => React.ReactNode;
   treeName?: string;
   treeDescription?: string;
+  orgStructure?: string;
+  treeType?: 'required' | 'produced' | 'research' | string;
   nodeCount?: number;
   onAddRootNode?: () => void;
   onToggleFullscreen?: () => void;
@@ -97,6 +99,8 @@ export function TreeVisualization({
   renderLeafActions,
   treeName,
   treeDescription,
+  orgStructure,
+  treeType,
   nodeCount,
   onAddRootNode,
   onToggleFullscreen,
@@ -696,9 +700,32 @@ export function TreeVisualization({
   return (
     <div className="w-full flex-1 flex flex-col relative min-h-0" ref={innerContainerRef}>
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm rounded-t-xl shrink-0">
-        <div className="flex items-center gap-3">
-          <h3 className="font-bold text-gray-800 text-sm">{treeName || data?.tree?.name || 'درختواره'}</h3>
-          <span className="text-xs text-gray-400">{treeDescription || data?.tree?.description || ''} • {nodeCount || nodes.length} گره</span>
+        <div className="flex flex-col text-right">
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-gray-800 text-sm">{treeName || data?.tree?.name || 'درختواره'}</h3>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+              (treeType || data?.tree?.type) === 'required' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+              (treeType || data?.tree?.type) === 'produced' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+              'bg-purple-50 text-purple-700 border border-purple-200'
+            }`}>
+              {(treeType || data?.tree?.type) === 'required' ? 'مورد نیاز' : (treeType || data?.tree?.type) === 'produced' ? 'تولید شده' : 'پژوهشی'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5 flex-wrap">
+            <span className="flex items-center gap-1 text-gray-400">
+              <Building2 size={12} className="text-gray-400 shrink-0" />
+              <span>ساختار سازمانی:</span>
+              <span className="font-medium text-slate-600">{orgStructure || data?.tree?.orgStructure || 'ستاد کل آجا'}</span>
+            </span>
+            <span className="text-gray-300">•</span>
+            <span>{nodeCount || nodes.length} گره</span>
+            {(treeDescription || data?.tree?.description) && (
+              <>
+                <span className="text-gray-300">•</span>
+                <span className="truncate max-w-xs">{treeDescription || data?.tree?.description}</span>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
