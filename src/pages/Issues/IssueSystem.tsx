@@ -66,6 +66,11 @@ export function IssueSystem() {
   const [advancedFilter, setAdvancedFilter] = useState<FilterGroup | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid' | 'kanban'>('grid');
+  const [dynamicPriorities, setDynamicPriorities] = useState<string[]>(['خیلی زیاد', 'زیاد', 'متوسط', 'کم']);
+  const [dynamicCategories, setDynamicCategories] = useState<string[]>([
+    'عمومی', 'فنی و مهندسی', 'مدیریتی و سازمانی', 'فرهنگی و اجتماعی', 
+    'علمی و پژوهشی', 'اقتصادی و مالی', 'حقوقی و تقنینی', 'زیرساختی و لجستیک'
+  ]);
 
   const loadIssuesData = (page = 1) => {
     fetchIssues({
@@ -114,6 +119,17 @@ export function IssueSystem() {
 
   useEffect(() => {
     fetchTemplates();
+    api.get('/api/metadata/action-priorities').then((res: any) => {
+      if (Array.isArray(res) && res.length > 0) {
+        setDynamicPriorities(res.map((r: any) => r.name || r));
+      }
+    }).catch(console.error);
+
+    api.get('/api/metadata/knowledge-domains').then((res: any) => {
+      if (Array.isArray(res) && res.length > 0) {
+        setDynamicCategories(res.map((r: any) => r.name || r));
+      }
+    }).catch(console.error);
   }, []);
 
   // Handle initialization from routing state (e.g. from Gap Analysis or Research Tree)
@@ -538,10 +554,9 @@ export function IssueSystem() {
                 className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 truncate"
               >
                 <option value="all">🎯 همه اولویت‌ها</option>
-                <option value="خیلی زیاد">🔥 خیلی زیاد</option>
-                <option value="زیاد">⬆️ زیاد</option>
-                <option value="متوسط">➖ متوسط</option>
-                <option value="کم">⬇️ کم</option>
+                {dynamicPriorities.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
               </select>
             </div>
 
@@ -553,14 +568,9 @@ export function IssueSystem() {
                 className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 truncate"
               >
                 <option value="all">🏷️ همه دسته‌ها</option>
-                <option value="عمومی">عمومی</option>
-                <option value="فنی و مهندسی">فنی و مهندسی</option>
-                <option value="مدیریتی و سازمانی">مدیریتی و سازمانی</option>
-                <option value="فرهنگی و اجتماعی">فرهنگی و اجتماعی</option>
-                <option value="علمی و پژوهشی">علمی و پژوهشی</option>
-                <option value="اقتصادی و مالی">اقتصادی و مالی</option>
-                <option value="حقوقی و تقنینی">حقوقی و تقنینی</option>
-                <option value="زیرساختی و لجستیک">زیرساختی و لجستیک</option>
+                {dynamicCategories.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
               </select>
             </div>
 

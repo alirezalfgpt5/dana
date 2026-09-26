@@ -37,10 +37,22 @@ export function ResearchTree() {
   const [researchFormData, setResearchFormData] = useState<any>({});
   const [savingResearch, setSavingResearch] = useState(false);
   const [programCoveragesOptions, setProgramCoveragesOptions] = useState<any[]>([]);
+  const [priorityOptions, setPriorityOptions] = useState<string[]>(['critical', 'high', 'medium', 'low']);
+  const [importanceOptions, setImportanceOptions] = useState<string[]>(['راهبردی', 'عملیاتی', 'تاکتیکی']);
 
   useEffect(() => {
     fetchTrees();
     api.get('/api/metadata/program-coverages').then((res: any) => setProgramCoveragesOptions(res || [])).catch(console.error);
+    api.get('/api/metadata/action-priorities').then((res: any) => {
+      if (Array.isArray(res) && res.length > 0) {
+        setPriorityOptions(res.map((r: any) => r.name || r));
+      }
+    }).catch(console.error);
+    api.get('/api/metadata/project-levels').then((res: any) => {
+      if (Array.isArray(res) && res.length > 0) {
+        setImportanceOptions(res.map((r: any) => r.name || r));
+      }
+    }).catch(console.error);
   }, []);
 
   const handleDeleteTree = () => {
@@ -624,9 +636,9 @@ export function ResearchTree() {
                     value={researchFormData.importance}
                     onChange={e => setResearchFormData({...researchFormData, importance: e.target.value})}
                   >
-                    <option value="راهبردی">راهبردی</option>
-                    <option value="عملیاتی">عملیاتی</option>
-                    <option value="تاکتیکی">تاکتیکی</option>
+                    {importanceOptions.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -648,10 +660,14 @@ export function ResearchTree() {
                     value={researchFormData.priority}
                     onChange={e => setResearchFormData({...researchFormData, priority: e.target.value})}
                   >
-                    <option value="critical">بحرانی</option>
-                    <option value="high">بالا</option>
-                    <option value="medium">متوسط</option>
-                    <option value="low">پایین</option>
+                    {priorityOptions.map(p => (
+                      <option key={p} value={p}>{
+                        p === 'critical' ? '🔥 بحرانی' :
+                        p === 'high' ? '⬆️ بالا' :
+                        p === 'medium' ? '➖ متوسط' :
+                        p === 'low' ? '⬇️ پایین' : p
+                      }</option>
+                    ))}
                   </select>
                 </div>
                 <div>

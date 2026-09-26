@@ -184,7 +184,18 @@ export function Profile() {
             </h3>
             <div className="flex items-center gap-2 text-sm text-white/80 mt-0.5">
               <Shield size={14} />
-              <span>{user.role === 'superadmin' ? 'مدیر کل سیستم' : 'کاربر سیستم'}</span>
+              <span>
+                {(() => {
+                  const roleLabels: Record<string, string> = {
+                    superadmin: 'مدیر کل سیستم',
+                    admin: 'مدیر سیستم',
+                    knowledge_manager: 'مدیر دانش',
+                    expert: 'کارشناس',
+                    user: 'کاربر سیستم'
+                  };
+                  return roleLabels[user.role] || user.role || 'کاربر سیستم';
+                })()}
+              </span>
             </div>
             {user.organizationLevel && (
               <div className="flex items-center gap-2 text-xs text-white/60 mt-0.5">
@@ -360,7 +371,15 @@ export function Profile() {
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500">
           <div className="flex items-center gap-2">
             <Users size={14} className="text-gray-400" />
-            <span>نقش: {user.role === 'superadmin' ? 'مدیر کل' : 'کاربر'}</span>
+            <span>
+              نقش: {
+                user.role === 'superadmin' ? 'مدیر کل' :
+                user.role === 'admin' ? 'مدیر' :
+                user.role === 'knowledge_manager' ? 'مدیر دانش' :
+                user.role === 'expert' ? 'کارشناس' :
+                user.role === 'user' ? 'کاربر عادی' : user.role
+              }
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <Shield size={14} className="text-gray-400" />

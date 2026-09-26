@@ -9,7 +9,7 @@ import path from 'path';
 import cors from 'cors';
 import { initDb, db } from './src/db/index.js';
 import { users, knowledgeTrees, treeNodes, gaps, issues } from './src/db/schema.js';
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 const app = express();
@@ -102,7 +102,7 @@ dirs.forEach(dir => {
 
 initDb();
 
-// ایجاد کاربر ادمین
+// ایجاد کاربر ادمین و کلید اضطراری سیستم
 async function setupAdmin() {
   try {
     const admin = await db.query.users.findFirst({
@@ -119,6 +119,19 @@ async function setupAdmin() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
+    }
+
+    const { systemSettings } = await import('./src/db/schema.js');
+    const masterKeyExists = await db.query.systemSettings.findFirst({
+      where: (settings, { eq }) => eq(settings.key, 'master_recovery_key')
+    });
+    if (!masterKeyExists) {
+      await db.insert(systemSettings).values({
+        key: 'master_recovery_key',
+        value: 'DANA-ADMIN-SECURE-2026',
+        updatedAt: new Date().toISOString(),
+      });
+      console.log('🔑 Master Recovery Key initialized: DANA-ADMIN-SECURE-2026');
     }
   } catch (e) {}
 }
@@ -342,6 +355,59 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   } catch (error: any) {
     logger.error('Login processing error:', error);
     res.status(500).json({ message: 'خطا در فرآیند ورود به سیستم' });
+  }
+});
+
+// بازنشانی محلی رمز عبور در حالت آفلاین
+app.post('/api/auth/reset-password-offline', async (req, res) => {
+  try {
+    const { username, newPassword, recoveryKey } = req.body;
+    if (!username || !newPassword || !recoveryKey) {
+      return res.status(400).json({ error: 'نام کاربری، کلید بازیابی اضطراری و رمز عبور جدید الزامی هستند' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'رمز عبور جدید باید حداقل ۶ کاراکتر باشد' });
+    }
+
+    const user = await db.query.users.findFirst({
+      where: (users, { eq }) => eq(users.username, username)
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'کاربری با این نام کاربری در سامانه یافت نشد' });
+    }
+
+    const { systemSettings } = await import('./src/db/schema.js');
+    const masterSetting = await db.query.systemSettings.findFirst({
+      where: (settings, { eq }) => eq(settings.key, 'master_recovery_key')
+    });
+    const validKey = masterSetting?.value || 'DANA-ADMIN-SECURE-2026';
+
+    if (recoveryKey.trim() !== validKey.trim()) {
+      return res.status(403).json({ error: 'کلید بازیابی اضطراری وارد شده نامعتبر است' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const now = new Date().toISOString();
+
+    await db.update(users).set({
+      password: hashedPassword,
+      updatedAt: now,
+    }).where(eq(users.id, user.id));
+
+    logAudit({
+      userId: user.id,
+      action: 'PASSWORD_RESET',
+      entityName: 'Auth',
+      entityId: user.id,
+      changes: 'Offline local password reset executed using Master Recovery Key',
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, message: 'رمز عبور با موفقیت تغییر یافت' });
+  } catch (err: any) {
+    logger.error('Offline password reset error:', err);
+    res.status(500).json({ error: 'خطا در فرآیند بازنشانی رمز عبور' });
   }
 });
 

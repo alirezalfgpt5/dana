@@ -48,6 +48,7 @@ export function UsersManagement() {
   const [bases, setBases] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
   const [orgLevels, setOrgLevels] = useState<any[]>([]);
+  const [rolesList, setRolesList] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,12 +62,28 @@ export function UsersManagement() {
 
   // بارگذاری داده‌ها
   useEffect(() => {
-    if (user?.role === 'superadmin') {
+    if (user?.role === 'superadmin' || user?.role === 'admin') {
       fetchUsers();
       fetchOrg();
       fetchOrgLevels();
+      fetchRoles();
     }
   }, [user]);
+
+  const fetchRoles = async () => {
+    try {
+      const token = useAuthStore.getState().token;
+      const res = await (window.customFetch || window.fetch)('/api/roles', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRolesList(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('Error fetching roles:', e);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -262,18 +279,45 @@ export function UsersManagement() {
   };
 
   const getRoleBadge = (role: string) => {
+    const roleObj = rolesList.find(r => r.name === role);
+    const label = roleObj?.label || (role === 'superadmin' ? 'مدیر کل سیستم' : role === 'admin' ? 'مدیر' : role === 'user' ? 'کاربر عادی' : role);
+
     if (role === 'superadmin') {
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200 shadow-sm">
           <Crown size={12} className="text-amber-500" />
-          مدیر کل
+          {label}
+        </span>
+      );
+    }
+    if (role === 'admin') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+          <Shield size={12} className="text-purple-500" />
+          {label}
+        </span>
+      );
+    }
+    if (role === 'knowledge_manager') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
+          <Building2 size={12} className="text-emerald-500" />
+          {label}
+        </span>
+      );
+    }
+    if (role === 'expert') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+          <UserCheck size={12} />
+          {label}
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
         <UserIcon2 size={12} />
-        کاربر
+        {label}
       </span>
     );
   };
@@ -285,14 +329,14 @@ export function UsersManagement() {
   };
 
   // بررسی دسترسی
-  if (user?.role !== 'superadmin') {
+  if (user?.role !== 'superadmin' && user?.role !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-gray-500">
         <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
           <Shield size={48} className="text-gray-400" />
         </div>
         <h2 className="text-2xl font-bold text-gray-700">عدم دسترسی</h2>
-        <p className="text-gray-400 mt-2">فقط مدیر کل به این بخش دسترسی دارد.</p>
+        <p className="text-gray-400 mt-2">فقط مدیران سیستم به این بخش دسترسی دارند.</p>
       </div>
     );
   }
@@ -325,17 +369,17 @@ export function UsersManagement() {
           <div className="p-3 bg-blue-50 rounded-lg"><UsersIcon size={20} className="text-blue-600" /></div>
           <div><p className="text-xs text-gray-400">کل کاربران</p><p className="text-2xl font-bold text-gray-800">{usersList.length}</p></div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-4 flex items-center gap-4">
-          <div className="p-3 bg-amber-50 rounded-lg"><Crown size={20} className="text-amber-600" /></div>
-          <div><p className="text-xs text-gray-400">مدیران کل</p><p className="text-2xl font-bold text-amber-600">{usersList.filter(u => u.role === 'superadmin').length}</p></div>
+        <div className="bg-white rounded-xl shadow-sm border border-purple-200 p-4 flex items-center gap-4">
+          <div className="p-3 bg-purple-50 rounded-lg"><Shield size={20} className="text-purple-600" /></div>
+          <div><p className="text-xs text-gray-400">نقش‌های تعریف‌شده</p><p className="text-2xl font-bold text-purple-600">{rolesList.length}</p></div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 flex items-center gap-4">
           <div className="p-3 bg-green-50 rounded-lg"><UserCheck size={20} className="text-green-600" /></div>
-          <div><p className="text-xs text-gray-400">کاربران عادی</p><p className="text-2xl font-bold text-green-600">{usersList.filter(u => u.role === 'user').length}</p></div>
+          <div><p className="text-xs text-gray-400">کاربران فعال</p><p className="text-2xl font-bold text-green-600">{usersList.filter(u => u.isActive !== 0).length}</p></div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-purple-200 p-4 flex items-center gap-4">
-          <div className="p-3 bg-purple-50 rounded-lg"><Building2 size={20} className="text-purple-600" /></div>
-          <div><p className="text-xs text-gray-400">سطوح سازمانی</p><p className="text-2xl font-bold text-purple-600">{orgLevels.length}</p></div>
+        <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 flex items-center gap-4">
+          <div className="p-3 bg-indigo-50 rounded-lg"><Building2 size={20} className="text-indigo-600" /></div>
+          <div><p className="text-xs text-gray-400">سطوح سازمانی</p><p className="text-2xl font-bold text-indigo-600">{orgLevels.length}</p></div>
         </div>
       </div>
 
@@ -348,7 +392,10 @@ export function UsersManagement() {
             {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X size={16} /></button>}
           </div>
           <select className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500 bg-white min-w-[140px]" value={filterRole} onChange={(e) => setFilterRole(e.target.value)}>
-            <option value="all">همه نقش‌ها</option><option value="superadmin">مدیر کل</option><option value="user">کاربر</option>
+            <option value="all">همه نقش‌ها ({rolesList.length})</option>
+            {rolesList.map(r => (
+              <option key={r.id || r.name} value={r.name}>{r.label || r.name}</option>
+            ))}
           </select>
           <div className="min-w-[180px]">
             <SearchableSelect options={[{ value: 'all', label: 'همه سطوح' }, ...levelOptions]} value={filterLevel} onChange={(val) => setFilterLevel(String(val) || 'all')} placeholder="انتخاب سطح سازمانی..." />
@@ -493,11 +540,42 @@ export function UsersManagement() {
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">نقش کاربری <span className="text-red-500">*</span></label>
-                  <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all bg-white text-sm">
-                    <option value="user">کاربر عادی</option>
-                    <option value="superadmin">مدیر کل</option>
+                  <select 
+                    value={formData.role} 
+                    onChange={e => setFormData({ ...formData, role: e.target.value })} 
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all bg-white text-sm"
+                  >
+                    {rolesList.length > 0 ? (
+                      rolesList.map(r => (
+                        <option key={r.id || r.name} value={r.name}>
+                          {r.label} ({r.name})
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="superadmin">مدیر کل سیستم (superadmin)</option>
+                        <option value="admin">مدیر (admin)</option>
+                        <option value="knowledge_manager">مدیر دانش (knowledge_manager)</option>
+                        <option value="expert">کارشناس (expert)</option>
+                        <option value="user">کاربر عادی (user)</option>
+                      </>
+                    )}
                   </select>
-                  <p className="text-xs text-gray-400 mt-1.5">{formData.role === 'superadmin' ? 'دسترسی کامل به تمام بخش‌های سیستم' : 'دسترسی محدود به بخش‌های مربوط به یگان'}</p>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    {(() => {
+                      const selected = rolesList.find(r => r.name === formData.role);
+                      if (selected) {
+                        try {
+                          const perms = JSON.parse(selected.permissions || '[]');
+                          if (perms.includes('all')) return '⭐ دسترسی کامل و جامع به کلیه امکانات سیستم';
+                          return `مجوز دسترسی به ${perms.length} بخش از امکانات سامانه`;
+                        } catch {
+                          return `نقش: ${selected.label}`;
+                        }
+                      }
+                      return formData.role === 'superadmin' ? '⭐ دسترسی کامل به تمام بخش‌های سیستم' : 'دسترسی محدود به بخش‌های مجاز';
+                    })()}
+                  </p>
                 </div>
               </div>
 

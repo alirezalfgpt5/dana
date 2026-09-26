@@ -23,7 +23,7 @@ const userSchema = z.object({
     .optional()
     .or(z.literal('')),
   fullName: z.string().min(2, 'نام کامل الزامی است').max(100),
-  role: z.enum(['admin', 'manager', 'user']).optional().default('user'),
+  role: z.string().min(1, 'نقش الزامی است').optional().default('user'),
   baseId: z.union([z.string(), z.number()]).optional().nullable(),
   unitId: z.union([z.string(), z.number()]).optional().nullable(),
   phone: z.string().optional().nullable(),
@@ -167,7 +167,7 @@ userRoutes.put('/:id', requireRole(['admin']), async (req, res) => {
     const updateData: any = {
       username,
       fullName,
-      role,
+      role: role || oldData.role || 'user',
       baseId: baseId ? typeof baseId === 'string' ? parseInt(baseId) : (baseId || null) : null,
       unitId: unitId ? typeof unitId === 'string' ? parseInt(unitId) : (unitId || null) : null,
       phone: phone || null,

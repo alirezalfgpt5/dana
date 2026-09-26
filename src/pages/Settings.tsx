@@ -6,7 +6,8 @@ import {
   Save, Settings as SettingsIcon, Shield,
   Image, RefreshCw, CheckCircle,
   Plus, Trash2, Edit, X,
-  Layers, Tag, Building2, Download, Palette, Target, Coins, Hash
+  Layers, Tag, Building2, Download, Palette, Target, Coins, Hash,
+  Copy, Check, KeyRound
 } from 'lucide-react';
 import { useSecurityStore, useUIStore, useAuthStore, THEMES, ThemeId } from '../store';
 import { DynamicMetadataManager } from '../components/DynamicMetadataManager';
@@ -94,6 +95,9 @@ export function Settings() {
   });
 
   const [logoBase64, setLogoBase64] = useState<string | null>(siteLogo);
+  const [masterRecoveryKey, setMasterRecoveryKey] = useState('DANA-ADMIN-SECURE-2026');
+  const [savingMasterKey, setSavingMasterKey] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
 
   // ============================================
   // بارگذاری داده‌ها
@@ -121,6 +125,18 @@ export function Settings() {
     fetchLevels();
     fetchKnowledgeTypes();
     fetchOrgLevels();
+
+    const token = useAuthStore.getState().token;
+    (window.customFetch || window.fetch)('/api/metadata/system-settings', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then((data: any) => {
+        if (data?.master_recovery_key) {
+          setMasterRecoveryKey(data.master_recovery_key);
+        }
+      })
+      .catch(console.error);
   }, [systemName, pageTitle, loginTitle, sidebarTitle, browserTitle, lockTimerMinutes, siteLogo]);
 
   const fetchTemplates = async () => {
@@ -1061,6 +1077,99 @@ export function Settings() {
         <div className="flex items-center gap-3">
           <div className={`w-3 h-3 rounded-full ${formData.lockTimer > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
           <span className="text-sm text-gray-700 dark:text-gray-200">وضعیت: {formData.lockTimer > 0 ? 'فعال' : 'غیرفعال'}</span>
+        </div>
+      </div>
+
+      {/* کلید بازیابی اضطراری آفلاین (Master Emergency Recovery Key) */}
+      <div className="theme-card p-5 border border-purple-200 dark:border-purple-900/50 bg-purple-50/20 dark:bg-purple-900/10 rounded-2xl space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-xl">
+            <KeyRound size={20} />
+          </div>
+          <div>
+            <h4 className="font-bold text-sm text-gray-800 dark:text-gray-100">کلید بازیابی اضطراری آفلاین (Master Recovery Key)</h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              جهت بازنشانی رمز عبور کاربران و مدیر در صورت فراموشی، بدون نیاز به اینترنت یا ایمیل
+            </p>
+          </div>
+        </div>
+
+        <div className="p-3 bg-white dark:bg-[#1a1a2e] rounded-xl border border-purple-100 dark:border-purple-800/40 space-y-3">
+          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+            کلید فعال سیستم:
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              dir="ltr"
+              value={masterRecoveryKey}
+              onChange={(e) => setMasterRecoveryKey(e.target.value)}
+              className="flex-1 px-3 py-2 text-sm font-mono font-bold text-purple-700 dark:text-purple-300 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-purple-500"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(masterRecoveryKey);
+                setKeyCopied(true);
+                toast.success('کلید بازیابی در حافظه کپی شد');
+                setTimeout(() => setKeyCopied(false), 2000);
+              }}
+              title="کپی در حافظه"
+              className="px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shrink-0"
+            >
+              {keyCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+              {keyCopied ? 'کپی شد' : 'کپی'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+                const newKey = `DANA-${randomPart}`;
+                setMasterRecoveryKey(newKey);
+                toast('کلید جدید تولید شد. برای ذخیره روی دکمه ذخیره کلیک کنید.');
+              }}
+              title="تولید کلید تصادفی جدید"
+              className="px-3 py-2 bg-purple-100 dark:bg-purple-900/40 hover:bg-purple-200 text-purple-800 dark:text-purple-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shrink-0"
+            >
+              <RefreshCw size={14} />
+              تولید کلید نو
+            </button>
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <button
+              type="button"
+              disabled={savingMasterKey}
+              onClick={async () => {
+                if (!masterRecoveryKey.trim()) {
+                  toast.error('کلید بازیابی نمی‌تواند خالی باشد');
+                  return;
+                }
+                setSavingMasterKey(true);
+                try {
+                  const token = useAuthStore.getState().token;
+                  const res = await (window.customFetch || window.fetch)('/api/metadata/system-settings', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ master_recovery_key: masterRecoveryKey.trim() })
+                  });
+                  if (!res.ok) throw new Error('خطا در ذخیره کلید');
+                  toast.success('کلید بازیابی اضطراری با موفقیت ذخیره شد');
+                } catch (e: any) {
+                  toast.error(e.message || 'خطا در ذخیره کلید');
+                } finally {
+                  setSavingMasterKey(false);
+                }
+              }}
+              className="btn-primary px-4 py-2 text-xs flex items-center gap-1.5"
+            >
+              <Save size={14} />
+              {savingMasterKey ? 'در حال ذخیره...' : 'ذخیره کلید بازیابی'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

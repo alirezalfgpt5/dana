@@ -520,7 +520,16 @@ export function Sidebar() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold truncate text-strong">{user?.fullName || 'کاربر مهمان'}</p>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {user?.role === 'superadmin' ? 'مدیر کل سیستم' : 'کاربر سیستم'}
+                {(() => {
+                  const roleLabels: Record<string, string> = {
+                    superadmin: 'مدیر کل سیستم',
+                    admin: 'مدیر سیستم',
+                    knowledge_manager: 'مدیر دانش',
+                    expert: 'کارشناس',
+                    user: 'کاربر سیستم'
+                  };
+                  return roleLabels[user?.role || 'user'] || user?.role || 'کاربر سیستم';
+                })()}
               </p>
             </div>
           </div>

@@ -5,6 +5,8 @@ import React, { useState } from 'react';
 import { useAuthStore, useUIStore } from '../store';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BookOpen, Sparkles, KeyRound, User, Shield, Eye, EyeOff } from 'lucide-react';
+import { OfflineCaptcha } from '../components/auth/OfflineCaptcha';
+import { ResetPasswordModal } from '../components/auth/ResetPasswordModal';
 import toast from 'react-hot-toast';
 
 export function Login() {
@@ -14,6 +16,8 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
   
   const login = useAuthStore(state => state.login);
   const { siteLogo, systemName, loginTitle } = useUIStore();
@@ -22,8 +26,16 @@ export function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+
+    if (!isCaptchaVerified) {
+      const msg = 'لطفاً ابتدا چالش امنیتی (کپچا) را تکمیل کنید';
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const res = await(window.customFetch || window.fetch)('/api/auth/login', {
@@ -196,8 +208,15 @@ export function Login() {
               </div>
             </div>
 
+            {/* کپچای امنیتی آفلاین */}
+            <div className="pt-1">
+              <OfflineCaptcha
+                onVerify={(valid) => setIsCaptchaVerified(valid)}
+              />
+            </div>
+
             {/* گزینه‌های اضافی */}
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center justify-between text-xs pt-1">
               <label className="flex items-center gap-2 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
                 <input
                   type="checkbox"
@@ -208,16 +227,23 @@ export function Login() {
                 />
                 مرا به خاطر بسپار
               </label>
-              <a href="#" className="font-medium transition-colors" style={{ color: 'var(--brand-600)' }}>
+              <button
+                type="button"
+                onClick={() => setShowResetModal(true)}
+                className="font-medium hover:underline transition-colors cursor-pointer"
+                style={{ color: 'var(--brand-600)' }}
+              >
                 رمز عبور را فراموش کردم؟
-              </a>
+              </button>
             </div>
 
             {/* دکمه ورود */}
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full font-semibold py-3 text-sm flex justify-center items-center gap-2"
+              className={`btn-primary w-full font-semibold py-3 text-sm flex justify-center items-center gap-2 transition-all ${
+                !isCaptchaVerified ? 'opacity-90' : 'shadow-lg shadow-purple-200/50'
+              }`}
             >
               {loading ? (
                 <>
@@ -235,6 +261,17 @@ export function Login() {
               )}
             </button>
           </form>
+
+          {/* مودال بازنشانی محلی رمز عبور در حالت آفلاین */}
+          <ResetPasswordModal
+            isOpen={showResetModal}
+            onClose={() => setShowResetModal(false)}
+            defaultUsername={username}
+            onResetSuccess={(resetUser) => {
+              setUsername(resetUser);
+              setPassword('');
+            }}
+          />
 
           {/* بخش نویسنده */}
           <div className="mt-6 pt-4 border-t divider-soft text-center">

@@ -98,7 +98,7 @@ export function IssueFormTabs({
     templateIds: [],
   });
 
-  const issueCategories = [
+  const defaultCategories = [
     'فنی و مهندسی',
     'عملیاتی و رزمی',
     'آموزشی و مهارتی',
@@ -109,6 +109,8 @@ export function IssueFormTabs({
     'نوآوری و فناوری‌های نوظهور',
     'عمومی و سایر'
   ];
+
+  const [dynamicCategories, setDynamicCategories] = useState<string[]>(defaultCategories);
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [needStatementData, setNeedStatementData] = useState<NeedStatementData>({
@@ -185,7 +187,7 @@ export function IssueFormTabs({
   const [dynamicKnowledgeProjectTypes, setDynamicKnowledgeProjectTypes] = useState<string[]>(knowledgeProjectTypes);
   const [dynamicScientificDiplomacyLevels, setDynamicScientificDiplomacyLevels] = useState<string[]>(scientificDiplomacyLevels);
   const [dynamicConfidentialityLevels, setDynamicConfidentialityLevels] = useState<string[]>(confidentialityLevels);
-  const [dynamicActionPriorities] = useState<string[]>(['خیلی زیاد', 'زیاد', 'متوسط']);
+  const [dynamicActionPriorities, setDynamicActionPriorities] = useState<string[]>(['خیلی زیاد', 'زیاد', 'متوسط', 'کم']);
 
   useEffect(() => {
     if (formData.researchItemId && researchItems.length > 0) {
@@ -242,6 +244,8 @@ export function IssueFormTabs({
           fetchMeta('knowledge-project-types', setDynamicKnowledgeProjectTypes, knowledgeProjectTypes),
           fetchMeta('scientific-diplomacy-levels', setDynamicScientificDiplomacyLevels, scientificDiplomacyLevels),
           fetchMeta('confidentiality-levels', setDynamicConfidentialityLevels, confidentialityLevels),
+          fetchMeta('action-priorities', setDynamicActionPriorities, ['خیلی زیاد', 'زیاد', 'متوسط', 'کم']),
+          fetchMeta('knowledge-domains', setDynamicCategories, defaultCategories),
         ]);
       } catch (err: any) {
         console.error('Error fetching issue form metadata:', err);
@@ -581,7 +585,7 @@ export function IssueFormTabs({
             handleChange={handleChange}
             researchItems={researchItems}
             domainNodes={domainNodes}
-            issueCategories={issueCategories}
+            issueCategories={dynamicCategories}
             dynamicConfidentialityLevels={dynamicConfidentialityLevels}
             dynamicActionPriorities={dynamicActionPriorities}
             dynamicApprovalAuthorities={dynamicApprovalAuthorities}
