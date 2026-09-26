@@ -14,7 +14,7 @@ import {
   CheckCircle, AlertCircle, Clock,
   Filter, Edit, Trash2, ChevronDown,
   ChevronUp, Coins, Eye, Building2,
-  HelpCircle, TrendingUp, Calendar, ArrowLeftRight, Download
+  HelpCircle, TrendingUp, Calendar, ArrowLeftRight, Download, RotateCcw
 } from 'lucide-react';
 import api from '../../services/api';
 import { AdvancedQueryBuilder, FilterGroup } from '../../components/ui/AdvancedQueryBuilder';

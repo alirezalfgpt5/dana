@@ -40,11 +40,12 @@ export function Dashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
+      const pId = activePeriod?.id ? Number(activePeriod.id) : undefined;
       await Promise.all([
-        fetchTrees({ isActive: 1 }),
-        fetchGaps({ page: 1, limit: 100 }),
-        fetchIssues({ page: 1, limit: 100 }),
-       (window.customFetch || window.fetch)('/api/reports/org-stats').then(res => res.json()).then(data => setOrgStats(Array.isArray(data) ? data : [])).catch(console.error),
+        fetchTrees({ isActive: 1, ...(pId ? { periodId: pId } : {}) }),
+        fetchGaps({ page: 1, limit: 100, ...(pId ? { periodId: pId } : {}) }),
+        fetchIssues({ page: 1, limit: 100, ...(pId ? { periodId: pId } : {}) }),
+       (window.customFetch || window.fetch)(`/api/reports/org-stats${pId ? `?periodId=${pId}` : ''}`).then(res => res.json()).then(data => setOrgStats(Array.isArray(data) ? data : [])).catch(console.error),
        (window.customFetch || window.fetch)('/api/audit').then(res => {
           if (!res.ok) return [];
           const contentType = res.headers.get('content-type');
@@ -64,7 +65,7 @@ export function Dashboard() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activePeriod?.id]);
 
   const handleRefresh = () => {
     loadData();

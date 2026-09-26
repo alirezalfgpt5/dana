@@ -806,7 +806,7 @@ unitDataExchangeRoutes.post('/template/upload-sync', requireAuth, upload.single(
       versionLabel,
       req.file.originalname || 'unit_data.xlsx',
       user?.id || null,
-      user?.name || user?.username || 'کاربر سیستم',
+      user?.username || 'کاربر سیستم',
       JSON.stringify({ pending: true }),
       now
     );
