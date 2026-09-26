@@ -9,24 +9,48 @@ export const reportRoutes = express.Router();
 
 reportRoutes.get('/org-stats', requireAuth, async (req: any, res) => {
   try {
+    const periodId = req.query.periodId ? parseInt(req.query.periodId as string) : null;
     const bases = sqlite.prepare('SELECT id, name FROM bases WHERE is_active = 1').all() as any[];
-    const trees = sqlite.prepare('SELECT id, base_id FROM knowledge_trees WHERE is_active = 1 AND base_id IS NOT NULL').all() as any[];
     
-    const gapsInfo = sqlite.prepare(`
-      SELECT g.id, n.tree_id 
-      FROM gaps g 
-      JOIN tree_nodes n ON g.required_node_id = n.id
-    `).all() as any[];
-    
-    const issuesInfo = sqlite.prepare(`
-      SELECT i.id, COALESCE(n1.tree_id, n2.tree_id, n3.tree_id) as tree_id
-      FROM issues i
-      LEFT JOIN tree_nodes n1 ON i.domain_node_id = n1.id
-      LEFT JOIN research_items r ON i.research_item_id = r.id
-      LEFT JOIN tree_nodes n2 ON r.node_id = n2.id
-      LEFT JOIN gaps g ON r.gap_id = g.id
-      LEFT JOIN tree_nodes n3 ON g.required_node_id = n3.id
-    `).all() as any[];
+    let trees: any[] = [];
+    let gapsInfo: any[] = [];
+    let issuesInfo: any[] = [];
+
+    if (periodId) {
+      trees = sqlite.prepare('SELECT id, base_id FROM knowledge_trees WHERE is_active = 1 AND base_id IS NOT NULL AND period_id = ?').all(periodId) as any[];
+      gapsInfo = sqlite.prepare(`
+        SELECT g.id, n.tree_id 
+        FROM gaps g 
+        JOIN tree_nodes n ON g.required_node_id = n.id
+        WHERE g.period_id = ?
+      `).all(periodId) as any[];
+      issuesInfo = sqlite.prepare(`
+        SELECT i.id, COALESCE(n1.tree_id, n2.tree_id, n3.tree_id) as tree_id
+        FROM issues i
+        LEFT JOIN tree_nodes n1 ON i.domain_node_id = n1.id
+        LEFT JOIN research_items r ON i.research_item_id = r.id
+        LEFT JOIN tree_nodes n2 ON r.node_id = n2.id
+        LEFT JOIN gaps g ON r.gap_id = g.id
+        LEFT JOIN tree_nodes n3 ON g.required_node_id = n3.id
+        WHERE i.period_id = ?
+      `).all(periodId) as any[];
+    } else {
+      trees = sqlite.prepare('SELECT id, base_id FROM knowledge_trees WHERE is_active = 1 AND base_id IS NOT NULL').all() as any[];
+      gapsInfo = sqlite.prepare(`
+        SELECT g.id, n.tree_id 
+        FROM gaps g 
+        JOIN tree_nodes n ON g.required_node_id = n.id
+      `).all() as any[];
+      issuesInfo = sqlite.prepare(`
+        SELECT i.id, COALESCE(n1.tree_id, n2.tree_id, n3.tree_id) as tree_id
+        FROM issues i
+        LEFT JOIN tree_nodes n1 ON i.domain_node_id = n1.id
+        LEFT JOIN research_items r ON i.research_item_id = r.id
+        LEFT JOIN tree_nodes n2 ON r.node_id = n2.id
+        LEFT JOIN gaps g ON r.gap_id = g.id
+        LEFT JOIN tree_nodes n3 ON g.required_node_id = n3.id
+      `).all() as any[];
+    }
     
     const statsByBase = bases.map(base => {
       const baseTrees = trees.filter(t => t.base_id === base.id).map(t => t.id);

@@ -49,7 +49,7 @@ export function Definitions() {
   const [knowledgeTypes, setKnowledgeTypes] = useState<any[]>([]);
   const [editingKnowledgeType, setEditingKnowledgeType] = useState<any>(null);
   const [showKnowledgeTypeForm, setShowKnowledgeTypeForm] = useState(false);
-  const [knowledgeTypeForm, setKnowledgeTypeForm] = useState({ name: '', category: '' });
+  const [knowledgeTypeForm, setKnowledgeTypeForm] = useState({ name: '', category: '', description: '' });
 
   // State برای مدیریت سطوح سازمانی
   const [orgLevels, setOrgLevels] = useState<any[]>([]);
@@ -255,7 +255,7 @@ export function Definitions() {
 
       toast.success(editingKnowledgeType ? 'نوع دانش با موفقیت ویرایش شد' : 'نوع دانش با موفقیت ایجاد شد');
       setShowKnowledgeTypeForm(false);
-      setKnowledgeTypeForm({ name: '', category: '' });
+      setKnowledgeTypeForm({ name: '', category: '', description: '' });
       setEditingKnowledgeType(null);
       fetchKnowledgeTypes();
     } catch (error: any) {
@@ -409,8 +409,11 @@ export function Definitions() {
   const renderKnowledgeTypesTab = () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-bold text-gray-800 dark:text-gray-100 text-sm">مدیریت انواع دانش</h3>
-        <button onClick={() => { setEditingKnowledgeType(null); setKnowledgeTypeForm({ name: '', category: '' }); setShowKnowledgeTypeForm(true); }} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1">
+        <div>
+          <h3 className="font-bold text-gray-800 dark:text-gray-100 text-sm">مدیریت انواع دانش</h3>
+          <p className="text-xs text-gray-500 mt-0.5">تعریف انواع دستاوردها و خروجی‌های دانشی و به‌کارگیری در درختواره، نظام مسائل و پژوهش</p>
+        </div>
+        <button onClick={() => { setEditingKnowledgeType(null); setKnowledgeTypeForm({ name: '', category: '', description: '' }); setShowKnowledgeTypeForm(true); }} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1">
           <Plus size={14} /> نوع جدید
         </button>
       </div>
@@ -421,15 +424,22 @@ export function Definitions() {
           <p>هیچ نوع دانشی تعریف نشده است</p>
         </div>
       ) : (
-        <div className="flex flex-col items-start gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {knowledgeTypes.map(kt => (
-            <div key={kt.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#1a1a2e] rounded-lg border border-gray-200 dark:border-[#2d2d44] hover:border-blue-300 transition-colors">
-              <div>
-                <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{kt.name}</p>
-                <p className="text-xs text-gray-400">{kt.category || 'بدون دسته‌بندی'}</p>
+            <div key={kt.id} className="flex items-start justify-between p-3.5 bg-gray-50 dark:bg-[#1a1a2e] rounded-xl border border-gray-200 dark:border-[#2d2d44] hover:border-blue-400 transition-colors">
+              <div className="flex-1 pr-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{kt.name}</span>
+                  {kt.category && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium">
+                      {kt.category}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{kt.description || 'بدون توضیحات'}</p>
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => { setEditingKnowledgeType(kt); setKnowledgeTypeForm({ name: kt.name, category: kt.category || '' }); setShowKnowledgeTypeForm(true); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+              <div className="flex items-center gap-1 flex-shrink-0 mr-2">
+                <button onClick={() => { setEditingKnowledgeType(kt); setKnowledgeTypeForm({ name: kt.name, category: kt.category || '', description: kt.description || '' }); setShowKnowledgeTypeForm(true); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                   <Edit size={14} />
                 </button>
                 <button onClick={() => handleDeleteKnowledgeType(kt.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
@@ -602,7 +612,7 @@ export function Definitions() {
       {renderModal(
         'نوع دانش',
         showKnowledgeTypeForm,
-        () => { setShowKnowledgeTypeForm(false); setEditingKnowledgeType(null); setKnowledgeTypeForm({ name: '', category: '' }); },
+        () => { setShowKnowledgeTypeForm(false); setEditingKnowledgeType(null); setKnowledgeTypeForm({ name: '', category: '', description: '' }); },
         handleSaveKnowledgeType,
         editingKnowledgeType,
         <>
@@ -613,6 +623,10 @@ export function Definitions() {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">دسته‌بندی (اختیاری)</label>
             <input type="text" className="w-full px-4 py-2.5 border border-gray-300 dark:border-[#2d2d44] rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 dark:bg-[#1a1a2e]/50 focus:bg-white dark:focus:bg-[#1e1e2f] dark:bg-[#1e1e2f] text-sm" value={knowledgeTypeForm.category} onChange={e => setKnowledgeTypeForm({...knowledgeTypeForm, category: e.target.value})} placeholder="مثال: مستندات راهبردی" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">توضیحات و کاربرد (اختیاری)</label>
+            <textarea className="w-full px-4 py-2.5 border border-gray-300 dark:border-[#2d2d44] rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 dark:bg-[#1a1a2e]/50 focus:bg-white dark:focus:bg-[#1e1e2f] dark:bg-[#1e1e2f] text-sm min-h-[60px]" value={knowledgeTypeForm.description} onChange={e => setKnowledgeTypeForm({...knowledgeTypeForm, description: e.target.value})} placeholder="توضیح کوتاه درباره ماهیت و مصادیق این نوع دانش..." />
           </div>
         </>
       )}

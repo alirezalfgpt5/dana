@@ -110,6 +110,7 @@ export const treeNodes = sqliteTable('tree_nodes', {
   level: text('level').notNull(),
   title: text('title').notNull(),
   description: text('description'),
+  knowledgeType: text('knowledge_type'),
   templateIds: text('template_ids'),
   instanceIds: text('instance_ids'),
   levelId: integer('level_id'),
@@ -217,6 +218,8 @@ export const researchItems = sqliteTable('research_items', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   gapId: integer('gap_id').references(() => gaps.id, { onDelete: 'cascade' }).notNull(),
   nodeId: integer('node_id').references(() => treeNodes.id, { onDelete: 'cascade' }).notNull(),
+  periodId: integer('period_id').references(() => periods.id),
+  issueId: integer('issue_id'),
   
   isPartOfSevenYearPlan: integer('is_part_of_seven_year_plan').default(0),
   isPartOfAnnualPlan: integer('is_part_of_annual_plan').default(0),
@@ -235,6 +238,7 @@ export const researchItems = sqliteTable('research_items', {
 }, (table) => ({
   researchGapIdx: index('research_gap_idx').on(table.gapId),
   researchNodeIdx: index('research_node_idx').on(table.nodeId),
+  researchPeriodIdx: index('research_period_idx').on(table.periodId),
 }));
 
 // ۳-۳. سوابق اجرای تحلیل شکاف (هر بار کلیک دکمه تحلیل یک رکورد)

@@ -74,6 +74,7 @@ export function FilesManagement() {
 
   // وضعیت دانلود و آپلود
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+  const [isExportingUpperOrg, setIsExportingUpperOrg] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [previewData, setPreviewData] = useState<any | null>(null);
@@ -284,6 +285,44 @@ export function FilesManagement() {
       toast.error(error.message || 'خطا در دریافت قالب اکسل');
     } finally {
       setIsDownloadingTemplate(false);
+    }
+  };
+
+  const handleExportForUpperOrg = async () => {
+    if (!selectedUnitId || !selectedPeriodId) {
+      toast.error('لطفاً ابتدا یگان سازمانی و دوره زمانی را انتخاب فرمایید.');
+      return;
+    }
+
+    setIsExportingUpperOrg(true);
+    try {
+      const url = `/api/data-exchange/export-upper-org?unitId=${selectedUnitId}&periodId=${selectedPeriodId}`;
+      const res = await (window.customFetch || window.fetch)(url);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'خطا در صدور بسته نهایی');
+      }
+
+      const blob = await res.blob();
+      const unitObj = units.find(u => String(u.id) === selectedUnitId);
+      const periodObj = periods.find(p => String(p.id) === selectedPeriodId);
+      const filename = `بسته_نهایی_دانا_${unitObj?.name || 'یگان'}_${periodObj?.name || 'دوره'}.xlsx`;
+
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      toast.success('بسته نهایی جامع اطلاعات دانشی و پژوهشی جهت ارائه به یگان بالادستی با موفقیت صادر شد.');
+    } catch (error: any) {
+      console.error('Export upper org error:', error);
+      toast.error(error.message || 'خطا در صدور بسته برای یگان بالادستی');
+    } finally {
+      setIsExportingUpperOrg(false);
     }
   };
 
@@ -646,7 +685,7 @@ export function FilesManagement() {
           {/* ۱. تبادل قالب خام و فایل پرشده سی‌دی */}
           {exchangeSubTab === 'exchange_sync' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* بخش ۱: دریافت قالب خام */}
+              {/* بخش ۱: دریافت قالب خام و صدور برای بالادست */}
               <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-3 mb-4">
@@ -655,16 +694,16 @@ export function FilesManagement() {
                     </div>
                     <div>
                       <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                        صدور قالب خام اکسل یگان
+                        تولید و تبادل فایل‌های سازمانی یگان
                       </h2>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        فرمت استاندارد جمع‌آوری درخت دانش و نظام مسائل بر اساس ساختار سازمانی و دوره
+                        تولید قالب خام اکسل یا صدور بسته نهایی تجمیعی جهت ارائه به سازمان بالادستی
                       </p>
                     </div>
                   </div>
 
                   {/* کارت مشخصات یگان و دوره */}
-                  <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700 space-y-2.5 mb-6 text-sm">
+                  <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700 space-y-2.5 mb-5 text-sm">
                     <div className="flex justify-between items-center">
                       <span className="text-slate-500 text-xs">یگان مخاطب:</span>
                       <span className="font-bold text-slate-800 dark:text-slate-200">
@@ -686,37 +725,62 @@ export function FilesManagement() {
                     <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-700">
                       <span className="text-slate-500 text-xs">وضعیت داده در سامانه:</span>
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                        آماده صدور قالب
+                        آماده تبادل اطلاعات
                       </span>
                     </div>
                   </div>
 
-                  <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl text-xs text-blue-800 dark:text-blue-300 leading-relaxed mb-6">
-                    <p className="font-bold mb-1 flex items-center gap-1.5">
+                  <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl text-xs text-blue-800 dark:text-blue-300 leading-relaxed mb-6 space-y-2">
+                    <p className="font-bold flex items-center gap-1.5">
                       <HelpCircle size={15} />
-                      نحوه کارکرد فرآیند تبادل سی‌دی / آفلاین:
+                      سناریوهای گردش کار سازمانی:
                     </p>
-                    این فایل دارای شناسنامه سیستمی قفل‌شده است تا اطلاعات دقیقاً به همین یگان و دوره منتسب گردد. کارشناسان یگان، درخت دانش و مسائل را در شیت‌های مربوطه تکمیل نموده و سپس فایل نهایی را در بخش روبه‌رو بارگذاری می‌کنند.
+                    <ul className="space-y-1 pr-3 list-disc text-[11px] leading-relaxed">
+                      <li><b>سناریو ۱ (تولید قالب خام):</b> رده بالادست قالب خام را بر اساس دوره و ساختار استخراج نموده و به یگان تحویل می‌دهد. فیلدهای هویتی در فایل قفل شده‌اند.</li>
+                      <li><b>سناریو ۲ (تکمیل مستقیم در اکسل):</b> یگان تابعه بدون نیاز به برنامه، شیت‌های درخت دانش، نظام مسائل و پژوهش را در اکسل پر کرده و عودت می‌دهد.</li>
+                      <li><b>سناریو ۳ (تکمیل در نرم‌افزار دانا):</b> یگان تابعه فایل خام را در برنامه خود ایمپورت نموده، فرم‌ها را پر کرده و سپس با دکمه <b>«خروجی برای یگان بالادستی»</b> بسته نهایی را استخراج و تحویل می‌دهد.</li>
+                    </ul>
                   </div>
                 </div>
 
-                <button
-                  onClick={handleDownloadTemplate}
-                  disabled={isDownloadingTemplate || !selectedUnitId}
-                  className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-50 transition-all cursor-pointer"
-                >
-                  {isDownloadingTemplate ? (
-                    <>
-                      <RefreshCw size={18} className="animate-spin" />
-                      در حال ساخت و صدور فایل اکسل...
-                    </>
-                  ) : (
-                    <>
-                      <FileSpreadsheet size={18} />
-                      دریافت فایل قالب خام اکسل برای «{selectedUnitObj?.name || 'یگان'}»
-                    </>
-                  )}
-                </button>
+                <div className="space-y-3">
+                  <button
+                    onClick={handleDownloadTemplate}
+                    disabled={isDownloadingTemplate || isExportingUpperOrg || !selectedUnitId}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 disabled:opacity-50 transition-all cursor-pointer text-xs"
+                  >
+                    {isDownloadingTemplate ? (
+                      <>
+                        <RefreshCw size={17} className="animate-spin" />
+                        در حال صدور قالب خام اکسل...
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet size={17} />
+                        ۱. دریافت قالب خام اکسل برای «{selectedUnitObj?.name || 'یگان'}»
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleExportForUpperOrg}
+                    disabled={isExportingUpperOrg || isDownloadingTemplate || !selectedUnitId}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md shadow-purple-500/20 disabled:opacity-50 transition-all cursor-pointer text-xs"
+                    title="صدور بسته نهایی شامل درخت‌های مورد نیاز، درخت تولیدشده، مسائل و اولویت‌های پژوهشی"
+                  >
+                    {isExportingUpperOrg ? (
+                      <>
+                        <RefreshCw size={17} className="animate-spin" />
+                        در حال تولید بسته برای سازمان بالادستی...
+                      </>
+                    ) : (
+                      <>
+                        <Download size={17} />
+                        ۲. صدور بسته نهایی اطلاعات جهت ارائه به یگان بالادستی
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               {/* بخش ۲: بارگذاری، پیش‌نمایش، حل تعارضات و همگام‌سازی تاییدمحور */}

@@ -156,7 +156,7 @@ export function ResearchTree() {
           domainNodeId: gap.requiredNodeId || gap.requiredNode?.id || '',
           title: gap.requiredNode?.title || '',
           actionPriority: researchItem?.priority || gap.priority || 'متوسط',
-          knowledgeType: researchItem?.importance === 'راهبردی' ? 'راهبرد' : 'نظریه',
+          knowledgeType: gap.requiredNode?.knowledgeType || (researchItem?.importance === 'راهبردی' ? 'راهبرد' : 'نظریه'),
           gapId: gap.id,
           researchItemId: researchItem.id
         }
