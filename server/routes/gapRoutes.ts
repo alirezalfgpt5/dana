@@ -166,20 +166,15 @@ gapRoutes.get('/', async (req, res) => {
          const nodeIds = nodesInPeriod.map(n => n.id);
 
          if (nodeIds.length > 0) {
-            if (nodeIds.length > 500) {
-              const chunks = [];
-              for (let i = 0; i < nodeIds.length; i += 500) {
-                chunks.push(inArray(gaps.requiredNodeId, nodeIds.slice(i, i + 500)));
-              }
-              conditions.push(or(...chunks));
-            } else {
-              conditions.push(inArray(gaps.requiredNodeId, nodeIds));
-            }
+            conditions.push(or(
+              eq(gaps.periodId, periodId),
+              inArray(gaps.requiredNodeId, nodeIds)
+            ));
          } else {
-            conditions.push(eq(gaps.requiredNodeId, -1)); // No matches
+            conditions.push(eq(gaps.periodId, periodId));
          }
       } else {
-         conditions.push(eq(gaps.requiredNodeId, -1)); // No matches
+         conditions.push(eq(gaps.periodId, periodId));
       }
     }
 

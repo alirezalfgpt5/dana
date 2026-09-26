@@ -106,7 +106,7 @@ researchRoutes.get('/', async (req, res) => {
       // جستجو در گره‌های مرتبط
       const matchingNodes = await db.select({ id: treeNodes.id })
         .from(treeNodes)
-        .where(eq(treeNodes.title, `%${search}%`));
+        .where(like(treeNodes.title, `%${search}%`));
       
       const nodeIds = matchingNodes.map(n => n.id);
       if (nodeIds.length > 0) {
@@ -119,6 +119,8 @@ researchRoutes.get('/', async (req, res) => {
         } else {
           conditions.push(inArray(researchItems.nodeId, nodeIds));
         }
+      } else {
+        conditions.push(eq(researchItems.id, -1));
       }
     }
 
@@ -523,6 +525,7 @@ researchRoutes.post('/:id/convert-to-issue', async (req, res) => {
 
     // ایجاد مسئله
     const issue = await db.insert(issues).values({
+      periodId: req.body.periodId || researchItem.periodId || null,
       researchItemId: itemId,
       domainNodeId: req.body.domainNodeId || node.id,
       title: title || node.title,
@@ -561,6 +564,14 @@ researchRoutes.post('/:id/convert-to-issue', async (req, res) => {
       createdAt: now,
       updatedAt: now,
     }).returning();
+
+    // پیوند آیتم پژوهشی به مسئله ایجاد شده
+    await db.update(researchItems)
+      .set({
+        issueId: issue[0].id,
+        updatedAt: now,
+      })
+      .where(eq(researchItems.id, itemId));
 
     // به‌روزرسانی گره
     await db.update(treeNodes)

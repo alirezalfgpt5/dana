@@ -529,54 +529,63 @@ export const recordVersionLogs = sqliteTable('record_version_logs', {
 export const projectLevels = sqliteTable('project_levels', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  isActive: integer('is_active').default(1),
   sortOrder: integer('sort_order').default(0),
 });
 
 export const approvalAuthorities = sqliteTable('approval_authorities', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  isActive: integer('is_active').default(1),
   sortOrder: integer('sort_order').default(0),
 });
 
 export const knowledgeProjectTypes = sqliteTable('knowledge_project_types', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  isActive: integer('is_active').default(1),
   sortOrder: integer('sort_order').default(0),
 });
 
 export const scientificDiplomacyLevels = sqliteTable('scientific_diplomacy_levels', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  isActive: integer('is_active').default(1),
   sortOrder: integer('sort_order').default(0),
 });
 
 export const confidentialityLevels = sqliteTable('confidentiality_levels', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  isActive: integer('is_active').default(1),
   sortOrder: integer('sort_order').default(0),
 });
 
 export const actionPriorities = sqliteTable('action_priorities', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  isActive: integer('is_active').default(1),
   sortOrder: integer('sort_order').default(0),
 });
 
 export const treeNodeTypes = sqliteTable('tree_node_types', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  isActive: integer('is_active').default(1),
   sortOrder: integer('sort_order').default(0),
 });
 
 export const knowledgeDomains = sqliteTable('knowledge_domains', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  isActive: integer('is_active').default(1),
   sortOrder: integer('sort_order').default(0),
 });
 
 export const researchNetworks = sqliteTable('research_networks', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  isActive: integer('is_active').default(1),
   sortOrder: integer('sort_order').default(0),
 });
 

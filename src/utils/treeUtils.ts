@@ -95,14 +95,14 @@ export function getPath(nodes: TreeNode[], id: number): TreeNode[] {
 }
 
 // ============================================
-// دریافت تمام برگ‌ها (گره‌های سطح L)
+// دریافت تمام برگ‌ها (گره‌های سطح L و پرسش‌های سطح پایانی Q)
 // ============================================
 
 export function getLeaves(nodes: TreeNode[]): TreeNode[] {
   const leaves: TreeNode[] = [];
   
   function traverse(node: TreeNode) {
-    if (node.level === 'L') {
+    if (node.level === 'L' || node.level === 'Q') {
       leaves.push(node);
     }
     if (node.children) {
@@ -121,7 +121,7 @@ export function getLeaves(nodes: TreeNode[]): TreeNode[] {
 // ============================================
 
 export function getGapNodes(nodes: TreeNode[]): TreeNode[] {
-  return nodes.filter(node => node.isGap === 1);
+  return nodes.filter(node => node.isGap === 1 || Boolean(node.isGap));
 }
 
 // ============================================

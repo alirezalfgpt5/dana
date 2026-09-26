@@ -1046,7 +1046,6 @@ treeRoutes.get('/nodes/:nodeId/path', async (req, res) => {
   }
 });
 
-export default treeRoutes;
 // دریافت گره‌های شاخه، زیرشاخه و برگ همراه با ساختار سازمانی برای سیستم مسائل و فرم‌ها
 treeRoutes.get('/domain-nodes/all', async (req, res) => {
   try {
@@ -1134,3 +1133,6 @@ treeRoutes.get('/nodes/leaves', async (req, res) => {
     res.status(500).json({ error: 'خطا در دریافت برگ‌های دانشی' });
   }
 });
+
+export default treeRoutes;
+

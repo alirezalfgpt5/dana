@@ -159,6 +159,13 @@ userRoutes.put('/:id', requireRole(['admin']), async (req, res) => {
     const oldData = await db.query.users.findFirst({ where: eq(users.id, parseInt(id)) });
     if (!oldData) return res.status(404).json({ error: 'User not found' });
 
+    if (oldData.role === 'superadmin' && role && role !== 'superadmin') {
+      const superadmins = await db.select({ id: users.id }).from(users).where(eq(users.role, 'superadmin'));
+      if (superadmins.length <= 1) {
+        return res.status(400).json({ error: 'امکان تغییر نقش تنها مدیر ارشد (superadmin) سامانه وجود ندارد' });
+      }
+    }
+
     if (username !== oldData.username) {
       const existingUser = await db.query.users.findFirst({ where: eq(users.username, username) });
       if (existingUser) return res.status(409).json({ error: 'این نام کاربری قبلاً ثبت شده است' });
@@ -223,6 +230,18 @@ userRoutes.delete('/:id', requireRole(['admin']), async (req, res) => {
 
     const existing = await db.query.users.findFirst({ where: eq(users.id, userId) });
     if (!existing) return res.status(404).json({ error: 'User not found' });
+
+    const currentUserId = (req as AuthRequest).user?.id;
+    if (currentUserId === userId) {
+      return res.status(400).json({ error: 'امکان حذف حساب کاربری خودتان وجود ندارد' });
+    }
+
+    if (existing.role === 'superadmin') {
+      const superadmins = await db.select({ id: users.id }).from(users).where(eq(users.role, 'superadmin'));
+      if (superadmins.length <= 1) {
+        return res.status(400).json({ error: 'امکان حذف تنها مدیر ارشد (superadmin) سامانه وجود ندارد' });
+      }
+    }
 
     logAudit({
       userId: (req as AuthRequest).user?.id || null,

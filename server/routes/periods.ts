@@ -4,8 +4,8 @@ import { AuthRequest } from '../types/AuthRequest.js';
 
 import { Router } from 'express';
 import { db, sqlite } from '../../src/db/index.js';
-import { periods, knowledgeTrees } from '../../src/db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { periods, knowledgeTrees, issues, gaps } from '../../src/db/schema.js';
+import { eq, and, ne } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
 
 export const periodRoutes = Router();
@@ -122,13 +122,20 @@ periodRoutes.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Period not found' });
     }
 
+    if (isActive === 1 || isActive === true || isActive === '1') {
+      // غیرفعال‌سازی سایر دوره‌ها تا همیشه فقط یک دوره فعال باشد
+      await db.update(periods)
+        .set({ isActive: 0, updatedAt: now })
+        .where(ne(periods.id, periodId));
+    }
+
     const result = await db.update(periods)
       .set({
         name: name !== undefined && name !== null ? name : oldData.name,
         startDate: startDate !== undefined && startDate !== null ? startDate : oldData.startDate,
         endDate: endDate !== undefined && endDate !== null ? endDate : oldData.endDate,
         description: description !== undefined ? description : oldData.description,
-        isActive: isActive !== undefined ? isActive : oldData.isActive,
+        isActive: isActive !== undefined ? (isActive === 1 || isActive === true || isActive === '1' ? 1 : 0) : oldData.isActive,
         isComplete: isComplete !== undefined ? isComplete : oldData.isComplete,
         updatedAt: now,
       })
@@ -175,8 +182,30 @@ periodRoutes.delete('/:id', async (req, res) => {
 
     if (trees.length > 0) {
       return res.status(400).json({
-        error: 'این دوره در درختواره‌ها استفاده شده است',
+        error: 'این دوره در درختواره‌ها استفاده شده است و قابل حذف نیست',
         count: trees.length,
+      });
+    }
+
+    // بررسی استفاده در مسائل
+    const issuesInPeriod = await db.select({ id: issues.id }).from(issues)
+      .where(eq(issues.periodId, periodId));
+
+    if (issuesInPeriod.length > 0) {
+      return res.status(400).json({
+        error: 'این دوره دارای مسائل ثبت‌شده است و قابل حذف نیست',
+        count: issuesInPeriod.length,
+      });
+    }
+
+    // بررسی استفاده در شکاف‌ها
+    const gapsInPeriod = await db.select({ id: gaps.id }).from(gaps)
+      .where(eq(gaps.periodId, periodId));
+
+    if (gapsInPeriod.length > 0) {
+      return res.status(400).json({
+        error: 'این دوره دارای شکاف‌های ثبت‌شده است و قابل حذف نیست',
+        count: gapsInPeriod.length,
       });
     }
 

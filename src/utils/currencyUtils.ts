@@ -131,7 +131,7 @@ export function calculateFinancialMetrics(
   let statusLabel = 'فاقد اعتبار ثبت شده';
   let statusColor = 'text-gray-500 bg-gray-100 border-gray-200';
 
-  if (app === 0 && req === 0) {
+  if (app === 0 && req === 0 && ass === 0) {
     status = 'no_budget';
     statusLabel = 'بدون بودجه';
     statusColor = 'text-gray-500 bg-gray-100 border-gray-200';
@@ -139,14 +139,23 @@ export function calculateFinancialMetrics(
     status = 'not_assigned';
     statusLabel = 'تخصیص‌نیافته (صفر درصد)';
     statusColor = 'text-red-700 bg-red-50 border-red-200';
-  } else if (ass >= app && app > 0) {
+  } else if (app > 0 && ass > app) {
+    status = 'over_assigned';
+    statusLabel = `مازاد تخصیص (${new Intl.NumberFormat('fa-IR').format(assignedPercent)}٪)`;
+    statusColor = 'text-purple-700 bg-purple-50 border-purple-200';
+  } else if (app > 0 && ass === app) {
     status = 'fully_assigned';
     statusLabel = 'تخصیص کامل (۱۰۰٪)';
     statusColor = 'text-green-700 bg-green-50 border-green-200';
-  } else if (ass < app) {
+  } else if (app > 0 && ass < app) {
     status = 'under_assigned';
     statusLabel = `کسری تخصیص (${new Intl.NumberFormat('fa-IR').format(100 - assignedPercent)}٪ مانده)`;
     statusColor = 'text-amber-700 bg-amber-50 border-amber-200';
+  } else {
+    // app === 0 but ass > 0
+    status = 'over_assigned';
+    statusLabel = 'تخصیص بدون مصوب';
+    statusColor = 'text-purple-700 bg-purple-50 border-purple-200';
   }
 
   return {

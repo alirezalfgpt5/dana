@@ -71,6 +71,10 @@ export function formatNumber(
     if (isNaN(num)) return String(value);
   }
 
+  if (options?.decimals !== undefined) {
+    num = Number(num.toFixed(options.decimals));
+  }
+
   const parts = num.toString().split('.');
   let integerPart = parts[0];
   const decimalPart = parts[1];

@@ -16,7 +16,7 @@ import {
   users, gaps, periods,
   bases, units,
 } from '../../src/db/schema.js';
-import { eq, and, or, like, isNull, not, desc, inArray, sql } from 'drizzle-orm';
+import { eq, and, or, like, isNull, not, desc, inArray, sql, gte, lte } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
 import { format } from 'date-fns-jalali';
 import { getUserOrgScope } from '../utils/orgAccess.js';
@@ -263,10 +263,10 @@ issueRoutes.get('/', async (req, res) => {
       ));
     }
     if (fromDate) {
-      conditions.push(eq(issues.approvalDate, `%${fromDate}%`));
+      conditions.push(gte(issues.approvalDate, String(fromDate)));
     }
     if (toDate) {
-      conditions.push(eq(issues.approvalDate, `%${toDate}%`));
+      conditions.push(lte(issues.approvalDate, String(toDate)));
     }
 
     
@@ -443,7 +443,86 @@ issueRoutes.get('/', async (req, res) => {
 });
 
 // ============================================
-// ۲. دریافت یک مسئله با تمام جزئیات
+// ۲. دریافت آمار مسائل (باید قبل از /:id باشد تا تداخل نکند)
+// ============================================
+
+issueRoutes.get('/stats', async (req, res) => {
+  try {
+    const { treeId, periodId } = req.query;
+
+    let query = db.select().from(issues);
+    const conditions: any[] = [];
+
+    if (periodId && periodId !== 'all' && periodId !== 'undefined' && periodId !== 'null') {
+      const parsedPeriodId = parseInt(periodId as string);
+      if (!isNaN(parsedPeriodId)) {
+        conditions.push(eq(issues.periodId, parsedPeriodId));
+      }
+    }
+    
+    // اگر treeId ارسال شده، از طریق researchItems یا domainNodeId فیلتر کن
+    if (treeId) {
+      const parsedTreeId = parseInt(treeId as string);
+      if (!isNaN(parsedTreeId)) {
+        const treeNodesIds = await db.select({ id: treeNodes.id })
+          .from(treeNodes)
+          .where(eq(treeNodes.treeId, parsedTreeId));
+        const nodeIds = treeNodesIds.map(n => n.id);
+        if (nodeIds.length > 0) {
+          conditions.push(inArray(issues.domainNodeId, nodeIds));
+        } else {
+          conditions.push(eq(issues.id, -1));
+        }
+      }
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    const allIssues = await query;
+    const total = allIssues.length;
+    
+    const pending = allIssues.filter(i => i.status === 'pending').length;
+    const inProgress = allIssues.filter(i => i.status === 'in_progress').length;
+    const completed = allIssues.filter(i => i.status === 'completed').length;
+    const canceled = allIssues.filter(i => i.status === 'canceled').length;
+    const onHold = allIssues.filter(i => i.status === 'on_hold').length;
+
+    // گروه‌بندی بر اساس اولویت
+    const byPriority = allIssues.reduce((acc: any, issue) => {
+      const priority = issue.actionPriority || 'medium';
+      acc[priority] = (acc[priority] || 0) + 1;
+      return acc;
+    }, {});
+
+    // بودجه کل
+    const totalBudget = allIssues.reduce((sum, issue) => sum + (Number(issue.requiredBudget) || 0), 0);
+    
+    // میانگین پیشرفت
+    const avgCompletion = total > 0 
+      ? Math.round(allIssues.reduce((sum, issue) => sum + (Number(issue.completionPercent) || 0), 0) / total) 
+      : 0;
+
+    res.json({
+      total,
+      pending,
+      inProgress,
+      completed,
+      canceled,
+      onHold,
+      byPriority,
+      totalBudget,
+      avgCompletion,
+    });
+  } catch (error) {
+    console.error('Error fetching issue stats:', error);
+    res.status(500).json({ error: 'خطا در دریافت آمار مسائل' });
+  }
+});
+
+// ============================================
+// ۳. دریافت یک مسئله با تمام جزئیات
 // ============================================
 
 issueRoutes.get('/:id', async (req, res) => {
@@ -1525,77 +1604,6 @@ issueRoutes.get('/:id/history', async (req, res) => {
   } catch (error) {
     console.error('Error fetching issue history:', error);
     res.status(500).json({ error: 'خطا در دریافت تاریخچه' });
-  }
-});
-
-// ============================================
-// ۱۰. دریافت آمار مسائل
-// ============================================
-
-issueRoutes.get('/stats', async (req, res) => {
-  try {
-    const { treeId } = req.query;
-
-    let query = db.select().from(issues);
-    
-    // اگر treeId ارسال شده، از طریق researchItems فیلتر کن
-    if (treeId) {
-      const researchItemsList = await db.select({ id: researchItems.id })
-        .from(researchItems)
-        .where(eq(researchItems.nodeId, parseInt(treeId as string)));
-      
-      const researchIds = researchItemsList.map(r => r.id);
-      if (researchIds.length > 0) {
-        if (researchIds.length > 500) {
-          const chunks = [];
-          for (let i = 0; i < researchIds.length; i += 500) {
-            chunks.push(inArray(issues.researchItemId, researchIds.slice(i, i + 500)));
-          }
-          query = query.where(or(...chunks)) as any;
-        } else {
-          query = query.where(inArray(issues.researchItemId, researchIds)) as any;
-        }
-      }
-    }
-
-    const allIssues = await query;
-    const total = allIssues.length;
-    
-    const pending = allIssues.filter(i => i.status === 'pending').length;
-    const inProgress = allIssues.filter(i => i.status === 'in_progress').length;
-    const completed = allIssues.filter(i => i.status === 'completed').length;
-    const canceled = allIssues.filter(i => i.status === 'canceled').length;
-    const onHold = allIssues.filter(i => i.status === 'on_hold').length;
-
-    // گروه‌بندی بر اساس اولویت
-    const byPriority = allIssues.reduce((acc: any, issue) => {
-      const priority = issue.actionPriority || 'medium';
-      acc[priority] = (acc[priority] || 0) + 1;
-      return acc;
-    }, {});
-
-    // بودجه کل
-    const totalBudget = allIssues.reduce((sum, issue) => sum + (Number(issue.requiredBudget) || 0), 0);
-    
-    // میانگین پیشرفت
-    const avgCompletion = total > 0 
-      ? Math.round(allIssues.reduce((sum, issue) => sum + (Number(issue.completionPercent) || 0), 0) / total) 
-      : 0;
-
-    res.json({
-      total,
-      pending,
-      inProgress,
-      completed,
-      canceled,
-      onHold,
-      byPriority,
-      totalBudget,
-      avgCompletion,
-    });
-  } catch (error) {
-    console.error('Error fetching issue stats:', error);
-    res.status(500).json({ error: 'خطا در دریافت آمار مسائل' });
   }
 });
 

@@ -275,10 +275,19 @@ function createMetadataEndpoints(router: any, path: string, table: any) {
       const { isActive, search } = req.query;
       let query = db.select().from(table);
       const conditions: any[] = [];
-      if (isActive !== undefined) conditions.push(eq(table.isActive, Number(isActive)));
-      if (search) conditions.push(like(table.name, `%${search}%`));
-      if (conditions.length > 0) query = query.where(and(...conditions)) as any;
-      const result = await query.orderBy(table.sortOrder);
+      if (isActive !== undefined && table.isActive) {
+        conditions.push(eq(table.isActive, Number(isActive)));
+      }
+      if (search && table.name) {
+        conditions.push(like(table.name, `%${search}%`));
+      }
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions)) as any;
+      }
+      if (table.sortOrder) {
+        query = query.orderBy(table.sortOrder) as any;
+      }
+      const result = await query;
       res.json(result);
     } catch (error) { 
       console.error(`❌ Error fetching ${path}:`, error);
@@ -292,9 +301,12 @@ function createMetadataEndpoints(router: any, path: string, table: any) {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: 'نام الزامی است' });
       const now = new Date().toISOString();
-      const result = await db.insert(table).values({
-        name, isActive: 1, sortOrder: 0, createdAt: now, updatedAt: now
-      }).returning();
+      const insertValues: any = { name };
+      if (table.isActive) insertValues.isActive = 1;
+      if (table.sortOrder) insertValues.sortOrder = 0;
+      if (table.createdAt) insertValues.createdAt = now;
+      if (table.updatedAt) insertValues.updatedAt = now;
+      const result = await db.insert(table).values(insertValues).returning();
       res.status(201).json((result as any[])[0] || result);
     } catch (error) { 
       console.error(`❌ Error creating ${path}:`, error);
