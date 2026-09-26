@@ -55,6 +55,11 @@ export function Login() {
       }
 
       if (data.user && data.token) {
+        try {
+          const { useSecurityStore } = await import('../store');
+          useSecurityStore.getState().setLocked(false);
+          (window as any)._sessionExpiredHandled = false;
+        } catch { /* noop */ }
         login(data.user, data.token);
         toast.success(`خوش آمدید ${data.user.fullName}`, {
           icon: '👋',

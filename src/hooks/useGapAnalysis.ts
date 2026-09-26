@@ -111,7 +111,9 @@ export function useGapAnalysis() {
       setPagination(response.pagination || { total: 0, page: 1, limit: 20, totalPages: 0 });
       return response;
     } catch (err: any) {
-      toast.error(err.message || 'خطا در دریافت لیست گپ‌ها');
+      if (!err._toastShown) {
+        toast.error(err.message || 'خطا در دریافت لیست گپ‌ها', { id: 'gaps-fetch-error' });
+      }
       return null;
     } finally {
       setLoading(false);

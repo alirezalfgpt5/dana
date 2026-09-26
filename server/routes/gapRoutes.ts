@@ -93,8 +93,11 @@ gapRoutes.get('/', async (req, res) => {
       }
     }
 
-    if (periodId && periodId !== 'all') {
-      conditions.push(eq(gaps.periodId, parseInt(periodId as string)));
+    if (periodId && periodId !== 'all' && periodId !== 'undefined' && periodId !== 'null') {
+      const pId = parseInt(periodId as string);
+      if (!isNaN(pId)) {
+        conditions.push(eq(gaps.periodId, pId));
+      }
     }
 
     if (treeId) {

@@ -49,18 +49,21 @@ window.customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const isApiRequest = urlString.startsWith('/api') || urlString.includes('/api/');
   
   if (token && isApiRequest) {
-    options.headers = {
-      ...options.headers,
-      'Authorization': `Bearer ${token}`
-    };
+    const headers = new Headers(init?.headers);
+    if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    options.headers = headers;
   }
   
   try {
     const res = await originalFetch(input, options);
     
     if (res.status === 401 && isApiRequest) {
-      // از dispatcher مشترک store استفاده می‌کنیم تا فقط یک‌بار و فقط با نشست فعال رویداد صادر شود
-      dispatchAuthError('نشست شما منقضی شده است. لطفا دوباره وارد شوید.');
+      // برای روت لاگین یا تنظیمات عمومی نیازی به پرتاب رویداد انقضای نشست نیست
+      if (!urlString.includes('/api/auth/login') && !urlString.includes('/api/metadata/system-settings')) {
+        dispatchAuthError('نشست شما منقضی شده است. لطفا دوباره وارد شوید.');
+      }
     }
     
     return res;

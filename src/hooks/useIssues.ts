@@ -132,7 +132,9 @@ export function useIssues() {
       setPagination(response.pagination || { total: 0, page: 1, limit: 20, totalPages: 0 });
       return response;
     } catch (err: any) {
-      toast.error(err.message || 'خطا در دریافت لیست مسائل');
+      if (!err._toastShown) {
+        toast.error(err.message || 'خطا در دریافت لیست مسائل', { id: 'issues-fetch-error' });
+      }
       return null;
     } finally {
       setLoading(false);
