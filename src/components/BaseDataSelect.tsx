@@ -39,13 +39,11 @@ export function BaseDataSelect({
 
     setSaving(true);
     try {
-      const res = await(window.customFetch || window.fetch)('/api/base-data', {
+      const res = await(window.customFetch || window.fetch)(`/api/metadata/${category}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          category,
-          value: newItem.trim(),
-          label: newItem.trim(),
+          name: newItem.trim(),
         }),
       });
 

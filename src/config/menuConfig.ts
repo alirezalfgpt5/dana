@@ -14,7 +14,7 @@ import {
   Database,
   PieChart,
   Shield,
-  FolderTree, Search, Waypoints
+  FolderTree, Search, Waypoints, Layers
 } from 'lucide-react';
 
 export interface SubMenuItem {
@@ -148,6 +148,7 @@ export const MENU_CONFIG: MenuGroup[] = [
         icon: Settings,
         color: 'text-purple-500',
         submenus: [
+          { label: 'تعاریف پایه', path: '/definitions', icon: Layers },
           { label: 'ساختار سازمانی', path: '/org-structure', icon: Network },
           { label: 'مدیریت کاربران', path: '/users', icon: Users },
           { label: 'دوره‌های زمانی', path: '/periods', icon: Calendar },

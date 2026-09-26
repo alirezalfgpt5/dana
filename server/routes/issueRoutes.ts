@@ -197,26 +197,28 @@ issueRoutes.get('/', async (req, res) => {
        } else {
           conditions.push(eq(issues.domainNodeId, -1));
        }
-    } else if (periodId && periodId !== 'all') {
+    } else if (periodId && periodId !== 'all' && periodId !== 'undefined' && periodId !== 'null') {
        const parsedPeriodId = parseInt(periodId as string);
-       const treesInPeriod = await db.select({ id: knowledgeTrees.id })
-          .from(knowledgeTrees)
-          .where(eq(knowledgeTrees.periodId, parsedPeriodId));
-       const treeIds = treesInPeriod.map(t => t.id);
-       let nodeIds: number[] = [];
-       if (treeIds.length > 0) {
-          const nodesInPeriod = await db.select({ id: treeNodes.id })
-             .from(treeNodes)
-             .where(inArray(treeNodes.treeId, treeIds));
-          nodeIds = nodesInPeriod.map(n => n.id);
-       }
-       if (nodeIds.length > 0) {
-          conditions.push(or(
-             eq(issues.periodId, parsedPeriodId),
-             inArray(issues.domainNodeId, nodeIds)
-          ));
-       } else {
-          conditions.push(eq(issues.periodId, parsedPeriodId));
+       if (!isNaN(parsedPeriodId)) {
+          const treesInPeriod = await db.select({ id: knowledgeTrees.id })
+             .from(knowledgeTrees)
+             .where(eq(knowledgeTrees.periodId, parsedPeriodId));
+          const treeIds = treesInPeriod.map(t => t.id);
+          let nodeIds: number[] = [];
+          if (treeIds.length > 0) {
+             const nodesInPeriod = await db.select({ id: treeNodes.id })
+                .from(treeNodes)
+                .where(inArray(treeNodes.treeId, treeIds));
+             nodeIds = nodesInPeriod.map(n => n.id);
+          }
+          if (nodeIds.length > 0) {
+             conditions.push(or(
+                eq(issues.periodId, parsedPeriodId),
+                inArray(issues.domainNodeId, nodeIds)
+             ));
+          } else {
+             conditions.push(eq(issues.periodId, parsedPeriodId));
+          }
        }
     }
     
@@ -312,11 +314,11 @@ issueRoutes.get('/', async (req, res) => {
     }
 
     const totalResult = await countQuery;
-    const total = totalResult[0].count;
+    const total = totalResult[0]?.count || 0;
 
-    const pageNum = parseInt(page as string);
-    const limitNum = Math.min(parseInt(limit as string) || 20, 100);
-    const offset = (pageNum - 1) * limitNum;
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(Math.max(1, parseInt(limit as string) || 20), 100);
+    const offset = Math.max(0, (pageNum - 1) * limitNum);
 
     const result = await query
       .limit(limitNum)

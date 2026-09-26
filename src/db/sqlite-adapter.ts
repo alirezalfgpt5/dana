@@ -16,6 +16,22 @@ export interface SqliteStatement {
   bind(...params: any[]): SqliteStatement;
 }
 
+function sanitizeValue(val: any): any {
+  if (val === undefined) return null;
+  if (val !== null && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Uint8Array) && !(val instanceof Date)) {
+    const obj: any = {};
+    for (const key of Object.keys(val)) {
+      obj[key] = sanitizeValue(val[key]);
+    }
+    return obj;
+  }
+  return val;
+}
+
+function sanitizeParams(params: any[]): any[] {
+  return params.map(sanitizeValue);
+}
+
 export class BetterSqlite3Compat {
   private _db: DatabaseSync;
   private _filename: string;
@@ -27,33 +43,36 @@ export class BetterSqlite3Compat {
 
   prepare(sql: string): SqliteStatement {
     const stmt = this._db.prepare(sql);
-    let isRaw = false;
 
     const proxy: SqliteStatement = {
       raw(val = true) {
-        isRaw = val;
-        return this;
+        if (!val) return proxy;
+        return {
+          ...proxy,
+          all(...p: any[]) {
+            const res = proxy.all(...p);
+            return res.map((r: any) => (Array.isArray(r) ? r : Object.values(r)));
+          },
+          get(...p: any[]) {
+            const res = proxy.get(...p);
+            return res ? (Array.isArray(res) ? res : Object.values(res)) : undefined;
+          },
+        };
       },
       all(...params: any[]) {
         const flat = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
-        const rows = stmt.all(...flat);
-        if (isRaw) {
-          return rows.map((r: any) => Object.values(r));
-        }
-        return rows;
+        const sanitized = sanitizeParams(flat);
+        return stmt.all(...sanitized);
       },
       get(...params: any[]) {
         const flat = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
-        const row = stmt.get(...flat);
-        if (!row) return undefined;
-        if (isRaw) {
-          return Object.values(row);
-        }
-        return row;
+        const sanitized = sanitizeParams(flat);
+        return stmt.get(...sanitized);
       },
       run(...params: any[]) {
         const flat = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
-        const res = stmt.run(...flat);
+        const sanitized = sanitizeParams(flat);
+        const res = stmt.run(...sanitized);
         return {
           changes: Number(res.changes),
           lastInsertRowid: res.lastInsertRowid,

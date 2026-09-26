@@ -57,6 +57,7 @@ window.customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     options.headers = headers;
   }
   
+<<<<<<< HEAD
   const attemptFetch = async (attempt: number): Promise<Response> => {
     try {
       const res = await originalFetch(input, options);
@@ -81,6 +82,16 @@ window.customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
         return attemptFetch(attempt + 1);
       }
       throw err;
+=======
+  try {
+    const res = await originalFetch(input, options);
+    
+    if (res.status === 401 && isApiRequest) {
+      // برای روت لاگین یا تنظیمات عمومی نیازی به پرتاب رویداد انقضای نشست نیست
+      if (!urlString.includes('/api/auth/login') && !urlString.includes('/api/metadata/system-settings')) {
+        dispatchAuthError('نشست شما منقضی شده است. لطفا دوباره وارد شوید.');
+      }
+>>>>>>> 2eb601bd1d1316b4454f6c984acbcf555721cfd9
     }
   };
   

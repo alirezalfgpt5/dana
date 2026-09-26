@@ -46,14 +46,14 @@ export function Dashboard() {
         fetchGaps({ page: 1, limit: 100, ...(pId ? { periodId: pId } : {}) }),
         fetchIssues({ page: 1, limit: 100, ...(pId ? { periodId: pId } : {}) }),
        (window.customFetch || window.fetch)(`/api/reports/org-stats${pId ? `?periodId=${pId}` : ''}`).then(res => res.json()).then(data => setOrgStats(Array.isArray(data) ? data : [])).catch(console.error),
-       (window.customFetch || window.fetch)('/api/audit').then(res => {
+        (window.customFetch || window.fetch)('/api/audit').then(res => {
           if (!res.ok) return [];
           const contentType = res.headers.get('content-type');
           if (contentType && contentType.includes('application/json')) {
             return res.json();
           }
           return res.text().then(() => []);
-        }).then(data => setActivities(Array.isArray(data) ? data.slice(0, 8) : []))
+        }).then(data => setActivities(Array.isArray(data) ? data.slice(0, 8) : [])).catch(console.error)
       ]);
       setLastUpdated(new Date());
     } catch (e) {

@@ -163,39 +163,55 @@ if (!JWT_SECRET) {
 
 const SESSION_TIMEOUT = process.env.SESSION_TIMEOUT || '86400';
 
+const userAuthCache = new Map<string, { user: any; expiresAt: number }>();
+
 app.use(async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     try {
-      // Verify real JWT
+      // 1. بررسی و اعتبارسنجی JWT
       const decoded = jwt.verify(token, JWT_SECRET) as any;
       if (decoded && decoded.id) {
-        const user = await db.query.users.findFirst({
-          where: (users, { eq, and }) => and(eq(users.id, decoded.id), eq(users.isActive, 1))
-        });
+        // کش موقت کاربر در حافظه برای جلوگیری از رقابت روی SQLite در درخواست‌های موازی بعد از لاگین
+        const cached = userAuthCache.get(token);
+        let user = cached && cached.expiresAt > Date.now() ? cached.user : null;
+
+        if (!user) {
+          user = await db.query.users.findFirst({
+            where: (users, { eq, and }) => and(eq(users.id, decoded.id), eq(users.isActive, 1))
+          });
+          if (user) {
+            userAuthCache.set(token, { user, expiresAt: Date.now() + 30000 });
+          }
+        }
+
         if (user) {
-          // Fix Item 46: Token Replay Vulnerability & Stateless JWT Invalidation
+          // بررسی ابطال توکن در صورت تغییر رمز عبور یا مشخصات (با حاشیه امن ۱۰ ثانیه‌ای برای اختلاف ساعت)
           let isTokenValid = true;
           if (decoded.iat && user.updatedAt) {
             const tokenIssuedAt = decoded.iat * 1000;
             const userUpdatedAt = new Date(user.updatedAt).getTime();
-            // If token is older than the last user update (e.g., password change), invalidate it
-            if (tokenIssuedAt < userUpdatedAt - 2000) {
+            if (!isNaN(userUpdatedAt) && tokenIssuedAt < userUpdatedAt - 10000) {
               isTokenValid = false;
               console.warn(`Token invalidated for user ${user.username} due to credential change`);
             }
           }
           if (isTokenValid) {
             (req as any).user = user;
+          } else {
+            return res.status(401).json({ error: 'نشست شما به دلیل تغییر اطلاعات کاربری منقضی شده است. لطفاً دوباره وارد شوید.' });
           }
         }
       }
     } catch (err: any) {
-      // ⚠️ بدون لاگ برای توکن‌های منقضی — جلوی اسپم صدها خط در لاگ گرفته می‌شود
-      // (پیام به کلاینت فقط یک‌بار نمایش داده می‌شود؛ مدیریت dedup در apiClient.ts)
-      if (!req.path.includes('/auth/')) {
-        return res.status(401).json({ error: 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.' });
+      if (err instanceof jwt.TokenExpiredError || err instanceof jwt.JsonWebTokenError) {
+        if (!req.path.includes('/auth/')) {
+          return res.status(401).json({ error: 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.' });
+        }
+      } else {
+        console.error('Database/server error in auth middleware:', err);
+        return res.status(500).json({ error: 'خطای داخلی سرور در بررسی دسترسی' });
       }
     }
   }
@@ -297,7 +313,8 @@ const loginSchema = z.object({
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 50,
+  skipSuccessfulRequests: true,
   message: { message: 'تعداد درخواست‌های ناموفق بیش از حد مجاز است. لطفاً ۱۵ دقیقه دیگر تلاش کنید.' },
   validate: { trustProxy: true, xForwardedForHeader: false }
 });

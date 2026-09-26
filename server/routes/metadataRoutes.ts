@@ -187,10 +187,10 @@ metadataRoutes.post('/knowledge-types', requireRole(['admin', 'superadmin']), as
 
 metadataRoutes.put('/knowledge-types/:id', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
   try {
-    const { name, category } = req.body;
+    const { name, category, description } = req.body;
     const now = new Date().toISOString();
     const result = await db.update(knowledgeTypes)
-      .set({ name, category: category || null, updatedAt: now })
+      .set({ name, category: category || null, description: description || null, updatedAt: now })
       .where(eq(knowledgeTypes.id, Number(req.params.id)))
       .returning();
     res.json((result as any[])[0] || result);

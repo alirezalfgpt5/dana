@@ -581,7 +581,27 @@ export function initDb() {
 
   // اعمال تغییرات شمای دیتابیس در صورت نیاز (مانند افزودن ستون جدید)
   try {
-    sqlite.exec('ALTER TABLE research_items ADD COLUMN program_coverages TEXT;');
+    const treeNodeCols = (sqlite.prepare("PRAGMA table_info(tree_nodes)").all() as any[]).map(c => c.name);
+    if (!treeNodeCols.includes('knowledge_type')) {
+      sqlite.exec('ALTER TABLE tree_nodes ADD COLUMN knowledge_type TEXT;');
+      console.log('✅ Added knowledge_type column to tree_nodes');
+    }
+  } catch (e) {}
+
+  try {
+    const researchCols = (sqlite.prepare("PRAGMA table_info(research_items)").all() as any[]).map(c => c.name);
+    if (!researchCols.includes('program_coverages')) {
+      sqlite.exec('ALTER TABLE research_items ADD COLUMN program_coverages TEXT;');
+    }
+    if (!researchCols.includes('period_id')) {
+      sqlite.exec('ALTER TABLE research_items ADD COLUMN period_id INTEGER REFERENCES periods(id);');
+      sqlite.exec('CREATE INDEX IF NOT EXISTS research_period_idx ON research_items(period_id);');
+      console.log('✅ Added period_id column to research_items');
+    }
+    if (!researchCols.includes('issue_id')) {
+      sqlite.exec('ALTER TABLE research_items ADD COLUMN issue_id INTEGER REFERENCES issues(id);');
+      console.log('✅ Added issue_id column to research_items');
+    }
   } catch (e) {}
 
   try {
@@ -596,6 +616,43 @@ export function initDb() {
 
   console.log('📝 Inserting initial data...');
 
+  // ۱. انواع دانش (Knowledge Types)
+  const defaultKnowledgeTypes = [
+    { name: 'نظریه', category: 'بنیادی', description: 'تئوری‌ها، گزاره‌های علمی و مبانی نظری' },
+    { name: 'الگو', category: 'توسعه‌ای', description: 'مدل‌ها، الگوهای مفهومی و کاربردی' },
+    { name: 'راهبرد', category: 'راهبردی', description: 'استراتژی‌ها، تدابیر و خط‌مشی‌های کلان' },
+    { name: 'راه‌کار و توصیه', category: 'کاربردی', description: 'توصیه‌های کاربردی و راهکارهای اجرایی' },
+    { name: 'دانش نوظهور', category: 'نوظهور', description: 'فناوری‌ها و شاخه‌های علمی نوین و نوظهور' },
+    { name: 'معماری', category: 'ساختاری', description: 'معماری سازمانی، سیستم‌ها و ساختارهای پیچیده' },
+    { name: 'دانش فنی', category: 'فنی و مهندسی', description: 'دانش فنی طراحی، ساخت، تعمیر، نگهداری و ارتقا' },
+    { name: 'نقشه‌راه', category: 'برنامه‌ریزی', description: 'ترسیم مسیر آینده و برنامه‌های بلندمدت توسعه دانش' },
+    { name: 'ایده و ابتکار', category: 'نوآوری', description: 'ایده‌ها، پیشنهادات خلاقانه و ابتکارات' },
+    { name: 'سناریو', category: 'تحلیلی', description: 'سناریوپردازی، آینده‌نگاری و شبیه‌سازی شرایط بحران' },
+    { name: 'خلاقیت و نوآوری', category: 'نوآوری', description: 'طرح‌های بدیع و تحول‌آفرین' },
+    { name: 'درس‌آموخته و تجربیات', category: 'تجارب دفاعی', description: 'تجارب میدانی، عملیاتی، دفاع مقدس و مدیریتی' },
+    { name: 'آیین‌نامه و دستورالعمل', category: 'اسنادی', description: 'ضوابط، رویه‌ها، استانداردها و مقررات مصوب' },
+    { name: 'مستند فنی و تخصصی', category: 'اسنادی', description: 'دفترچه‌های فنی، نقشه‌ها و گزارش‌های مهندسی' }
+  ];
+
+  for (let i = 0; i < defaultKnowledgeTypes.length; i++) {
+    const kt = defaultKnowledgeTypes[i];
+    const exists = sqlite.prepare("SELECT id FROM knowledge_types WHERE name = ?").get(kt.name);
+    if (!exists) {
+      sqlite.prepare(`
+        INSERT INTO knowledge_types (name, category, description, sort_order, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 1, ?, ?)
+      `).run(
+        kt.name,
+        kt.category,
+        kt.description,
+        i,
+        new Date().toISOString(),
+        new Date().toISOString()
+      );
+    }
+  }
+
+  // ۲. پوشش‌های برنامه‌ای
   const programCoveragesData = [
     { name: 'برنامه پنج ساله', description: 'پوشش برنامه‌های پنج ساله توسعه' },
     { name: 'برنامه سالیانه', description: 'پوشش برنامه‌های سالیانه مصوب' },
@@ -615,6 +672,81 @@ export function initDb() {
         new Date().toISOString(),
         new Date().toISOString()
       );
+    }
+  }
+
+  // ۳. اولویت‌های اقدام
+  const defaultActionPriorities = ['بحرانی', 'خیلی زیاد', 'زیاد', 'متوسط', 'پایین'];
+  for (let i = 0; i < defaultActionPriorities.length; i++) {
+    const name = defaultActionPriorities[i];
+    const exists = sqlite.prepare("SELECT id FROM action_priorities WHERE name = ?").get(name);
+    if (!exists) {
+      sqlite.prepare("INSERT INTO action_priorities (name, sort_order, is_active) VALUES (?, ?, 1)").run(name, i);
+    }
+  }
+
+  // ۴. سطوح پروژه
+  const defaultProjectLevels = ['راهبردی', 'سطح ۱', 'سطح ۲', 'تاکتیکی', 'عملیاتی'];
+  for (let i = 0; i < defaultProjectLevels.length; i++) {
+    const name = defaultProjectLevels[i];
+    const exists = sqlite.prepare("SELECT id FROM project_levels WHERE name = ?").get(name);
+    if (!exists) {
+      sqlite.prepare("INSERT INTO project_levels (name, sort_order, is_active) VALUES (?, ?, 1)").run(name, i);
+    }
+  }
+
+  // ۵. سطوح محرمانگی
+  const defaultConfLevels = ['عادی', 'محرمانه', 'خیلی محرمانه', 'سری', 'به‌کلی سری'];
+  for (let i = 0; i < defaultConfLevels.length; i++) {
+    const name = defaultConfLevels[i];
+    const exists = sqlite.prepare("SELECT id FROM confidentiality_levels WHERE name = ?").get(name);
+    if (!exists) {
+      sqlite.prepare("INSERT INTO confidentiality_levels (name, sort_order, is_active) VALUES (?, ?, 1)").run(name, i);
+    }
+  }
+
+  // ۶. مراجع تصویب
+  const defaultApprovals = ['شورای عالی دانش و پژوهش', 'فرماندهی نیرو', 'معاونت دانش و پژوهش', 'شورای پژوهشی پایگاه / یگان'];
+  for (let i = 0; i < defaultApprovals.length; i++) {
+    const name = defaultApprovals[i];
+    const exists = sqlite.prepare("SELECT id FROM approval_authorities WHERE name = ?").get(name);
+    if (!exists) {
+      sqlite.prepare("INSERT INTO approval_authorities (name, sort_order, is_active) VALUES (?, ?, 1)").run(name, i);
+    }
+  }
+
+  // ۷. پروژه‌های دانشی
+  const defaultKnowledgeProjTypes = ['مستندسازی و تدوین دانش', 'تجربه‌نگاری و ثبت خاطرات عملیاتی', 'تاریخ شفاهی', 'تدوین درس‌آموخته', 'استانداردسازی و الگوبرداری', 'شناسایی و اکتساب دانش نوین'];
+  for (let i = 0; i < defaultKnowledgeProjTypes.length; i++) {
+    const name = defaultKnowledgeProjTypes[i];
+    const exists = sqlite.prepare("SELECT id FROM knowledge_project_types WHERE name = ?").get(name);
+    if (!exists) {
+      sqlite.prepare("INSERT INTO knowledge_project_types (name, sort_order, is_active) VALUES (?, ?, 1)").run(name, i);
+    }
+  }
+
+  // ۸. پروژه‌های پژوهشی
+  const defaultResearchProjTypes = ['آینده‌پژوهی و سناریوپردازی', 'نقد، مناظره و کرسی نظریه‌پردازی', 'طرح پژوهشی راهبردی', 'مطالعات تطبیقی و الگوبرداری', 'طرح ارتقا و بهینه‌سازی فنی'];
+  for (let i = 0; i < defaultResearchProjTypes.length; i++) {
+    const name = defaultResearchProjTypes[i];
+    const exists = sqlite.prepare("SELECT id FROM research_project_types WHERE name = ?").get(name);
+    if (!exists) {
+      sqlite.prepare("INSERT INTO research_project_types (name, sort_order, is_active, created_at, updated_at) VALUES (?, ?, 1, ?, ?)").run(
+        name,
+        i,
+        new Date().toISOString(),
+        new Date().toISOString()
+      );
+    }
+  }
+
+  // ۹. دیپلماسی علمی
+  const defaultSciDiplo = ['درون‌سازمانی (یگانی و نیرویی)', 'بین‌سازمانی (نیروهای مسلح)', 'ملی و کشوری (دانشگاه‌ها و مراکز تحقیقاتی)', 'بین‌المللی'];
+  for (let i = 0; i < defaultSciDiplo.length; i++) {
+    const name = defaultSciDiplo[i];
+    const exists = sqlite.prepare("SELECT id FROM scientific_diplomacy_levels WHERE name = ?").get(name);
+    if (!exists) {
+      sqlite.prepare("INSERT INTO scientific_diplomacy_levels (name, sort_order, is_active) VALUES (?, ?, 1)").run(name, i);
     }
   }
 

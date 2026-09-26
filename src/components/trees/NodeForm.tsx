@@ -77,6 +77,7 @@ export function NodeForm({
     title: '',
     level: 'L',
     description: '',
+    knowledgeType: '',
     templateIds: [] as string[],
     levelId: '',
     parentId: parentId || null,
@@ -87,6 +88,21 @@ export function NodeForm({
   const [selectedDate, setSelectedDate] = useState<any>(null);
   const [showLevelHelp, setShowLevelHelp] = useState(false);
   const [availableLevels, setAvailableLevels] = useState<LevelOption[]>([]);
+  const [knowledgeTypesList, setKnowledgeTypesList] = useState<any[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await (window.customFetch || window.fetch)('/api/metadata/knowledge-types');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) setKnowledgeTypesList(data);
+        }
+      } catch (e) {
+        console.error('Error fetching knowledge types in NodeForm:', e);
+      }
+    })();
+  }, []);
 
   // تعیین سطوح و سطح اولیه
   useEffect(() => {
@@ -97,6 +113,7 @@ export function NodeForm({
         title: node.title || '',
         level: node.level || 'L',
         description: node.description || '',
+        knowledgeType: node.knowledgeType || (node.metadata && typeof node.metadata === 'object' ? node.metadata.knowledgeType : '') || '',
         templateIds: (Array.isArray(node.templateIds) ? node.templateIds : (node.templateIds ? String(node.templateIds).split(',').filter(Boolean) : [])) || [],
         levelId: node.levelId ? String(node.levelId) : '',
         parentId: node.parentId || null,
@@ -317,6 +334,26 @@ export function NodeForm({
               className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm min-h-[60px]"
               placeholder="توضیحات تکمیلی در مورد این گره..."
             />
+          </div>
+
+          {/* نوع دانش */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              نوع دانش
+              <span className="text-xs text-gray-400 mr-1">(برگرفته از تعاریف پایه‌ای سیستم)</span>
+            </label>
+            <select
+              value={formData.knowledgeType || ''}
+              onChange={e => handleChange('knowledgeType', e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm"
+            >
+              <option value="">انتخاب نوع دانش...</option>
+              {knowledgeTypesList.map(kt => (
+                <option key={kt.id} value={kt.name}>
+                  {kt.name} {kt.category ? `(${kt.category})` : ''}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* قالب‌ها (فقط برای برگ‌ها در درختواره مورد نیاز) */}
