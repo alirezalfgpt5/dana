@@ -1,21 +1,48 @@
 // server/utils/portManager.ts
-// ماژول مدیریت، آزادسازی هوشمند پورت و حل همیشگی خطای EADDRINUSE
+// ماژول مدیریت و آزادسازی هوشمند پورت، سازگار با ویندوز و لینوکس
 
 import { execSync } from 'child_process';
 import http from 'http';
 import { logger } from './logger.js';
 
 /**
- * یافتن شناسه‌های فرآیند (PID) اشغال‌کننده پورت مشخص
+ * یافتن شناسه‌های فرآیند (PID) اشغال‌کننده پورت مشخص به روش کراس‌پلتفرم
  */
 export function getPidsListeningOnPort(port: number): number[] {
   const pids: number[] = [];
   const currentPid = process.pid;
   const parentPid = process.ppid;
 
+  // ۱. سیستم‌عامل ویندوز
+  if (process.platform === 'win32') {
+    try {
+      const netstatOut = execSync(`netstat -ano -p tcp`, {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      for (const line of netstatOut.split('\n')) {
+        if (!line.includes(`:${port}`)) continue;
+        const parts = line.trim().split(/\s+/);
+        // ستون آخر در ویندوز netstat برابر PID است
+        if (parts.length >= 5 && parts[3]?.toUpperCase() === 'LISTENING') {
+          const pid = parseInt(parts[4], 10);
+          if (pid && pid !== currentPid && pid !== parentPid && !pids.includes(pid)) {
+            pids.push(pid);
+          }
+        }
+      }
+    } catch {
+      // در صورت نبود پروسه عادی است
+    }
+    return pids;
+  }
+
+  // ۲. سیستم‌عامل‌های لینوکس و مک
   try {
-    // روش اول: بررسی از طریق ابزار ss
-    const ssOut = execSync(`ss -lptn "sport = :${port}" 2>/dev/null`, { encoding: 'utf8' });
+    const ssOut = execSync(`ss -lptn "sport = :${port}"`, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
     const matches = ssOut.matchAll(/pid=(\d+)/g);
     for (const match of matches) {
       const pid = parseInt(match[1], 10);
@@ -23,23 +50,21 @@ export function getPidsListeningOnPort(port: number): number[] {
         pids.push(pid);
       }
     }
-  } catch {
-    // خطا در اجرای ss بی‌خطر است
-  }
+  } catch {}
 
-  // روش دوم: اگر با ss پیدا نشد، بررسی از طریق lsof
   if (pids.length === 0) {
     try {
-      const lsofOut = execSync(`lsof -ti :${port} 2>/dev/null`, { encoding: 'utf8' });
+      const lsofOut = execSync(`lsof -ti :${port}`, {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
       for (const line of lsofOut.split('\n')) {
         const pid = parseInt(line.trim(), 10);
         if (pid && pid !== currentPid && pid !== parentPid && !pids.includes(pid)) {
           pids.push(pid);
         }
       }
-    } catch {
-      // lsof ممکن است نصب نباشد
-    }
+    } catch {}
   }
 
   return pids;
@@ -50,40 +75,28 @@ export function getPidsListeningOnPort(port: number): number[] {
  */
 export function freePort(port: number): boolean {
   let freed = false;
-  const currentPid = process.pid;
-  const parentPid = process.ppid;
-
   const targetPids = getPidsListeningOnPort(port);
+
   for (const pid of targetPids) {
     try {
       logger.info(`🔄 آزادسازی پورت ${port}: بستن پردازش قبلی (PID ${pid})...`);
-      process.kill(pid, 'SIGTERM');
+      if (process.platform === 'win32') {
+        execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' });
+      } else {
+        process.kill(pid, 'SIGTERM');
+      }
       freed = true;
     } catch {
-      // نادیده گرفتن اگر قبلاً بسته شده
+      // نادیده گرفتن در صورت پایان پردازش
     }
   }
 
-  // اگر پردازش‌ها با SIGTERM بسته نشدند، با SIGKILL فورس کن
-  if (targetPids.length > 0) {
+  // روی لینوکس در صورت نیاز fuser تست شود (بدون syntax 2>/dev/null که در ویندوز خطا می‌دهد)
+  if (process.platform !== 'win32' && targetPids.length > 0) {
     try {
-      // انتظار خیلی کوتاه ۵۰ میلی‌ثانیه برای خروج مسالمت‌آمیز
-      const checkPids = getPidsListeningOnPort(port);
-      for (const pid of checkPids) {
-        try {
-          process.kill(pid, 'SIGKILL');
-          freed = true;
-        } catch {}
-      }
+      execSync(`fuser -k ${port}/tcp`, { stdio: 'ignore' });
+      freed = true;
     } catch {}
-  }
-
-  // روش تکمیلی اضطراری با fuser در لینوکس
-  try {
-    execSync(`fuser -k ${port}/tcp 2>/dev/null`);
-    freed = true;
-  } catch {
-    // fuser ممکن است خروجی 1 دهد اگر پروسه‌ای نباشد
   }
 
   return freed;
@@ -93,10 +106,18 @@ export function freePort(port: number): boolean {
  * بستن پروسه‌های تکراری قدیمی `server.ts` در حافظه
  */
 export function killLingeringServerProcesses() {
+  if (process.platform === 'win32') {
+    // در ویندوز از جستجوی ساده رد می‌شویم
+    return;
+  }
+
   try {
     const currentPid = process.pid;
     const parentPid = process.ppid;
-    const pgrepOut = execSync("pgrep -f 'server.ts' 2>/dev/null", { encoding: 'utf8' });
+    const pgrepOut = execSync("pgrep -f 'server.ts'", {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
     const pids = pgrepOut
       .split('\n')
       .map(s => parseInt(s.trim(), 10))
@@ -107,9 +128,7 @@ export function killLingeringServerProcesses() {
         process.kill(pid, 'SIGTERM');
       } catch {}
     }
-  } catch {
-    // عادی است
-  }
+  } catch {}
 }
 
 /**
@@ -125,7 +144,6 @@ export function listenWithAutoPortRecovery(
   const maxRetries = 5;
 
   const tryListen = () => {
-    // پاک کردن خطاهای قبلی جهت جلوگیری از تکرار رویدادها
     httpServer.removeAllListeners('error');
 
     httpServer.on('error', (err: any) => {
@@ -135,7 +153,6 @@ export function listenWithAutoPortRecovery(
           `⚠️ پورت ${port} اشغال است (EADDRINUSE). در حال آزادسازی خودکار و تلاش مجدد (${retryCount} از ${maxRetries})...`
         );
 
-        // تلاش برای آزادسازی پورت
         freePort(port);
 
         if (retryCount <= maxRetries) {
@@ -163,7 +180,6 @@ export function listenWithAutoPortRecovery(
     });
   };
 
-  // گام اول: آزادسازی پیشگیرانه قبل از اولین تلاش
   freePort(port);
   tryListen();
 }
@@ -184,7 +200,6 @@ export function setupGracefulShutdown(httpServer: http.Server) {
       process.exit(0);
     });
 
-    // در صورتی که پس از ۲ ثانیه اتصالی گیر کرده بود، فورس خارج شو
     setTimeout(() => {
       process.exit(0);
     }, 2000).unref();
