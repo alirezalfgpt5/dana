@@ -43,16 +43,17 @@ const ARABIC_TO_PERSIAN: Record<string, string> = {
   '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4', '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9',
 };
 
-/** نرمال‌سازی متن فارسی/عربی: یکسان‌سازی ی/ک عربی، حذف اعراب، حذف نیم‌فاصله و نویسه‌های کنترلی */
+/** نرمال‌سازی متن فارسی/عربی: یکسان‌سازی ی/ک عربی، حذف اعراب، تبدیل نیم‌فاصله و نویسه‌های کنترلی به فاصله */
 export function normalizePersianText(input: string | null | undefined): string {
   if (!input) return '';
   let s = String(input).toLowerCase().trim();
-  // حذف اعراب، تنوین، تشدید و اتصال‌های کنترلی
-  s = s.replace(/[\u064B-\u065F\u0670\u0640\u200B-\u200F\uFEFF\u00AD]/g, '');
+  // ابتدا یکسان‌سازی انواع نیم‌فاصله/جهت‌نما به فاصله قبل از حذف سایر نویسه‌های کنترلی
+  s = s.replace(/[\u200C\u200D\u200E\u200F]/g, ' ');
+  // حذف اعراب، تنوین، تشدید، تطویل (کشش) و نویسه‌های کنترلی باقی‌مانده (بدون حذف ZWNJ که قبلاً به فاصله تبدیل شد)
+  s = s.replace(/[\u064B-\u065F\u0670\u0640\u200B\uFEFF\u00AD]/g, '');
   // یکسان‌سازی نویسه‌های عربی/فارسی و ارقام
   s = s.replace(/[يكۀأإآؤئةٱٹڈڑى٠-٩۰-۹]/g, (ch) => ARABIC_TO_PERSIAN[ch] || ch);
-  // یکسان‌سازی انواع نیم‌فاصله/خط تیره به فاصله
-  s = s.replace(/[\u200C\u200D\u200E\u200F]/g, ' ');
+  // تبدیل علائم نگارشی و خط تیره‌ها به فاصله
   s = s.replace(/[-ـ_/\\.,;:!?()[\]{}"'«»]+/g, ' ');
   // فشرده‌سازی فاصله‌ها
   s = s.replace(/\s+/g, ' ').trim();
@@ -282,6 +283,8 @@ export interface MatchResult {
   };
 }
 
+export type TemplateMatchDetails = NonNullable<MatchResult['templateDetails']>;
+
 // ============================================
 // تحلیل مقایسه یک گره برگ با درختواره تولیدشده
 // ============================================
@@ -331,6 +334,7 @@ export function compareRequiredLeaf(ctx: CompareContext): MatchResult {
   const requiredTemplateIds = extractTemplateIds(requiredNode);
 
   let best: MatchResult | null = null;
+  let bestTemplateDetails: TemplateMatchDetails | null = null;
 
   for (const producedLeaf of producedLeaves) {
     // ---------- مرحله ۱: تشخیص دستی (پرچم 'checked') — منطق قدیمی حفظ شده ----------
@@ -382,6 +386,10 @@ export function compareRequiredLeaf(ctx: CompareContext): MatchResult {
         : 0,
     };
 
+    if (!bestTemplateDetails || templateDetails.matchRatio > bestTemplateDetails.matchRatio) {
+      bestTemplateDetails = templateDetails;
+    }
+
     const hasAllTemplates =
       requiredTemplateIds.length > 0 &&
       templateDetails.missing.length === 0;
@@ -401,8 +409,8 @@ export function compareRequiredLeaf(ctx: CompareContext): MatchResult {
       continue; // تطابق کامل؛ بهتر از این نمی‌شود
     }
 
-    // ---------- مرحله ۴: تطابق جزئی قالبی (منطق قدیمی با آستانه 0.3) ----------
-    if (templateDetails.matchRatio > options.partialMatchThreshold && (!best || templateDetails.matchRatio > best.matchScore)) {
+    // ---------- مرحله ۴: تطابق جزئی قالبی (حداقل ۳۰٪ قالب‌ها) ----------
+    if (templateDetails.matchRatio >= options.partialMatchThreshold && (!best || templateDetails.matchRatio > best.matchScore)) {
       const result: MatchResult = {
         matched: true,
         status: 'partially_filled',
@@ -488,7 +496,7 @@ export function compareRequiredLeaf(ctx: CompareContext): MatchResult {
       matchScore: 0,
       matchedNodeId: null,
       reasonFa: reason,
-      templateDetails: {
+      templateDetails: bestTemplateDetails || {
         required: requiredTemplateIds.map(Number),
         found: [],
         missing: requiredTemplateIds.map(Number),

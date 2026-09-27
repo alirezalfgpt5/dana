@@ -39,6 +39,68 @@ import { sqlite } from '../../src/db/index.js';
 export const gapRoutes = Router();
 
 // ============================================
+// توابع کمکی بررسی کنترل دسترسی سازمانی (آجا / نیرو / رده)
+// ============================================
+
+export async function canUserAccessTree(user: any, tree: any): Promise<boolean> {
+  if (!user) return false;
+  const orgScope = getUserOrgScope(user);
+  if (orgScope.isSuperAdmin || orgScope.level === 'AJA') return true;
+  if (!tree) return false;
+
+  if (orgScope.level === 'RADE') {
+    if (tree.unitId) {
+      return orgScope.canAccessUnit(tree.unitId);
+    }
+    if (tree.baseId) {
+      return orgScope.canAccessBase(tree.baseId);
+    }
+    return false;
+  }
+
+  if (orgScope.level === 'NIROO') {
+    if (tree.unitId) {
+      return orgScope.canAccessUnit(tree.unitId);
+    }
+    if (tree.baseId) {
+      return orgScope.canAccessBase(tree.baseId);
+    }
+    return false;
+  }
+
+  return false;
+}
+
+export async function canUserAccessNode(user: any, nodeId: number): Promise<{ allowed: boolean; tree: any; node: any }> {
+  if (!user || !nodeId) return { allowed: false, tree: null, node: null };
+  const node = await db.query.treeNodes.findFirst({
+    where: eq(treeNodes.id, nodeId),
+  });
+  if (!node) return { allowed: false, tree: null, node: null };
+  const tree = await db.query.knowledgeTrees.findFirst({
+    where: eq(knowledgeTrees.id, node.treeId),
+  });
+  if (!tree) return { allowed: false, tree: null, node };
+  const allowed = await canUserAccessTree(user, tree);
+  return { allowed, tree, node };
+}
+
+export async function canUserAccessGap(user: any, gapId: number): Promise<{ allowed: boolean; gap: any; tree: any; requiredNode: any }> {
+  if (!user || !gapId) return { allowed: false, gap: null, tree: null, requiredNode: null };
+  const gap = await db.query.gaps.findFirst({
+    where: eq(gaps.id, gapId),
+  });
+  if (!gap) return { allowed: false, gap: null, tree: null, requiredNode: null };
+  const nodeAccess = await canUserAccessNode(user, gap.requiredNodeId);
+  return {
+    allowed: nodeAccess.allowed,
+    gap,
+    tree: nodeAccess.tree,
+    requiredNode: nodeAccess.node,
+  };
+}
+
+// ============================================
 // ۱. دریافت گپ‌ها با فیلترهای پیشرفته
 // ============================================
 
@@ -349,7 +411,23 @@ gapRoutes.get('/', async (req, res) => {
 gapRoutes.get('/run-history', async (req, res) => {
   try {
     const { requiredTreeId } = req.query;
-    const history = await db.select({
+    const user = (req as AuthRequest).user;
+    const orgScope = getUserOrgScope(user);
+
+    if (requiredTreeId) {
+      const tree = await db.query.knowledgeTrees.findFirst({
+        where: eq(knowledgeTrees.id, parseInt(requiredTreeId as string)),
+      });
+      if (!tree) {
+        return res.status(404).json({ error: 'درختواره مورد نیاز یافت نشد' });
+      }
+      const canAccess = await canUserAccessTree(user, tree);
+      if (!canAccess) {
+        return res.status(403).json({ error: 'عدم دسترسی سازمانی به سوابق این درختواره' });
+      }
+    }
+
+    let query = db.select({
       id: gapAnalysisRuns.id,
       requiredTreeId: gapAnalysisRuns.requiredTreeId,
       producedTreeId: gapAnalysisRuns.producedTreeId,
@@ -361,10 +439,41 @@ gapRoutes.get('/run-history', async (req, res) => {
       carriedReviews: gapAnalysisRuns.carriedReviews,
       createdAt: gapAnalysisRuns.createdAt,
     })
-      .from(gapAnalysisRuns)
-      .where(requiredTreeId ? eq(gapAnalysisRuns.requiredTreeId, parseInt(requiredTreeId as string)) : undefined)
-      .orderBy(desc(gapAnalysisRuns.createdAt))
-      .limit(25);
+      .from(gapAnalysisRuns);
+
+    const conditions: any[] = [];
+    if (requiredTreeId) {
+      conditions.push(eq(gapAnalysisRuns.requiredTreeId, parseInt(requiredTreeId as string)));
+    } else if (!orgScope.isSuperAdmin && orgScope.level !== 'AJA') {
+      const effective = orgScope.getEffectiveFilter();
+      if (effective.unitIds && effective.unitIds.length > 0) {
+        const userTrees = await db.select({ id: knowledgeTrees.id })
+          .from(knowledgeTrees)
+          .where(inArray(knowledgeTrees.unitId, effective.unitIds));
+        const treeIds = userTrees.map(t => t.id);
+        if (treeIds.length > 0) {
+          conditions.push(inArray(gapAnalysisRuns.requiredTreeId, treeIds));
+        } else {
+          conditions.push(eq(gapAnalysisRuns.id, -1));
+        }
+      } else if (effective.baseIds && effective.baseIds.length > 0) {
+        const userTrees = await db.select({ id: knowledgeTrees.id })
+          .from(knowledgeTrees)
+          .where(inArray(knowledgeTrees.baseId, effective.baseIds));
+        const treeIds = userTrees.map(t => t.id);
+        if (treeIds.length > 0) {
+          conditions.push(inArray(gapAnalysisRuns.requiredTreeId, treeIds));
+        } else {
+          conditions.push(eq(gapAnalysisRuns.id, -1));
+        }
+      }
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    const history = await query.orderBy(desc(gapAnalysisRuns.createdAt)).limit(25);
     res.json({ history });
   } catch (error) {
     console.error('Error fetching run history:', error);
@@ -532,18 +641,20 @@ gapRoutes.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const gapId = parseInt(id);
+    if (isNaN(gapId)) {
+      return res.status(400).json({ error: 'شناسه گپ نامعتبر است' });
+    }
 
-    const gap = await db.query.gaps.findFirst({
-      where: eq(gaps.id, gapId),
-    });
+    const user = (req as AuthRequest).user;
+    const { allowed, gap, requiredNode } = await canUserAccessGap(user, gapId);
 
     if (!gap) {
       return res.status(404).json({ error: 'گپ یافت نشد' });
     }
 
-    const requiredNode = await db.query.treeNodes.findFirst({
-      where: eq(treeNodes.id, gap.requiredNodeId),
-    });
+    if (!allowed) {
+      return res.status(403).json({ error: 'عدم دسترسی سازمانی به این گپ' });
+    }
 
     const producedNode = gap.producedNodeId
       ? await db.query.treeNodes.findFirst({
@@ -575,12 +686,8 @@ gapRoutes.post('/analyze', async (req, res) => {
   try {
     const { requiredTreeId, producedTreeId, options } = req.body;
     const now = new Date().toISOString();
-    const userId = (req as AuthRequest).user?.id || null;
-
-    // 🟢 بازنگری‌های دستی کاربر از گپ‌های قبلی — قبل از حذف جمع و به تحلیل جدید اعمال می‌شود
-    const manualReviews: Array<{ requiredNodeId: number; verdict: string; newStatus: string | null; note: string | null }> = [];
-    const manualStatusMap = new Map<number, { status: string; note: string | null; verdict: string | null }>();
-    const notGapNodeIds = new Set<number>();
+    const user = (req as AuthRequest).user;
+    const userId = user?.id || null;
 
     if (!requiredTreeId || producedTreeId === undefined) {
       return res.status(400).json({
@@ -601,6 +708,19 @@ gapRoutes.post('/analyze', async (req, res) => {
 
     if (!requiredTree || (parseInt(producedTreeId) !== 0 && !producedTree)) {
       return res.status(404).json({ error: 'یکی از درختواره‌ها یافت نشد' });
+    }
+
+    // 🟢 کنترل دسترسی سازمانی به درخت‌های تحلیل (رفع ایراد ۱)
+    const canAccessReq = await canUserAccessTree(user, requiredTree);
+    if (!canAccessReq) {
+      return res.status(403).json({ error: 'عدم دسترسی سازمانی به درختواره مورد نیاز' });
+    }
+
+    if (producedTree) {
+      const canAccessProd = await canUserAccessTree(user, producedTree);
+      if (!canAccessProd) {
+        return res.status(403).json({ error: 'عدم دسترسی سازمانی به درختواره تولیدشده' });
+      }
     }
 
     // ۱. دریافت تمام گره‌های برگ (L و Q) از درختواره مورد نیاز
@@ -635,85 +755,89 @@ gapRoutes.post('/analyze', async (req, res) => {
       producedAncestorsMap.set(l.id, buildAncestorPath(l, nodeMapProduced));
     });
 
-    // ۳. حذف گپ‌های قبلی این تحلیل (منطق قدیمی حفظ شده)
+    // ۳. جمع‌آوری گپ‌های قبلی این درختواره موردنیاز جهت به‌روزرسانی هوشمند به جای حذف کورکورانه (رفع ایراد ۲ و ۴)
     const requiredNodeIds = requiredAllNodes.map(n => n.id);
+    let oldGaps: any[] = [];
     if (requiredNodeIds.length > 0) {
-      // Find gaps to be deleted (با متادیتا برای نجات بازنگری‌های دستی کاربر)
-      const oldGaps = await db.select({ id: gaps.id, requiredNodeId: gaps.requiredNodeId, status: gaps.status, metadata: gaps.metadata }).from(gaps).where(inArray(gaps.requiredNodeId, requiredNodeIds));
-      if (oldGaps.length > 0) {
-          const oldGapIds = oldGaps.map(g => g.id);
-
-          // 🟢 جمع‌آوری بازنگری‌های دستی کاربر از گپ‌های قدیمی (قبل از حذف)
-          for (const og of oldGaps) {
-            const meta = (og.metadata as any) || {};
-            const review = meta.manualReview as { verdict?: string; note?: string | null; newStatus?: string | null } | undefined;
-            if (review && review.verdict) {
-              // وضعیت مؤثری که کاربر تعیین کرده: not_gap → filled | adjusted → newStatus | confirmed_gap → بدون تغییر
-              const carriedStatus = review.newStatus
-                ?? (review.verdict === 'not_gap' ? 'filled' : null)
-                ?? (review.verdict === 'adjusted' ? (meta.manualNewStatus ?? null) : null);
-              manualReviews.push({
-                requiredNodeId: og.requiredNodeId,
-                verdict: review.verdict,
-                newStatus: carriedStatus,
-                note: review.note ?? null,
-              });
-              if (carriedStatus) {
-                manualStatusMap.set(og.requiredNodeId, { status: carriedStatus, note: review.note ?? null, verdict: review.verdict });
-              }
-              if (review.verdict === 'not_gap') {
-                notGapNodeIds.add(og.requiredNodeId);
-              }
-            }
-          }
-
-          // Delete related researchItems
-          const oldResearchItems: Array<{ id: number; nodeId: number | null }> = [];
-          if (oldGapIds.length > 500) {
-              for (let i = 0; i < oldGapIds.length; i += 500) {
-                  const chunk = await db.select({ id: researchItems.id, nodeId: researchItems.nodeId }).from(researchItems).where(inArray(researchItems.gapId, oldGapIds.slice(i, i + 500)));
-                  oldResearchItems.push(...chunk);
-              }
-          } else {
-              const chunk = await db.select({ id: researchItems.id, nodeId: researchItems.nodeId }).from(researchItems).where(inArray(researchItems.gapId, oldGapIds));
-              oldResearchItems.push(...chunk);
-          }
-
-          if (oldResearchItems.length > 0) {
-              const oldResearchItemIds = oldResearchItems.map(r => r.id);
-              const oldResearchNodeIds = oldResearchItems.map(r => r.nodeId).filter(Boolean) as number[];
-
-              // Nullify issues that point to these researchItems
-              if (oldResearchItemIds.length > 500) {
-                  for (let i = 0; i < oldResearchItemIds.length; i += 500) {
-                      await db.update(issues).set({ researchItemId: null }).where(inArray(issues.researchItemId, oldResearchItemIds.slice(i, i + 500)));
-                      await db.delete(researchItems).where(inArray(researchItems.id, oldResearchItemIds.slice(i, i + 500)));
-                  }
-              } else {
-                  await db.update(issues).set({ researchItemId: null }).where(inArray(issues.researchItemId, oldResearchItemIds));
-                  await db.delete(researchItems).where(inArray(researchItems.id, oldResearchItemIds));
-              }
-
-              // Delete orphaned treeNodes from the research tree
-              if (oldResearchNodeIds.length > 500) {
-                  for (let i = 0; i < oldResearchNodeIds.length; i += 500) {
-                      await db.delete(treeNodes).where(inArray(treeNodes.id, oldResearchNodeIds.slice(i, i + 500)));
-                  }
-              } else if (oldResearchNodeIds.length > 0) {
-                  await db.delete(treeNodes).where(inArray(treeNodes.id, oldResearchNodeIds));
-              }
-          }
-
-          // Finally delete the gaps
-          if (oldGapIds.length > 500) {
-              for (let i = 0; i < oldGapIds.length; i += 500) {
-                  await db.delete(gaps).where(inArray(gaps.id, oldGapIds.slice(i, i + 500)));
-              }
-          } else {
-              await db.delete(gaps).where(inArray(gaps.id, oldGapIds));
-          }
+      if (requiredNodeIds.length > 500) {
+        for (let i = 0; i < requiredNodeIds.length; i += 500) {
+          const chunk = await db.select().from(gaps).where(inArray(gaps.requiredNodeId, requiredNodeIds.slice(i, i + 500)));
+          oldGaps.push(...chunk);
+        }
+      } else {
+        oldGaps = await db.select().from(gaps).where(inArray(gaps.requiredNodeId, requiredNodeIds));
       }
     }
+
+    const existingGapsByReqNode = new Map<number, any>();
+    oldGaps.forEach(g => existingGapsByReqNode.set(g.requiredNodeId, g));
+    const oldGapIds = oldGaps.map(g => g.id);
+
+    // شناسایی گپ‌هایی که دارای آیتم پژوهشی هستند (این گپ‌ها و اتصالات پژوهشی نباید حذف شوند)
+    const gapIdsWithResearch = new Set<number>();
+    if (oldGapIds.length > 0) {
+      if (oldGapIds.length > 500) {
+        for (let i = 0; i < oldGapIds.length; i += 500) {
+          const chunk = await db.select({ gapId: researchItems.gapId })
+            .from(researchItems)
+            .where(inArray(researchItems.gapId, oldGapIds.slice(i, i + 500)));
+          chunk.forEach(r => { if (r.gapId) gapIdsWithResearch.add(r.gapId); });
+        }
+      } else {
+        const chunk = await db.select({ gapId: researchItems.gapId })
+          .from(researchItems)
+          .where(inArray(researchItems.gapId, oldGapIds));
+        chunk.forEach(r => { if (r.gapId) gapIdsWithResearch.add(r.gapId); });
+      }
+    }
+
+    // 🟢 جمع‌آوری بازنگری‌های دستی کاربر از گپ‌های قدیمی (رفع ایراد ۴)
+    // انتقال فقط بازنگری‌هایی که واقعاً وضعیت را تغییر می‌دهند (not_gap و adjusted معتبر)
+    // برای confirmed_gap وضعیت موتور بازنویسی نمی‌شود تا نتیجه تحلیل جدید حفظ شود
+    const manualReviews: Array<{ requiredNodeId: number; verdict: string; newStatus: string | null; note: string | null }> = [];
+    const manualStatusMap = new Map<number, { status: string | null; note: string | null; verdict: string | null }>();
+    const notGapNodeIds = new Set<number>();
+
+    for (const og of oldGaps) {
+      const meta = (og.metadata as any) || {};
+      const review = meta.manualReview as { verdict?: string; note?: string | null; newStatus?: string | null } | undefined;
+      if (review && review.verdict) {
+        let carriedStatus: string | null = null;
+        if (review.verdict === 'not_gap') {
+          carriedStatus = 'filled';
+        } else if (review.verdict === 'adjusted') {
+          const cand = review.newStatus ?? meta.manualNewStatus;
+          if (cand && ['open', 'filled', 'partially_filled'].includes(cand)) {
+            carriedStatus = cand;
+          }
+        }
+        // در confirmed_gap وضعیت موتور باید حفظ شود پس carriedStatus مقدار null می‌گیرد
+
+        manualReviews.push({
+          requiredNodeId: og.requiredNodeId,
+          verdict: review.verdict,
+          newStatus: carriedStatus,
+          note: review.note ?? null,
+        });
+
+        if (carriedStatus || review.note) {
+          manualStatusMap.set(og.requiredNodeId, {
+            status: carriedStatus,
+            note: review.note ?? null,
+            verdict: review.verdict,
+          });
+        }
+        if (review.verdict === 'not_gap') {
+          notGapNodeIds.add(og.requiredNodeId);
+        }
+      }
+    }
+
+    // گپ‌های منسوخ: گپ‌هایی که گره موردنیازشان دیگر در بین برگ‌های درخت نیست
+    const currentLeafIdSet = new Set(requiredLeaves.map(l => l.id));
+    const obsoleteGaps = oldGaps.filter(g => !currentLeafIdSet.has(g.requiredNodeId));
+    // فقط گپ‌های منسوخی که فاقد هرگونه آیتم پژوهشی هستند حذف می‌شوند تا اتصال پژوهش‌ها و مسائل محفوظ بماند
+    const obsoleteGapsToDelete = obsoleteGaps.filter(g => !gapIdsWithResearch.has(g.id));
 
     // ۴. آماده‌سازی داده‌های ورودی موتور تحلیل
     const instanceRows = await db.select().from(templateInstances);
@@ -734,10 +858,9 @@ gapRoutes.post('/analyze', async (req, res) => {
       ...((options || {}) as GapAnalysisEngineOptions),
     };
 
-    // 🟢 بازنگری‌های دستی جمع‌آوری‌شده از گپ‌های قبلی (بخش ۳)
     const carriedReviewCount = manualReviews.length;
 
-    // 🟢 ساخت مسیر مالکیت سازمانی هر درختواره (آجا/نیرو/رده) — نمایش روی گره‌های خروجی
+    // مسیر مالکیت سازمانی
     const orgBases = await db.select().from(bases);
     const orgUnits = await db.select().from(units);
     const baseMap = new Map(orgBases.map(b => [b.id, b]));
@@ -753,11 +876,20 @@ gapRoutes.post('/analyze', async (req, res) => {
     const requiredOwnerPath = describeOwnership(requiredTree);
     const producedOwnerPath = describeOwnership(producedTree);
 
-    const createdGaps: any[] = [];
     let filledCount = 0;
     let openCount = 0;
     let partialCount = 0;
     let carriedReviews = 0;
+
+    // محاسبات درون حافظه قبل از ورود به تراکنش
+    const preparedOperations: Array<{
+      requiredLeaf: any;
+      existingGap: any | null;
+      gapData: any;
+      match: any;
+      requiredAncestors: any[];
+      gapStatus: string;
+    }> = [];
 
     for (const requiredLeaf of requiredLeaves) {
       const requiredAncestors = buildAncestorPath(requiredLeaf as EngineNode, nodeMapRequired);
@@ -773,15 +905,16 @@ gapRoutes.post('/analyze', async (req, res) => {
       });
 
       let gapStatus = match.status;
-      // شرح فارسی نتیجه (برای نمایش در UI)
       let description = match.reasonFa;
 
-      // 🟢 اعمال نظر دستی کاربر از تحلیل قبلی (منطق «بر اساس آخرین نسخه»):
-      // not_gap → filled | adjusted → وضعیت انتخابی کاربر | confirmed_gap → پیش‌فرض موتور حفظ می‌شود
+      // اعمال نظر دستی کاربر در صورت وجود وضعیت تحمیلی معتبر (not_gap یا adjusted)
       const manual = manualStatusMap.get(requiredLeaf.id);
-      if (manual) {
+      if (manual && manual.status) {
         gapStatus = manual.status as any;
         description = `${manual.note ? `🎧 نظر کاربر: ${manual.note} — ` : ''}${description}`;
+        carriedReviews++;
+      } else if (manual && manual.note) {
+        description = `🎧 نظر کاربر: ${manual.note} — ${description}`;
         carriedReviews++;
       }
 
@@ -789,7 +922,6 @@ gapRoutes.post('/analyze', async (req, res) => {
       else if (gapStatus === 'partially_filled') partialCount++;
       else openCount++;
 
-      // اعتبارسنجی producedNodeId قبل از درج (جلوگیری از FOREIGN KEY constraint failure)
       let validProducedNodeId: number | null = null;
       if (match.matchedNodeId) {
         const existsInMap = nodeMapProduced.has(match.matchedNodeId);
@@ -798,17 +930,20 @@ gapRoutes.post('/analyze', async (req, res) => {
         }
       }
 
-      // ایجاد گپ
-      const result = await db.insert(gaps).values({
+      const existingGap = existingGapsByReqNode.get(requiredLeaf.id) || null;
+      const existingMeta = (existingGap?.metadata as any) || {};
+
+      const gapData = {
         periodId: requiredTree.periodId || null,
         requiredNodeId: requiredLeaf.id,
         producedNodeId: validProducedNodeId,
         status: gapStatus,
         gapType: match.gapType,
-        priority: options?.defaultPriority || 'medium',
+        priority: options?.defaultPriority || existingGap?.priority || 'medium',
         matchScore: match.matchScore,
         description,
         metadata: {
+          ...existingMeta,
           engine: 'v2',
           analyzedAt: now,
           templateDetails: match.templateDetails || null,
@@ -816,49 +951,125 @@ gapRoutes.post('/analyze', async (req, res) => {
           matchedNodeTitle: match.matchedNodeTitle || null,
           ownerPath: requiredOwnerPath,
           ownerPathLabel: `مالک: ${requiredOwnerPath}`,
-          structuralPath: requiredAncestors.map(a => a.title).join(' › ')+ (requiredAncestors.length ? ' › ' : '') + requiredLeaf.title,
-          manualReview: manual ? { verdict: manual.verdict, note: manual.note } : null,
-          manualNewStatus: manual && manual.verdict === 'change' ? manual.status : null,
+          structuralPath: requiredAncestors.map((a: any) => a.title).join(' › ') + (requiredAncestors.length ? ' › ' : '') + requiredLeaf.title,
+          manualReview: manual ? { verdict: manual.verdict, note: manual.note, newStatus: manual.status } : (existingMeta.manualReview || null),
+          manualNewStatus: manual && manual.verdict === 'adjusted' ? manual.status : null,
         },
-        createdAt: now,
         updatedAt: now,
-      }).returning();
+      };
 
-      // به‌روزرسانی گره‌ها با وضعیت گپ
-      await db.update(treeNodes)
-        .set({
-          isGap: gapStatus === 'open' ? 1 : 0,
-          gapStatus: gapStatus,
-          updatedAt: now,
-        })
-        .where(eq(treeNodes.id, requiredLeaf.id));
-
-      createdGaps.push({
-        ...result[0],
-        requiredNode: requiredLeaf,
-        producedNode: match.matchedNodeId ? nodeMapProduced.get(match.matchedNodeId) || null : null,
-        reasonFa: match.reasonFa,
-        ownerPath: requiredOwnerPath,
-        structuralPath: requiredAncestors.map(a => a.title).concat([requiredLeaf.title]).join(' › '),
+      preparedOperations.push({
+        requiredLeaf,
+        existingGap,
+        gapData,
+        match,
+        requiredAncestors,
+        gapStatus,
       });
     }
 
-    // 🟢 ثبت سابقه تحلیل در جدول gap_analysis_runs (هر کلیک تحلیل = یک رکورد سوابق)
-    const coveragePercentRun = createdGaps.length > 0
-      ? Math.round((filledCount / createdGaps.length) * 100)
-      : 0;
-    await db.insert(gapAnalysisRuns).values({
-      requiredTreeId: parseInt(requiredTreeId),
-      producedTreeId: producedTreeId ? parseInt(producedTreeId) : 0,
-      totalLeaves: createdGaps.length,
-      filled: filledCount,
-      partial: partialCount,
-      openCount: openCount,
-      coveragePercent: coveragePercentRun,
-      carriedReviews,
-      createdBy: userId,
-      createdAt: now,
+    // تولید گزارش تحلیلی با شرح فارسی روش تحلیل
+    const createdGaps: any[] = [];
+    const analysisReport = buildAnalysisReport({
+      requiredTreeName: requiredTree.name,
+      producedTreeName: producedTree ? producedTree.name : null,
+      results: preparedOperations.map((op: any) => ({
+        requiredNodeId: op.requiredLeaf.id,
+        requiredNodeTitle: op.requiredLeaf.title || '',
+        level: op.requiredLeaf.level || 'L',
+        status: op.gapStatus,
+        gapType: op.match.gapType,
+        matchScore: op.match.matchScore || 0,
+        matchedNodeTitle: op.match.matchedNodeTitle || null,
+        reasonFa: op.match.reasonFa,
+      })),
+      createdAt: format(new Date(), 'yyyy/MM/dd HH:mm'),
     });
+
+    const coveragePercentRun = preparedOperations.length > 0
+      ? Math.round((filledCount / preparedOperations.length) * 100)
+      : 0;
+
+    // ۶. اجرای اتمیک کلیه تغییرات درون تراکنش پایگاه داده (رفع ایراد ۳)
+    sqlite.exec('BEGIN IMMEDIATE;');
+    try {
+      // الف. حذف گپ‌های منسوخ فاقد آیتم پژوهشی
+      if (obsoleteGapsToDelete.length > 0) {
+        const delIds = obsoleteGapsToDelete.map(g => g.id);
+        if (delIds.length > 500) {
+          for (let i = 0; i < delIds.length; i += 500) {
+            await db.delete(gaps).where(inArray(gaps.id, delIds.slice(i, i + 500)));
+          }
+        } else {
+          await db.delete(gaps).where(inArray(gaps.id, delIds));
+        }
+      }
+
+      // ب. درج یا به‌روزرسانی درجا بر اساس کلید پایدار requiredNodeId (رفع ایراد ۲)
+      for (const op of preparedOperations) {
+        let savedGap: any;
+        if (op.existingGap) {
+          // به‌روزرسانی گپ موجود با حفظ شناسه و اتصالات پژوهشی/مسائل
+          const updateRes = await db.update(gaps)
+            .set(op.gapData)
+            .where(eq(gaps.id, op.existingGap.id))
+            .returning();
+          savedGap = updateRes[0];
+        } else {
+          // درج گپ جدید
+          const insertRes = await db.insert(gaps)
+            .values({
+              ...op.gapData,
+              createdAt: now,
+            })
+            .returning();
+          savedGap = insertRes[0];
+        }
+
+        // به‌روزرسانی وضعیت گره برگ
+        await db.update(treeNodes)
+          .set({
+            isGap: op.gapStatus === 'open' ? 1 : 0,
+            gapStatus: op.gapStatus,
+            updatedAt: now,
+          })
+          .where(eq(treeNodes.id, op.requiredLeaf.id));
+
+        createdGaps.push({
+          ...savedGap,
+          requiredNode: op.requiredLeaf,
+          producedNode: op.match.matchedNodeId ? nodeMapProduced.get(op.match.matchedNodeId) || null : null,
+          reasonFa: op.match.reasonFa,
+          ownerPath: requiredOwnerPath,
+          structuralPath: op.requiredAncestors.map((a: any) => a.title).concat([op.requiredLeaf.title]).join(' › '),
+        });
+      }
+
+      // ج. ثبت سابقه تحلیل در gapAnalysisRuns
+      await db.insert(gapAnalysisRuns).values({
+        requiredTreeId: parseInt(requiredTreeId),
+        producedTreeId: producedTreeId ? parseInt(producedTreeId) : 0,
+        totalLeaves: createdGaps.length,
+        filled: filledCount,
+        partial: partialCount,
+        openCount: openCount,
+        coveragePercent: coveragePercentRun,
+        carriedReviews,
+        report: analysisReport as any,
+        createdBy: userId,
+        createdAt: now,
+      });
+
+      // تأیید نهایی تراکنش
+      sqlite.exec('COMMIT;');
+    } catch (txError) {
+      try {
+        sqlite.exec('ROLLBACK;');
+      } catch (rbErr) {
+        console.error('Error during rollback:', rbErr);
+      }
+      throw txError;
+    }
 
     logAudit({
       userId,
@@ -875,33 +1086,8 @@ gapRoutes.post('/analyze', async (req, res) => {
         carriedReviews,
       },
       ip: req.ip,
-      userAgent: req.headers['user-agent'],
+      userAgent: req.headers?.['user-agent'],
     });
-
-    // ۶. تولید گزارش تحلیلی با شرح فارسی روش تحلیل
-    const analysisReport = buildAnalysisReport({
-      requiredTreeName: requiredTree.name,
-      producedTreeName: producedTree ? producedTree.name : null,
-      results: createdGaps.map((g: any) => ({
-        requiredNodeId: g.requiredNodeId,
-        requiredNodeTitle: g.requiredNode?.title || '',
-        level: g.requiredNode?.level || 'L',
-        status: g.status,
-        gapType: g.gapType,
-        matchScore: g.matchScore || 0,
-        matchedNodeTitle: g.producedNode?.title || null,
-        reasonFa: g.reasonFa,
-      })),
-      createdAt: format(new Date(), 'yyyy/MM/dd HH:mm'),
-    });
-
-    // 🟢 به‌روزرسانی رکورد سابقه با گزارش کامل
-    await db.update(gapAnalysisRuns)
-      .set({ report: analysisReport as any })
-      .where(and(
-        eq(gapAnalysisRuns.requiredTreeId, parseInt(requiredTreeId)),
-        eq(gapAnalysisRuns.createdAt, now)
-      ));
 
     // 🟢 سوابق تحلیل‌های قبلی (برای نمایش تاریخچه در UI)
     const runHistory = await db.select({
@@ -946,7 +1132,8 @@ gapRoutes.post('/generate-research', async (req, res) => {
   try {
     const { requiredTreeId, producedTreeId } = req.body;
     const now = new Date().toISOString();
-    const userId = (req as AuthRequest).user?.id || null;
+    const user = (req as AuthRequest).user;
+    const userId = user?.id || null;
 
     if (!requiredTreeId) {
       return res.status(400).json({ error: 'شناسه درختواره مورد نیاز الزامی است' });
@@ -958,6 +1145,11 @@ gapRoutes.post('/generate-research', async (req, res) => {
 
     if (!requiredTree) {
       return res.status(404).json({ error: 'درختواره مورد نیاز یافت نشد' });
+    }
+
+    const canAccessReq = await canUserAccessTree(user, requiredTree);
+    if (!canAccessReq) {
+      return res.status(403).json({ error: 'عدم دسترسی سازمانی به درختواره مورد نیاز' });
     }
 
     // ۱. یافتن یا ایجاد درختواره پژوهشی
@@ -1057,7 +1249,7 @@ gapRoutes.post('/generate-research', async (req, res) => {
       entityId: newTreeId,
       changes: { requiredTreeId, producedTreeId, newTreeId, researchItemsCount: addedCount },
       ip: req.ip,
-      userAgent: req.headers['user-agent'],
+      userAgent: req.headers?.['user-agent'],
     });
 
     res.json({
@@ -1081,34 +1273,41 @@ gapRoutes.post('/:gapId/fill', async (req, res) => {
     const { gapId } = req.params;
     const { producedNodeId, description, priority, status: requestedStatus } = req.body;
     const now = new Date().toISOString();
-    const userId = (req as AuthRequest).user?.id || null;
+    const user = (req as AuthRequest).user;
+    const userId = user?.id || null;
 
     const gapIdNum = parseInt(gapId);
+    if (isNaN(gapIdNum)) {
+      return res.status(400).json({ error: 'شناسه گپ نامعتبر است' });
+    }
 
-    const existingGap = await db.query.gaps.findFirst({
-      where: eq(gaps.id, gapIdNum),
-    });
+    const { allowed, gap: existingGap } = await canUserAccessGap(user, gapIdNum);
 
     if (!existingGap) {
       return res.status(404).json({ error: 'گپ یافت نشد' });
+    }
+
+    if (!allowed) {
+      return res.status(403).json({ error: 'عدم دسترسی سازمانی به این گپ' });
     }
 
     if (existingGap.status === 'filled') {
       return res.status(400).json({ error: 'این گپ قبلاً پر شده است' });
     }
 
-    // بررسی وجود گره تولیدشده
+    // بررسی وجود گره تولیدشده و دسترسی سازمانی به آن
     if (!producedNodeId) {
       return res.status(400).json({ error: 'شناسه گره تولیدشده الزامی است' });
     }
 
-    const producedNode = await db.query.treeNodes.findFirst({
-      where: eq(treeNodes.id, parseInt(producedNodeId)),
-    });
-
-    if (!producedNode) {
+    const prodAccess = await canUserAccessNode(user, parseInt(producedNodeId));
+    if (!prodAccess.node) {
       return res.status(404).json({ error: 'گره تولیدشده یافت نشد' });
     }
+    if (!prodAccess.allowed) {
+      return res.status(403).json({ error: 'عدم دسترسی سازمانی به گره تولیدشده' });
+    }
+    const producedNode = prodAccess.node;
 
     // 🟢 وضعیت نهایی: تطابق کامل (filled) یا جزئی (partially_filled) — انتخاب کاربر
     const effectiveStatus = requestedStatus === 'partially_filled' ? 'partially_filled' : 'filled';
@@ -1157,7 +1356,7 @@ gapRoutes.post('/:gapId/fill', async (req, res) => {
         priority: priority || existingGap.priority,
       },
       ip: req.ip,
-      userAgent: req.headers['user-agent'],
+      userAgent: req.headers?.['user-agent'],
     });
 
     return res.json({
@@ -1179,14 +1378,19 @@ gapRoutes.delete('/:gapId', async (req, res) => {
   try {
     const { gapId } = req.params;
     const gapIdNum = parseInt(gapId);
-    const userId = (req as AuthRequest).user?.id || null;
+    if (isNaN(gapIdNum)) {
+      return res.status(400).json({ error: 'شناسه گپ نامعتبر است' });
+    }
 
-    const existing = await db.query.gaps.findFirst({
-      where: eq(gaps.id, gapIdNum),
-    });
+    const user = (req as AuthRequest).user;
+    const { allowed, gap: existing } = await canUserAccessGap(user, gapIdNum);
 
     if (!existing) {
       return res.status(404).json({ error: 'گپ یافت نشد' });
+    }
+
+    if (!allowed) {
+      return res.status(403).json({ error: 'عدم دسترسی سازمانی به این گپ' });
     }
 
     const researchItemsList = await db.select()
@@ -1211,18 +1415,18 @@ gapRoutes.delete('/:gapId', async (req, res) => {
       previousStatus: existing.status,
       newStatus: null,
       note: delMeta.manualReview?.note || 'حذف دستی گپ توسط کاربر',
-      reviewedBy: userId,
+      reviewedBy: user?.id || null,
       createdAt: new Date().toISOString(),
     });
 
     logAudit({
-      userId,
+      userId: user?.id || null,
       action: 'DELETE',
       entityName: 'گپ',
       entityId: gapIdNum,
       changes: existing,
       ip: req.ip,
-      userAgent: req.headers['user-agent'],
+      userAgent: req.headers?.['user-agent'],
     });
 
     res.json({ success: true });
@@ -1245,8 +1449,13 @@ gapRoutes.post('/:gapId/review', async (req, res) => {
   try {
     const { gapId } = req.params;
     const gapIdNum = parseInt(gapId);
+    if (isNaN(gapIdNum)) {
+      return res.status(400).json({ error: 'شناسه گپ نامعتبر است' });
+    }
+
     const { verdict, newStatus, note } = req.body;
-    const userId = (req as AuthRequest).user?.id || null;
+    const user = (req as AuthRequest).user;
+    const userId = user?.id || null;
     const now = new Date().toISOString();
 
     const validVerdicts = ['confirmed_gap', 'not_gap', 'adjusted'];
@@ -1254,22 +1463,36 @@ gapRoutes.post('/:gapId/review', async (req, res) => {
       return res.status(400).json({ error: 'نظر ارسالی نامعتبر است (confirmed_gap | not_gap | adjusted)' });
     }
 
-    const existingGap = await db.query.gaps.findFirst({
-      where: eq(gaps.id, gapIdNum),
-    });
+    const ALLOWED_GAP_STATUSES = ['open', 'filled', 'partially_filled'];
+    if (verdict === 'adjusted') {
+      if (!newStatus || !ALLOWED_GAP_STATUSES.includes(newStatus)) {
+        return res.status(400).json({
+          error: 'وضعیت جدید برای تغییر دستی نامعتبر است (باید یکی از مقادیر open، filled یا partially_filled باشد)',
+        });
+      }
+    }
+
+    const { allowed, gap: existingGap } = await canUserAccessGap(user, gapIdNum);
     if (!existingGap) {
       return res.status(404).json({ error: 'گپ یافت نشد' });
     }
 
+    if (!allowed) {
+      return res.status(403).json({ error: 'عدم دسترسی سازمانی به این گپ' });
+    }
+
     // تعیین وضعیت جدید بر اساس نوع نظر
     let effectiveStatus = existingGap.status;
+    let manualOverrideStatus: string | null = null;
     if (verdict === 'not_gap') {
       // کاربر می‌گوید این گپ نیست → گره دیگر گپ محسوب نمی‌شود
       effectiveStatus = 'filled';
-    } else if (verdict === 'adjusted' && newStatus) {
+      manualOverrideStatus = 'filled';
+    } else if (verdict === 'adjusted') {
       effectiveStatus = newStatus;
+      manualOverrideStatus = newStatus;
     }
-    // verdict === 'confirmed_gap' → وضعیت فعلی حفظ می‌شود
+    // verdict === 'confirmed_gap' → وضعیت فعلی حفظ می‌شود و manualOverrideStatus خالی می‌ماند تا در تحلیل بعدی نتیجه موتور تحمیل نشود
 
     // ثبت سابقه بازنگری (بدون حذف — سابقه کامل حفظ می‌شود)
     await db.insert(gapReviews).values({
@@ -1292,7 +1515,12 @@ gapRoutes.post('/:gapId/review', async (req, res) => {
           : existingGap.description,
         metadata: {
           ...((existingGap.metadata as any) || {}),
-          manualReview: { verdict, note: note || null, at: now, newStatus: effectiveStatus },
+          manualReview: {
+            verdict,
+            note: note || null,
+            at: now,
+            newStatus: manualOverrideStatus,
+          },
         },
         updatedAt: now,
       })
@@ -1315,7 +1543,7 @@ gapRoutes.post('/:gapId/review', async (req, res) => {
       entityId: gapIdNum,
       changes: { verdict, note, previousStatus: existingGap.status, newStatus: effectiveStatus },
       ip: req.ip,
-      userAgent: req.headers['user-agent'],
+      userAgent: req.headers?.['user-agent'],
     });
 
     res.json({
@@ -1335,9 +1563,24 @@ gapRoutes.post('/:gapId/review', async (req, res) => {
 gapRoutes.get('/review-history/:requiredNodeId', async (req, res) => {
   try {
     const { requiredNodeId } = req.params;
+    const reqNodeIdNum = parseInt(requiredNodeId);
+    if (isNaN(reqNodeIdNum)) {
+      return res.status(400).json({ error: 'شناسه گره نامعتبر است' });
+    }
+
+    const user = (req as AuthRequest).user;
+    const nodeAccess = await canUserAccessNode(user, reqNodeIdNum);
+    if (!nodeAccess.node) {
+      return res.status(404).json({ error: 'گره مورد نیاز یافت نشد' });
+    }
+
+    if (!nodeAccess.allowed) {
+      return res.status(403).json({ error: 'عدم دسترسی سازمانی به این گره' });
+    }
+
     const history = await db.select()
       .from(gapReviews)
-      .where(eq(gapReviews.requiredNodeId, parseInt(requiredNodeId)))
+      .where(eq(gapReviews.requiredNodeId, reqNodeIdNum))
       .orderBy(desc(gapReviews.createdAt))
       .limit(50);
 
