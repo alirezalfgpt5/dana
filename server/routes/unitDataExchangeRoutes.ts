@@ -3,6 +3,7 @@
 // تولید خروجی خام اکسل، خروجی نهایی برای یگان بالادستی، پیش‌نمایش، اعتبارسنجی و همگام‌سازی
 
 import { Router } from 'express';
+import { Readable } from 'stream';
 import ExcelJS from 'exceljs';
 import multer from 'multer';
 import { fileTypeFromBuffer } from 'file-type';
@@ -15,6 +16,50 @@ import { getUserOrgScope } from '../utils/orgAccess.js';
 import { AuthRequest } from '../types/AuthRequest.js';
 
 export const unitDataExchangeRoutes = Router();
+
+// عناوین ردیف‌های نمونه آموزشی جهت جلوگیری قطعی از ورود به دیتابیس واقعی
+export const KNOWN_SAMPLE_NODE_TITLES = new Set([
+  'سامانه‌ها و تجهیزات تخصصی یگان',
+  'فناوری الکترونیک و ارتباطات امن',
+  'سیستم پردازش سیگنال بلادرنگ',
+  'الگوریتم رمزنگاری مقاوم به نویز',
+  'قابلیت اطمینان عملکردی ۹۹.۵٪',
+  'پروژه تولیدی رادیو تاکتیکی نوین',
+]);
+
+export const KNOWN_SAMPLE_ISSUE_TITLES = new Set([
+  'اختلال و تضعیف سیگنال در فرکانس‌های عملیاتی خاص',
+]);
+
+export const KNOWN_SAMPLE_RESEARCH_TITLES = new Set([
+  'طراحی و پیاده‌سازی پروتکل ارتباطی امن ضد تداخل در شرایط جنگ الکترونیک',
+]);
+
+export function isSampleNodeRow(title?: string | null, desc?: string | null): boolean {
+  if (!title) return false;
+  const t = title.trim();
+  if (KNOWN_SAMPLE_NODE_TITLES.has(t)) return true;
+  if (t.includes('نمونه آموزشی') || (desc && desc.includes('نمونه آموزشی'))) return true;
+  return false;
+}
+
+export function isSampleIssueRow(title?: string | null, desc?: string | null): boolean {
+  if (!title) return false;
+  const t = title.trim();
+  if (KNOWN_SAMPLE_ISSUE_TITLES.has(t)) return true;
+  if (t.includes('نمونه آموزشی') || (desc && desc.includes('نمونه آموزشی'))) return true;
+  return false;
+}
+
+export function isSampleResearchRow(title?: string | null, nodeTitle?: string | null, desc?: string | null): boolean {
+  if (!title && !nodeTitle) return false;
+  const t = (title || '').trim();
+  const nt = (nodeTitle || '').trim();
+  if (KNOWN_SAMPLE_RESEARCH_TITLES.has(t)) return true;
+  if (nt === 'الگوریتم رمزنگاری مقاوم به نویز' && t.includes('پروتکل ارتباطی')) return true;
+  if (t.includes('نمونه آموزشی') || (desc && desc.includes('نمونه آموزشی'))) return true;
+  return false;
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -230,6 +275,7 @@ async function generateUnitExchangeWorkbook({
     ['شناسه دوره زمانی (Period ID)', periodRecord.id, 'کد سیستمی دوره مصوب ارزیابی و برنامه‌ریزی'],
     ['عنوان دوره زمانی', periodRecord.name, `بازه مصوب: ${periodRecord.start_date} تا ${periodRecord.end_date}`],
     ['نوع بسته اطلاعاتی', isFinalPackage ? 'بسته نهایی و تجمیعی یگان (Final Export)' : 'قالب خام استاندارد (Raw Template)', 'وضعیت فایل جهت همگام‌سازی'],
+    ['نسخه قرارداد تبادل (Contract Version)', '2.0.0', 'نسخه شِمای پایدار تبادل داده دانا'],
     ['تاریخ صدور سند', new Date().toLocaleDateString('fa-IR'), 'تاریخ استخراج سند از سامانه دانا'],
     ['شناسه درختواره‌های مرتبط', treeIds.length > 0 ? treeIds.join(',') : 'درخت جدید', 'شناسه‌های متناظر در پایگاه داده'],
   ];
@@ -309,22 +355,6 @@ async function generateUnitExchangeWorkbook({
         node.template_ids || '',
       ]);
       r.font = { name: FONT_NAME, size: 10 };
-      r.alignment = { horizontal: 'right', vertical: 'middle' };
-      r.height = 24;
-    });
-  } else {
-    // ردیف‌های نمونه آموزشی
-    const samples = [
-      ['', 'مورد نیاز', 'سامانه‌ها و تجهیزات تخصصی یگان', 'R', '', 'نظریه', 'خیر', 'پر شده', 'ریشه درخت دانش کلان یگان', ''],
-      ['', 'مورد نیاز', 'فناوری الکترونیک و ارتباطات امن', 'T', 'سامانه‌ها و تجهیزات تخصصی یگان', 'معماری', 'خیر', 'پر شده', 'تم تخصصی ارتباطی', ''],
-      ['', 'مورد نیاز', 'سیستم پردازش سیگنال بلادرنگ', 'B', 'فناوری الکترونیک و ارتباطات امن', 'دانش فنی', 'خیر', 'پر شده', 'شاخه اصلی دانشی', ''],
-      ['', 'مورد نیاز', 'الگوریتم رمزنگاری مقاوم به نویز', 'L', 'سیستم پردازش سیگنال بلادرنگ', 'دانش نوظهور', 'بله', 'باز', 'برگ دانشی دارای شکاف', '1'],
-      ['', 'مورد نیاز', 'قابلیت اطمینان عملکردی ۹۹.۵٪', 'Q', 'الگوریتم رمزنگاری مقاوم به نویز', 'الگو', 'بله', 'باز', 'شاخص کیفی برگ دانشی', ''],
-      ['', 'تولید شده', 'پروژه تولیدی رادیو تاکتیکی نوین', 'L', '', 'دانش فنی', 'خیر', 'پر شده', 'برگ دانش موجود و تولیدشده', ''],
-    ];
-    samples.forEach(s => {
-      const r = treeSheet.addRow(s);
-      r.font = { name: FONT_NAME, size: 10, italic: true };
       r.alignment = { horizontal: 'right', vertical: 'middle' };
       r.height = 24;
     });
@@ -432,16 +462,6 @@ async function generateUnitExchangeWorkbook({
       r.alignment = { horizontal: 'right', vertical: 'middle' };
       r.height = 24;
     });
-  } else {
-    const issueSamples = [
-      ['', 'اختلال و تضعیف سیگنال در فرکانس‌های عملیاتی خاص', 'طراحی فیلتر تطبیقی نرم‌افزاری بر پایه پردازنده‌های بومی', 'نیاز به افزایش برد ارتباطی و کاهش تداخل الکترومغناطیسی', 'خیلی زیاد', 'سطح ۱', 'محرمانه', 'دانش فنی', 'مستندسازی و تدوین دانش', 'طرح پژوهشی راهبردی', 'معاونت دانش و پژوهش', 'الگوریتم رمزنگاری مقاوم به نویز', 500, 400, 25, 'محدودیت تراشه‌های بلادرنگ', 'شبیه‌سازی الگوریتم اولیه', 'در حال اجرا'],
-    ];
-    issueSamples.forEach(s => {
-      const r = issueSheet.addRow(s);
-      r.font = { name: FONT_NAME, size: 10, italic: true };
-      r.alignment = { horizontal: 'right', vertical: 'middle' };
-      r.height = 24;
-    });
   }
 
   // اعتبارسنجی دراپ‌دان برای شیت نظام مسائل
@@ -538,16 +558,6 @@ async function generateUnitExchangeWorkbook({
       r.alignment = { horizontal: 'right', vertical: 'middle' };
       r.height = 24;
     });
-  } else {
-    const researchSamples = [
-      ['', 'طراحی و پیاده‌سازی پروتکل ارتباطی امن ضد تداخل در شرایط جنگ الکترونیک', 'الگوریتم رمزنگاری مقاوم به نویز', 'راهبردی', '۵ - بسیار حیاتی', '۴ - مطلوب', 'الف - اولویت یک', 'کوتاه‌مدت', 'برنامه سالیانه', 'آینده‌پژوهی و سناریوپردازی', 'اختلال و تضعیف سیگنال در فرکانس‌های عملیاتی خاص', 'دستیابی به ارتباط پایدار زیر بار نویز شدید دشمن'],
-    ];
-    researchSamples.forEach(s => {
-      const r = researchSheet.addRow(s);
-      r.font = { name: FONT_NAME, size: 10, italic: true };
-      r.alignment = { horizontal: 'right', vertical: 'middle' };
-      r.height = 24;
-    });
   }
 
   // اعتبارسنجی دراپ‌دان برای شیت پژوهش
@@ -596,10 +606,56 @@ async function generateUnitExchangeWorkbook({
     ['نوع درختواره', 'مورد نیاز / تولید شده', 'درخت مورد نیاز نمایانگر اهداف و درخت تولیدشده نمایانگر دستاوردهای واقعی یگان است.'],
     ['ثبات دوره و یگان', 'تغییرناپذیری فیلدهای ثابت', 'شناسه یگان و دوره در شیت اول قفل شده و هنگام بارگذاری در پایگاه سازمان اعتبارسنجی می‌گردد.'],
     ['گردش کار یگان بالادستی', 'سناریوی دریافت و ارسال', '۱. صدور فایل توسط رده بالادست ۲. تکمیل در اکسل یا نرم‌افزار دانا ۳. خروجی نهایی و بارگذاری در سامانه سازمان.'],
+    ['قرارداد نسخه ۲.۰', 'جداسازی داده واقعی از نمونه', 'ردیف‌های آموزشی صرفاً در شیت نمونه‌های راهنما قرار دارند و هرگز وارد بانک داده نمی‌شوند.'],
   ];
 
   guideRows.forEach(g => {
     const r = guideSheet.addRow(g);
+    r.font = { name: FONT_NAME, size: 10 };
+    r.alignment = { horizontal: 'right', vertical: 'middle' };
+    r.height = 24;
+  });
+
+  // -------------------------------------------------------------
+  // شیت ۶: نمونه‌های راهنما (غیرقابل ورود و کاملاً آموزشی)
+  // -------------------------------------------------------------
+  const sampleSheet = workbook.addWorksheet('نمونه‌های راهنما (آموزشی)', { views: [{ rightToLeft: true }] });
+  sampleSheet.columns = [
+    { key: 'section', width: 22 },
+    { key: 'title', width: 38 },
+    { key: 'field1', width: 26 },
+    { key: 'field2', width: 26 },
+    { key: 'field3', width: 26 },
+    { key: 'desc', width: 50 },
+  ];
+
+  sampleSheet.mergeCells('A1:F1');
+  const sampleBanner = sampleSheet.getCell('A1');
+  sampleBanner.value = '⚠️ توجه مهم: ردیف‌های این شیت صرفاً نمونه آموزشی و راهنمای نگارش هستند. سیستم دانا این شیت را پردازش نمی‌کند. لطفاً رکوردهای واقعی را در شیت‌های اصلی (درخت دانش، نظام مسائل، درختواره پژوهشی) وارد فرمایید.';
+  sampleBanner.font = { name: FONT_NAME, bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+  sampleBanner.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE11D48' } };
+  sampleBanner.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  sampleSheet.getRow(1).height = 42;
+
+  const sampleHeaders = ['بخش', 'عنوان نمونه آموزشی', 'مشخصه ۱', 'مشخصه ۲', 'مشخصه ۳', 'توضیحات و راهنما'];
+  const sHRow = sampleSheet.addRow(sampleHeaders);
+  sHRow.font = { name: FONT_NAME, bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+  sHRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BG_HEADER } };
+  sHRow.alignment = { horizontal: 'center', vertical: 'middle' };
+  sHRow.height = 30;
+
+  const sampleGuidanceRows = [
+    ['درخت دانش', 'سامانه‌ها و تجهیزات تخصصی یگان', 'سطح R (ریشه)', 'نوع: مورد نیاز', 'نوع دانش: نظریه', 'کلان‌ترین گره درخت دانش که ریشه تمام شاخه‌ها است.'],
+    ['درخت دانش', 'فناوری الکترونیک و ارتباطات امن', 'سطح T (تم تخصصی)', 'والد: سامانه‌ها و تجهیزات', 'نوع دانش: معماری', 'تم تخصصی ارتباطی ذیل ریشه.'],
+    ['درخت دانش', 'سیستم پردازش سیگنال بلادرنگ', 'سطح B (شاخه اصلی)', 'والد: فناوری الکترونیک', 'نوع دانش: دانش فنی', 'شاخه اصلی فنی و عملیاتی.'],
+    ['درخت دانش', 'الگوریتم رمزنگاری مقاوم به نویز', 'سطح L (برگ دانشی)', 'شکاف: بله (باز)', 'نوع دانش: دانش نوظهور', 'برگ دانشی که گپ یا مسئله روی آن تعریف می‌شود.'],
+    ['درخت دانش', 'قابلیت اطمینان عملکردی ۹۹.۵٪', 'سطح Q (شاخص کیفیت)', 'والد: الگوریتم رمزنگاری', 'نوع دانش: الگو', 'شاخص کیفی الزامی برگ دانشی.'],
+    ['نظام مسائل', 'اختلال و تضعیف سیگنال در فرکانس‌های عملیاتی خاص', 'اولویت: خیلی زیاد', 'سطح: سطح ۱', 'بودجه: ۵۰۰ میلیون ریال', 'مسئله نیازمند تعریف جهت‌گیری راه‌حل و اقدامات اجرایی.'],
+    ['درختواره پژوهشی', 'طراحی و پیاده‌سازی پروتکل ارتباطی امن ضد تداخل در شرایط جنگ الکترونیک', 'اهمیت: راهبردی', 'تاثیر رزم: ۵ - بسیار حیاتی', 'هزینه فایده: ۴ - مطلوب', 'اولویت پژوهشی مرتبط با برگ دانشی و مسئله متناظر.'],
+  ];
+
+  sampleGuidanceRows.forEach(sr => {
+    const r = sampleSheet.addRow(sr);
     r.font = { name: FONT_NAME, size: 10 };
     r.alignment = { horizontal: 'right', vertical: 'middle' };
     r.height = 24;
@@ -717,6 +773,226 @@ unitDataExchangeRoutes.get('/export-upper-org', requireAuth, async (req, res) =>
 });
 
 // ====================================================================
+// ۲. توابع کمکی اعتبارسنجی مشترک و بارگذاری فایل تبادل یگان
+// ====================================================================
+
+async function loadExchangeWorkbook(buffer: Buffer, mimetype?: string, originalname?: string): Promise<{ workbook: ExcelJS.Workbook; isCsv: boolean }> {
+  const workbook = new ExcelJS.Workbook();
+  const isCsv = (mimetype === 'text/csv') || Boolean(originalname && originalname.toLowerCase().endsWith('.csv'));
+  if (isCsv) {
+    const stream = Readable.from(buffer.toString('utf-8'));
+    await workbook.csv.read(stream);
+    return { workbook, isCsv: true };
+  } else {
+    await workbook.xlsx.load(buffer as any);
+    return { workbook, isCsv: false };
+  }
+}
+
+interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+  nodeErrors: string[];
+  issueErrors: string[];
+  researchErrors: string[];
+  excludedSampleCount: number;
+}
+
+function validateExchangeWorkbook(workbook: ExcelJS.Workbook, isCsv: boolean): ValidationResult {
+  const nodeErrors: string[] = [];
+  const issueErrors: string[] = [];
+  const researchErrors: string[] = [];
+  let excludedSampleCount = 0;
+
+  if (isCsv) {
+    return {
+      valid: false,
+      errors: ['فایل با فرمت CSV شناسایی شد اما بسته استاندارد تبادل داده یگان نیازمند ساختار چندشیتی اکسل (XLSX) می‌باشد.'],
+      nodeErrors: [],
+      issueErrors: [],
+      researchErrors: [],
+      excludedSampleCount: 0,
+    };
+  }
+
+  const treeSheet = workbook.getWorksheet('درخت دانش') || workbook.worksheets[1];
+  const issueSheet = workbook.getWorksheet('نظام مسائل') || workbook.worksheets[2];
+  const researchSheet = workbook.getWorksheet('درختواره پژوهشی') || workbook.worksheets[3];
+
+  const validLevels = ['R', 'T', 'B', 'SB', 'L', 'Q'];
+  const validPriorities = ['بحرانی', 'خیلی زیاد', 'زیاد', 'متوسط', 'پایین'];
+  const validProjectLevels = ['راهبردی', 'سطح ۱', 'سطح ۲', 'تاکتیکی', 'عملیاتی'];
+  const validConfidentialities = ['عادی', 'محرمانه', 'خیلی محرمانه', 'سری', 'به‌کلی سری'];
+  const validIssueStatuses = ['پیش‌نویس', 'در حال بررسی', 'تصویب شده', 'در حال اجرا', 'خاتمه یافته', 'لغو شده'];
+  const validImportances = ['راهبردی', 'توسعه‌ای', 'بنیادی', 'کاربردی'];
+
+  // ۱. اعتبارسنجی شیت درخت دانش
+  if (treeSheet) {
+    const seenTitles = new Set<string>();
+    treeSheet.eachRow((row, rowNumber) => {
+      if (rowNumber <= 2) return;
+      const title = row.getCell(3).value?.toString()?.trim();
+      const level = row.getCell(4).value?.toString()?.trim().toUpperCase();
+      const parentTitle = row.getCell(5).value?.toString()?.trim();
+      const desc = row.getCell(9).value?.toString()?.trim();
+
+      if (!title && !level && !parentTitle) return; // سطر خالی
+
+      // ردیف نمونه
+      if (isSampleNodeRow(title, desc)) {
+        excludedSampleCount++;
+        return;
+      }
+
+      if (!title) {
+        nodeErrors.push(`شیت درخت دانش (ردیف ${rowNumber} - ستون عنوان): عنوان گره دانشی الزامی است.`);
+      } else if (title.length < 2) {
+        nodeErrors.push(`شیت درخت دانش (ردیف ${rowNumber} - ستون عنوان): عنوان گره "${title}" بسیار کوتاه است (حداقل ۲ کاراکتر).`);
+      } else {
+        if (seenTitles.has(title.toLowerCase())) {
+          nodeErrors.push(`شیت درخت دانش (ردیف ${rowNumber} - ستون عنوان): عنوان گره "${title}" در همین فایل تکراری است.`);
+        }
+        seenTitles.add(title.toLowerCase());
+      }
+
+      if (!level) {
+        nodeErrors.push(`شیت درخت دانش (ردیف ${rowNumber} - ${title || 'نامشخص'}): فیلد سطح دانشی الزامی است.`);
+      } else if (!validLevels.includes(level)) {
+        nodeErrors.push(`شیت درخت دانش (ردیف ${rowNumber} - ${title || 'نامشخص'}): سطح دانشی "${level}" نامعتبر است (باید یکی از R, T, B, SB, L, Q باشد).`);
+      }
+
+      if (parentTitle && title && parentTitle.toLowerCase() === title.toLowerCase()) {
+        nodeErrors.push(`شیت درخت دانش (ردیف ${rowNumber} - ${title}): گره نمی‌تواند والد خودش باشد.`);
+      }
+    });
+  }
+
+  // ۲. اعتبارسنجی شیت نظام مسائل
+  if (issueSheet) {
+    const seenIssueTitles = new Set<string>();
+    issueSheet.eachRow((row, rowNumber) => {
+      if (rowNumber <= 2) return;
+      const title = row.getCell(2).value?.toString()?.trim();
+      const desc = row.getCell(4).value?.toString()?.trim();
+      const priority = row.getCell(5).value?.toString()?.trim();
+      const projectLevel = row.getCell(6).value?.toString()?.trim();
+      const confidentiality = row.getCell(7).value?.toString()?.trim();
+      const reqBudgetVal = row.getCell(13).value;
+      const appBudgetVal = row.getCell(14).value;
+      const completionVal = row.getCell(15).value;
+      const status = row.getCell(18).value?.toString()?.trim();
+
+      if (!title && !priority && reqBudgetVal === null && appBudgetVal === null) return; // سطر خالی
+
+      if (isSampleIssueRow(title, desc)) {
+        excludedSampleCount++;
+        return;
+      }
+
+      if (!title) {
+        issueErrors.push(`شیت نظام مسائل (ردیف ${rowNumber} - ستون عنوان): عنوان مسئله الزامی است.`);
+      } else if (title.length < 3) {
+        issueErrors.push(`شیت نظام مسائل (ردیف ${rowNumber} - ستون عنوان): عنوان مسئله "${title}" بسیار کوتاه است (حداقل ۳ کاراکتر).`);
+      } else {
+        if (seenIssueTitles.has(title.toLowerCase())) {
+          issueErrors.push(`شیت نظام مسائل (ردیف ${rowNumber} - ستون عنوان): مسئله با عنوان "${title}" در همین فایل تکراری است.`);
+        }
+        seenIssueTitles.add(title.toLowerCase());
+      }
+
+      if (priority && !validPriorities.includes(priority)) {
+        issueErrors.push(`شیت نظام مسائل (ردیف ${rowNumber} - ${title || 'نامشخص'}): اولویت اقدام "${priority}" نامعتبر است. انتظار می‌رود یکی از (${validPriorities.join(', ')}) باشد.`);
+      }
+
+      if (projectLevel && !validProjectLevels.includes(projectLevel)) {
+        issueErrors.push(`شیت نظام مسائل (ردیف ${rowNumber} - ${title || 'نامشخص'}): سطح پروژه "${projectLevel}" نامعتبر است. انتظار می‌رود یکی از (${validProjectLevels.join(', ')}) باشد.`);
+      }
+
+      if (confidentiality && !validConfidentialities.includes(confidentiality)) {
+        issueErrors.push(`شیت نظام مسائل (ردیف ${rowNumber} - ${title || 'نامشخص'}): سطح محرمانگی "${confidentiality}" نامعتبر است. انتظار می‌رود یکی از (${validConfidentialities.join(', ')}) باشد.`);
+      }
+
+      if (reqBudgetVal !== null && reqBudgetVal !== undefined && String(reqBudgetVal).trim() !== '') {
+        const num = Number(reqBudgetVal);
+        if (isNaN(num) || num < 0) {
+          issueErrors.push(`شیت نظام مسائل (ردیف ${rowNumber} - ${title || 'نامشخص'}): بودجه مورد نیاز "${reqBudgetVal}" نامعتبر است (باید عدد مثبت یا صفر باشد).`);
+        }
+      }
+
+      if (appBudgetVal !== null && appBudgetVal !== undefined && String(appBudgetVal).trim() !== '') {
+        const num = Number(appBudgetVal);
+        if (isNaN(num) || num < 0) {
+          issueErrors.push(`شیت نظام مسائل (ردیف ${rowNumber} - ${title || 'نامشخص'}): بودجه مصوب "${appBudgetVal}" نامعتبر است (باید عدد مثبت یا صفر باشد).`);
+        }
+      }
+
+      if (completionVal !== null && completionVal !== undefined && String(completionVal).trim() !== '') {
+        const num = Number(completionVal);
+        if (isNaN(num) || num < 0 || num > 100) {
+          issueErrors.push(`شیت نظام مسائل (ردیف ${rowNumber} - ${title || 'نامشخص'}): درصد پیشرفت "${completionVal}" نامعتبر است (باید بین ۰ تا ۱۰۰ باشد).`);
+        }
+      }
+
+      if (status && !validIssueStatuses.includes(status)) {
+        issueErrors.push(`شیت نظام مسائل (ردیف ${rowNumber} - ${title || 'نامشخص'}): وضعیت مسئله "${status}" نامعتبر است. انتظار می‌رود یکی از (${validIssueStatuses.join(', ')}) باشد.`);
+      }
+    });
+  }
+
+  // ۳. اعتبارسنجی شیت درختواره پژوهشی
+  if (researchSheet) {
+    researchSheet.eachRow((row, rowNumber) => {
+      if (rowNumber <= 2) return;
+      const title = row.getCell(2).value?.toString()?.trim();
+      const nodeTitle = row.getCell(3).value?.toString()?.trim();
+      const importance = row.getCell(4).value?.toString()?.trim();
+      const combatRaw = row.getCell(5).value?.toString()?.trim();
+      const costRaw = row.getCell(6).value?.toString()?.trim();
+      const desc = row.getCell(12).value?.toString()?.trim();
+
+      if (!title && !nodeTitle && !importance && !combatRaw) return; // سطر خالی
+
+      if (isSampleResearchRow(title, nodeTitle, desc)) {
+        excludedSampleCount++;
+        return;
+      }
+
+      if (!title && !nodeTitle) {
+        researchErrors.push(`شیت درختواره پژوهشی (ردیف ${rowNumber}): درج عنوان موضوع پژوهشی یا گره دانشی مرتبط الزامی است.`);
+      }
+
+      if (importance && !validImportances.includes(importance)) {
+        researchErrors.push(`شیت درختواره پژوهشی (ردیف ${rowNumber} - ${title || nodeTitle}): اهمیت پژوهش "${importance}" نامعتبر است. انتظار می‌رود یکی از (${validImportances.join(', ')}) باشد.`);
+      }
+
+      if (combatRaw) {
+        const num = parseInt(combatRaw.replace(/[^0-9]/g, ''), 10);
+        if (isNaN(num) || num < 1 || num > 5) {
+          researchErrors.push(`شیت درختواره پژوهشی (ردیف ${rowNumber} - ${title || nodeTitle}): تاثیر در رزم "${combatRaw}" نامعتبر است (باید بین ۱ تا ۵ باشد).`);
+        }
+      }
+
+      if (costRaw) {
+        const num = parseInt(costRaw.replace(/[^0-9]/g, ''), 10);
+        if (isNaN(num) || num < 1 || num > 5) {
+          researchErrors.push(`شیت درختواره پژوهشی (ردیف ${rowNumber} - ${title || nodeTitle}): هزینه به فایده "${costRaw}" نامعتبر است (باید بین ۱ تا ۵ باشد).`);
+        }
+      }
+    });
+  }
+
+  const allErrors = [...nodeErrors, ...issueErrors, ...researchErrors];
+  return {
+    valid: allErrors.length === 0,
+    errors: allErrors,
+    nodeErrors,
+    issueErrors,
+    researchErrors,
+    excludedSampleCount,
+  };
+}
+
+// ====================================================================
 // ۲. پیش‌نمایش، اعتبارسنجی و کشف مغایرت‌های فایل دریافتی از یگان
 // ====================================================================
 unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('file'), async (req, res) => {
@@ -728,16 +1004,13 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
       return res.status(400).json({ error: 'هیچ فایلی ارسال نشده است.' });
     }
 
-    const isTextFile = ['text/csv'].includes(req.file.mimetype);
-    if (!isTextFile) {
-      const meta = await fileTypeFromBuffer(req.file.buffer);
-      if (!meta || !['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].includes(meta.mime)) {
-        return res.status(400).json({ error: 'فرمت فایل معتبر نیست. لطفاً فقط فایل استاندارد اکسل (xlsx) ارسال کنید.' });
-      }
-    }
+    const { workbook, isCsv } = await loadExchangeWorkbook(req.file.buffer, req.file.mimetype, req.file.originalname);
 
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(req.file.buffer);
+    if (isCsv) {
+      return res.status(400).json({
+        error: 'فایل ارسالی با فرمت متنی (CSV) شناسایی شد اما بسته استاندارد تبادل داده یگان نیازمند ساختار چندشیتی اکسل (XLSX) می‌باشد. لطفاً از قالب استاندارد اکسل استفاده فرمایید.',
+      });
+    }
 
     const metaSheet = workbook.getWorksheet('شناسنامه سازمانی') || workbook.worksheets[0];
     const treeSheet = workbook.getWorksheet('درخت دانش') || workbook.worksheets[1];
@@ -789,6 +1062,9 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
       });
     }
 
+    // اعتبارسنجی ساختاری شیت‌ها و ردیف‌ها
+    const validation = validateExchangeWorkbook(workbook, isCsv);
+
     // دریافت اطلاعات موجود در دیتابیس جهت مقایسه و تشخیص مغایرت‌ها
     const existingTrees = sqlite.prepare(`
       SELECT id, name, type FROM knowledge_trees
@@ -829,7 +1105,6 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
 
     // ۱. استخراج و اعتبارسنجی گره‌های درخت
     const parsedNodes: any[] = [];
-    const nodeErrors: string[] = [];
     const conflicts: any[] = [];
     let newNodesCount = 0;
     let modifiedNodesCount = 0;
@@ -850,16 +1125,8 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
 
         if (!title && !level) return;
 
-        if (!title) {
-          nodeErrors.push(`شیت درخت دانش ردیف ${rowNumber}: عنوان گره دانشی الزامی است.`);
-          return;
-        }
-
-        const validLevels = ['R', 'T', 'B', 'SB', 'L', 'Q'];
-        if (!level || !validLevels.includes(level)) {
-          nodeErrors.push(`شیت درخت دانش ردیف ${rowNumber} (${title}): سطح دانشی "${level}" نامعتبر است (باید یکی از R, T, B, SB, L, Q باشد).`);
-          return;
-        }
+        // رد کردن نمونه آموزشی
+        if (isSampleNodeRow(title, desc)) return;
 
         const targetTreeType = (treeTypeText && treeTypeText.includes('تولید')) ? 'produced' : 'required';
         const isGapVal = (isGapText === 'بله' || isGapText === '1' || isGapText === 'true') ? 1 : 0;
@@ -873,11 +1140,11 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
         if (nodeId && Number(nodeId)) {
           matchedDbNode = dbNodes.find(n => n.id === Number(nodeId));
         }
-        if (!matchedDbNode) {
+        if (!matchedDbNode && title) {
           matchedDbNode = dbNodes.find(n => n.title.trim().toLowerCase() === title.toLowerCase() && n.tree_type === targetTreeType);
         }
 
-        if (matchedDbNode) {
+        if (matchedDbNode && title) {
           const diffs: any[] = [];
           if (matchedDbNode.title.trim() !== title) {
             diffs.push({ field: 'title', label: 'عنوان گره', currentDb: matchedDbNode.title, incomingFile: title });
@@ -912,25 +1179,26 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
           newNodesCount++;
         }
 
-        parsedNodes.push({
-          rowNumber,
-          nodeId: nodeId ? Number(nodeId) : null,
-          treeType: targetTreeType,
-          title,
-          level,
-          parentTitle: parentTitle || null,
-          knowledgeType: knowledgeType || null,
-          description: desc || null,
-          isGap: isGapVal === 1,
-          gapStatus: parsedGapStatus,
-          statusTag: matchedDbNode ? (conflicts.some(c => c.id === matchedDbNode.id && c.type === 'node') ? 'modified' : 'unchanged') : 'new',
-        });
+        if (title) {
+          parsedNodes.push({
+            rowNumber,
+            nodeId: nodeId ? Number(nodeId) : null,
+            treeType: targetTreeType,
+            title,
+            level: level || 'L',
+            parentTitle: parentTitle || null,
+            knowledgeType: knowledgeType || null,
+            description: desc || null,
+            isGap: isGapVal === 1,
+            gapStatus: parsedGapStatus,
+            statusTag: matchedDbNode ? (conflicts.some(c => c.id === matchedDbNode.id && c.type === 'node') ? 'modified' : 'unchanged') : 'new',
+          });
+        }
       });
     }
 
     // ۲. استخراج و اعتبارسنجی مسائل
     const parsedIssues: any[] = [];
-    const issueErrors: string[] = [];
     let newIssuesCount = 0;
     let modifiedIssuesCount = 0;
     let unchangedIssuesCount = 0;
@@ -958,6 +1226,9 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
         const status = row.getCell(18).value?.toString()?.trim();
 
         if (!title) return;
+
+        // رد کردن نمونه آموزشی
+        if (isSampleIssueRow(title, desc)) return;
 
         let matchedIssue: any = null;
         if (issueId && Number(issueId)) {
@@ -1029,7 +1300,6 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
 
     // ۳. استخراج و اعتبارسنجی درختواره پژوهشی
     const parsedResearch: any[] = [];
-    const researchErrors: string[] = [];
     let newResearchCount = 0;
     let modifiedResearchCount = 0;
     let unchangedResearchCount = 0;
@@ -1051,6 +1321,9 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
         const desc = row.getCell(12).value?.toString()?.trim();
 
         if (!title && !nodeTitle) return;
+
+        // رد کردن نمونه آموزشی
+        if (isSampleResearchRow(title, nodeTitle, desc)) return;
 
         const combatImpact = parseInt(combatImpactRaw?.replace(/[^0-9]/g, '') || '4', 10);
         const costBenefit = parseInt(costBenefitRaw?.replace(/[^0-9]/g, '') || '4', 10);
@@ -1108,10 +1381,8 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
       });
     }
 
-    const allErrors = [...nodeErrors, ...issueErrors, ...researchErrors];
-
     res.json({
-      valid: allErrors.length === 0,
+      valid: validation.valid,
       unitId,
       periodId,
       unitName: currentUnitName,
@@ -1130,9 +1401,10 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
         modifiedResearchCount,
         unchangedResearchCount,
         totalConflicts: conflicts.length,
-        nodeErrorsCount: nodeErrors.length,
-        issueErrorsCount: issueErrors.length,
-        researchErrorsCount: researchErrors.length,
+        nodeErrorsCount: validation.nodeErrors.length,
+        issueErrorsCount: validation.issueErrors.length,
+        researchErrorsCount: validation.researchErrors.length,
+        excludedSampleCount: validation.excludedSampleCount,
       },
       conflicts,
       previewData: {
@@ -1140,7 +1412,7 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
         issues: parsedIssues.slice(0, 25),
         research: parsedResearch.slice(0, 25),
       },
-      errors: allErrors,
+      errors: validation.errors,
     });
   } catch (error: any) {
     console.error('Error previewing unit template:', error);
@@ -1149,7 +1421,7 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
 });
 
 // ====================================================================
-// ۳. همگام‌سازی، ثبت نسخه و اعمال تغییرات در پایگاه داده اصلی
+// ۳. همگام‌سازی، ثبت نسخه و اعمال تغییرات در پایگاه داده اصلی (با تراکنش اتمی)
 // ====================================================================
 unitDataExchangeRoutes.post('/template/upload-sync', requireAuth, upload.single('file'), async (req, res) => {
   try {
@@ -1175,8 +1447,22 @@ unitDataExchangeRoutes.post('/template/upload-sync', requireAuth, upload.single(
       }
     }
 
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(req.file.buffer);
+    const { workbook, isCsv } = await loadExchangeWorkbook(req.file.buffer, req.file.mimetype, req.file.originalname);
+
+    if (isCsv) {
+      return res.status(400).json({
+        error: 'فرمت متنی CSV برای همگام‌سازی بسته چندشیتی یگان پشتیبانی نمی‌شود. لطفاً فایل XLSX ارسال فرمایید.',
+      });
+    }
+
+    // اعتبارسنجی دقیق شیت‌ها و ردیف‌ها پیش از آغاز هرگونه تغییرات
+    const validation = validateExchangeWorkbook(workbook, isCsv);
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: `فایل ارسالی دارای ${validation.errors.length} خطای اعتبارسنجی است و امکان همگام‌سازی ندارد.`,
+        errors: validation.errors,
+      });
+    }
 
     const metaSheet = workbook.getWorksheet('شناسنامه سازمانی') || workbook.worksheets[0];
     const treeSheet = workbook.getWorksheet('درخت دانش') || workbook.worksheets[1];
@@ -1227,358 +1513,477 @@ unitDataExchangeRoutes.post('/template/upload-sync', requireAuth, upload.single(
     const nextVersionNumber = (maxVersionRow?.max_v || 0) + 1;
     const versionLabel = req.body.versionLabel || `نسخه ${nextVersionNumber}.0 (${unitRow.name} - ${periodRow.name})`;
 
-    // ایجاد رکورد نسخه
-    const versionResult = sqlite.prepare(`
-      INSERT INTO sync_versions (unit_id, period_id, version_number, version_label, file_name, source_type, applied_by, user_name, summary, status, created_at)
-      VALUES (?, ?, ?, ?, ?, 'excel_cd', ?, ?, ?, 'active', ?)
-    `).run(
-      unitId,
-      periodId,
-      nextVersionNumber,
-      versionLabel,
-      req.file.originalname || 'unit_package.xlsx',
-      user?.id || null,
-      user?.username || 'کاربر سیستم',
-      JSON.stringify({ pending: true }),
-      now
-    );
-    const versionId = Number(versionResult.lastInsertRowid);
-
-    // ۱. آماده‌سازی درخت‌های مورد نیاز و تولید شده
-    const getOrCreateTree = (treeType: 'required' | 'produced') => {
-      let t = sqlite.prepare(`
-        SELECT id, name FROM knowledge_trees
-        WHERE unit_id = ? AND period_id = ? AND type = ?
-        ORDER BY id DESC LIMIT 1
-      `).get(unitId, periodId, treeType) as any;
-
-      if (!t) {
-        const typeLabel = treeType === 'required' ? 'مورد نیاز' : 'تولید شده';
-        const tName = `درختواره دانش ${typeLabel} یگان ${unitRow.name} (${periodRow.name})`;
-        const res = sqlite.prepare(`
-          INSERT INTO knowledge_trees (name, type, description, period_id, base_id, unit_id, is_active, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-        `).run(tName, treeType, `همگام‌سازی از فایل بسته یگان ${unitRow.name}`, periodId, unitRow.base_id, unitId, now, now);
-        t = { id: Number(res.lastInsertRowid), name: tName };
-      }
-      return t.id;
-    };
-
-    const requiredTreeId = getOrCreateTree('required');
-    const producedTreeId = getOrCreateTree('produced');
-
-    // ۲. استخراج ردیف‌های درخت دانش
-    const rawNodes: any[] = [];
-    if (treeSheet) {
-      let sortOrder = 0;
-      treeSheet.eachRow((row, rowNumber) => {
-        if (rowNumber <= 2) return;
-        const nodeId = row.getCell(1).value;
-        const treeTypeText = row.getCell(2).value?.toString()?.trim();
-        const title = row.getCell(3).value?.toString()?.trim();
-        const level = row.getCell(4).value?.toString()?.trim().toUpperCase();
-        const parentTitle = row.getCell(5).value?.toString()?.trim();
-        const knowledgeType = row.getCell(6).value?.toString()?.trim();
-        const isGapText = row.getCell(7).value?.toString()?.trim();
-        const gapStatus = row.getCell(8).value?.toString()?.trim();
-        const desc = row.getCell(9).value?.toString()?.trim();
-        const templateIds = row.getCell(10).value?.toString()?.trim();
-
-        if (!title || !level) return;
-
-        const targetTreeId = (treeTypeText && treeTypeText.includes('تولید')) ? producedTreeId : requiredTreeId;
-        const isGap = (isGapText === 'بله' || isGapText === '1' || isGapText === 'true') ? 1 : 0;
-        let parsedGapStatus = gapStatus || (isGap === 1 ? 'open' : 'filled');
-        if (parsedGapStatus === 'باز') parsedGapStatus = 'open';
-        else if (parsedGapStatus === 'پر شده') parsedGapStatus = 'filled';
-        else if (parsedGapStatus === 'نیمه‌پر') parsedGapStatus = 'partially_filled';
-
-        sortOrder += 10;
-        rawNodes.push({
-          nodeId: nodeId ? Number(nodeId) : null,
-          treeId: targetTreeId,
-          title,
-          level,
-          parentTitle: parentTitle || null,
-          knowledgeType: knowledgeType || null,
-          description: desc || null,
-          templateIds: templateIds || null,
-          isGap,
-          gapStatus: parsedGapStatus,
-          sortOrder,
-        });
-      });
-    }
-
-    const levelPriority: Record<string, number> = { R: 1, T: 2, B: 3, SB: 4, L: 5, Q: 6 };
-    rawNodes.sort((a, b) => (levelPriority[a.level] || 99) - (levelPriority[b.level] || 99));
-
-    const existingDbNodes = sqlite.prepare(`
-      SELECT id, tree_id, title, level, parent_id, description, knowledge_type, is_gap, gap_status
-      FROM tree_nodes WHERE tree_id IN (?, ?)
-    `).all(requiredTreeId, producedTreeId) as any[];
-
-    const nodeTitleToIdMap = new Map<string, number>();
-    existingDbNodes.forEach(n => nodeTitleToIdMap.set(`${n.tree_id}_${n.title.trim().toLowerCase()}`, n.id));
-
+    // متغیرهای تجمیع لاگ و آمار در تراکنش
+    let versionId = 0;
+    let requiredTreeId = 0;
+    let producedTreeId = 0;
     let nodesCreated = 0;
     let nodesUpdated = 0;
     let nodesKept = 0;
     let nodesUnchanged = 0;
-
-    const insertNodeStmt = sqlite.prepare(`
-      INSERT INTO tree_nodes (tree_id, parent_id, level, title, description, knowledge_type, template_ids, is_gap, gap_status, sort_order, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const updateNodeStmt = sqlite.prepare(`
-      UPDATE tree_nodes
-      SET parent_id = ?, level = ?, title = ?, description = ?, knowledge_type = ?, is_gap = ?, gap_status = ?, sort_order = ?, updated_at = ?
-      WHERE id = ? AND tree_id = ?
-    `);
-
-    const insertLogStmt = sqlite.prepare(`
-      INSERT INTO record_version_logs (version_id, entity_type, entity_id, entity_title, action, field_name, old_value, new_value, conflict_detected, resolution_choice, resolved_by, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    for (const node of rawNodes) {
-      let parentId: number | null = null;
-      if (node.parentTitle) {
-        parentId = nodeTitleToIdMap.get(`${node.treeId}_${node.parentTitle.trim().toLowerCase()}`) || null;
-      }
-
-      let matchedNode: any = null;
-      if (node.nodeId) {
-        matchedNode = existingDbNodes.find(n => n.id === node.nodeId);
-      }
-      if (!matchedNode) {
-        const idByTitle = nodeTitleToIdMap.get(`${node.treeId}_${node.title.trim().toLowerCase()}`);
-        if (idByTitle) matchedNode = existingDbNodes.find(n => n.id === idByTitle);
-      }
-
-      if (matchedNode) {
-        const hasDiff = matchedNode.level !== node.level ||
-          matchedNode.title.trim() !== node.title ||
-          (matchedNode.description || '') !== (node.description || '') ||
-          (matchedNode.knowledge_type || '') !== (node.knowledgeType || '') ||
-          matchedNode.is_gap !== node.isGap;
-
-        if (!hasDiff) {
-          nodesUnchanged++;
-          nodeTitleToIdMap.set(`${node.treeId}_${node.title.trim().toLowerCase()}`, matchedNode.id);
-          continue;
-        }
-
-        const itemDecision = customResolutions[`node_${matchedNode.id}`] || (strategy === 'keep_existing' ? 'existing' : 'incoming');
-
-        if (itemDecision === 'existing') {
-          insertLogStmt.run(versionId, 'tree_node', matchedNode.id, matchedNode.title, 'keep_existing', 'تمام فیلدها', matchedNode.title, node.title, 1, 'existing', user?.username || 'کاربر', now);
-          nodesKept++;
-          nodeTitleToIdMap.set(`${node.treeId}_${matchedNode.title.trim().toLowerCase()}`, matchedNode.id);
-        } else {
-          if (matchedNode.level !== node.level) {
-            insertLogStmt.run(versionId, 'tree_node', matchedNode.id, matchedNode.title, 'conflict_merge', 'level', matchedNode.level, node.level, 1, 'incoming', user?.username || 'کاربر', now);
-          }
-          if (node.knowledgeType && matchedNode.knowledge_type !== node.knowledgeType) {
-            insertLogStmt.run(versionId, 'tree_node', matchedNode.id, matchedNode.title, 'conflict_merge', 'knowledge_type', matchedNode.knowledge_type, node.knowledgeType, 1, 'incoming', user?.username || 'کاربر', now);
-          }
-          updateNodeStmt.run(parentId, node.level, node.title, node.description, node.knowledgeType, node.isGap, node.gapStatus, node.sortOrder, now, matchedNode.id, node.treeId);
-          nodesUpdated++;
-          nodeTitleToIdMap.set(`${node.treeId}_${node.title.trim().toLowerCase()}`, matchedNode.id);
-        }
-      } else {
-        const res = insertNodeStmt.run(node.treeId, parentId, node.level, node.title, node.description, node.knowledgeType, node.templateIds, node.isGap, node.gapStatus, node.sortOrder, now, now);
-        const newId = Number(res.lastInsertRowid);
-        insertLogStmt.run(versionId, 'tree_node', newId, node.title, 'create', 'گره جدید', null, node.title, 0, 'new', user?.username || 'کاربر', now);
-        nodeTitleToIdMap.set(`${node.treeId}_${node.title.trim().toLowerCase()}`, newId);
-        nodesCreated++;
-      }
-    }
-
-    // ۳. پردازش نظام مسائل
     let issuesCreated = 0;
     let issuesUpdated = 0;
     let issuesKept = 0;
     let issuesUnchanged = 0;
-
-    if (issueSheet) {
-      const existingDbIssues = sqlite.prepare(`
-        SELECT id, title, solution_direction, need_statement, action_priority, project_level, confidentiality_level, knowledge_type, required_budget, approved_budget, completion_percent, bottlenecks
-        FROM issues WHERE period_id = ? AND (responsible_unit = ? OR responsible_unit IS NULL)
-      `).all(periodId, unitRow.name) as any[];
-
-      const insertIssueStmt = sqlite.prepare(`
-        INSERT INTO issues (period_id, domain_node_id, title, solution_direction, need_statement, action_priority, project_level, confidentiality_level, knowledge_type, knowledge_project_type, research_project_type, approval_authority, required_budget, approved_budget, completion_percent, bottlenecks, actions_taken, status, responsible_unit, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-
-      const updateIssueStmt = sqlite.prepare(`
-        UPDATE issues
-        SET domain_node_id = ?, title = ?, solution_direction = ?, need_statement = ?, action_priority = ?, project_level = ?, confidentiality_level = ?, knowledge_type = ?, knowledge_project_type = ?, research_project_type = ?, approval_authority = ?, required_budget = ?, approved_budget = ?, completion_percent = ?, bottlenecks = ?, actions_taken = ?, status = ?, responsible_unit = ?, updated_at = ?
-        WHERE id = ?
-      `);
-
-      issueSheet.eachRow((row, rowNumber) => {
-        if (rowNumber <= 2) return;
-        const issueId = row.getCell(1).value;
-        const title = row.getCell(2).value?.toString()?.trim();
-        const solution = row.getCell(3).value?.toString()?.trim();
-        const desc = row.getCell(4).value?.toString()?.trim();
-        const priority = row.getCell(5).value?.toString()?.trim() || 'متوسط';
-        const projectLevel = row.getCell(6).value?.toString()?.trim() || 'عملیاتی';
-        const confidentiality = row.getCell(7).value?.toString()?.trim() || 'عادی';
-        const knowledgeType = row.getCell(8).value?.toString()?.trim() || 'دانش فنی';
-        const kpType = row.getCell(9).value?.toString()?.trim() || null;
-        const rpType = row.getCell(10).value?.toString()?.trim() || null;
-        const approvalAuthority = row.getCell(11).value?.toString()?.trim() || null;
-        const domainNodeTitle = row.getCell(12).value?.toString()?.trim();
-        const reqBudget = Number(row.getCell(13).value) || 0;
-        const appBudget = Number(row.getCell(14).value) || 0;
-        const completion = Number(row.getCell(15).value) || 0;
-        const bottlenecks = row.getCell(16).value?.toString()?.trim() || null;
-        const actions = row.getCell(17).value?.toString()?.trim() || null;
-        const status = row.getCell(18).value?.toString()?.trim() || 'پیش‌نویس';
-
-        if (!title) return;
-
-        let domainNodeId: number | null = null;
-        if (domainNodeTitle) {
-          domainNodeId = nodeTitleToIdMap.get(`${requiredTreeId}_${domainNodeTitle.trim().toLowerCase()}`) ||
-                         nodeTitleToIdMap.get(`${producedTreeId}_${domainNodeTitle.trim().toLowerCase()}`) || null;
-        }
-
-        let matchedIssue: any = null;
-        if (issueId && Number(issueId)) {
-          matchedIssue = existingDbIssues.find(i => i.id === Number(issueId));
-        }
-        if (!matchedIssue) {
-          matchedIssue = existingDbIssues.find(i => i.title.trim().toLowerCase() === title.toLowerCase());
-        }
-
-        if (matchedIssue) {
-          const hasDiff = matchedIssue.title.trim() !== title ||
-            (matchedIssue.solution_direction || '') !== (solution || '') ||
-            (matchedIssue.action_priority || '') !== priority ||
-            (matchedIssue.knowledge_type || '') !== knowledgeType ||
-            matchedIssue.required_budget !== reqBudget;
-
-          if (!hasDiff) {
-            issuesUnchanged++;
-            return;
-          }
-
-          const itemDecision = customResolutions[`issue_${matchedIssue.id}`] || (strategy === 'keep_existing' ? 'existing' : 'incoming');
-
-          if (itemDecision === 'existing') {
-            insertLogStmt.run(versionId, 'issue', matchedIssue.id, matchedIssue.title, 'keep_existing', 'تمام فیلدها', matchedIssue.title, title, 1, 'existing', user?.username || 'کاربر', now);
-            issuesKept++;
-          } else {
-            insertLogStmt.run(versionId, 'issue', matchedIssue.id, matchedIssue.title, 'conflict_merge', 'title', matchedIssue.title, title, 1, 'incoming', user?.username || 'کاربر', now);
-            updateIssueStmt.run(domainNodeId, title, solution, desc, priority, projectLevel, confidentiality, knowledgeType, kpType, rpType, approvalAuthority, reqBudget, appBudget, completion, bottlenecks, actions, status, unitRow.name, now, matchedIssue.id);
-            issuesUpdated++;
-          }
-        } else {
-          const res = insertIssueStmt.run(periodId, domainNodeId, title, solution, desc, priority, projectLevel, confidentiality, knowledgeType, kpType, rpType, approvalAuthority, reqBudget, appBudget, completion, bottlenecks, actions, status, unitRow.name, now, now);
-          const newId = Number(res.lastInsertRowid);
-          insertLogStmt.run(versionId, 'issue', newId, title, 'create', 'مسئله جدید', null, title, 0, 'new', user?.username || 'کاربر', now);
-          issuesCreated++;
-        }
-      });
-    }
-
-    // ۴. پردازش درختواره پژوهشی
     let researchCreated = 0;
     let researchUpdated = 0;
-    let researchKept = 0;
-    let researchUnchanged = 0;
+    let summaryData: any = {};
 
-    if (researchSheet) {
-      researchSheet.eachRow((row, rowNumber) => {
-        if (rowNumber <= 2) return;
-        const resId = row.getCell(1).value;
-        const title = row.getCell(2).value?.toString()?.trim();
-        const nodeTitle = row.getCell(3).value?.toString()?.trim();
-        const importance = row.getCell(4).value?.toString()?.trim() || 'کاربردی';
-        const combatImpact = parseInt(row.getCell(5).value?.toString()?.replace(/[^0-9]/g, '') || '4', 10);
-        const costBenefit = parseInt(row.getCell(6).value?.toString()?.replace(/[^0-9]/g, '') || '4', 10);
-        const priority = row.getCell(7).value?.toString()?.trim() || 'الف';
-        const timeFrame = row.getCell(8).value?.toString()?.trim() || 'میان‌مدت';
-        const programCoverage = row.getCell(9).value?.toString()?.trim() || 'برنامه پنج ساله';
-        const desc = row.getCell(12).value?.toString()?.trim() || null;
+    // 🟢 اجرای همگام‌سازی و ثبت نسخه در تراکنش اتمی SQLite
+    const executeSyncTransaction = sqlite.transaction(() => {
+      // ایجاد رکورد نسخه
+      const versionResult = sqlite.prepare(`
+        INSERT INTO sync_versions (unit_id, period_id, version_number, version_label, file_name, source_type, applied_by, user_name, summary, status, created_at)
+        VALUES (?, ?, ?, ?, ?, 'excel_cd', ?, ?, ?, 'active', ?)
+      `).run(
+        unitId,
+        periodId,
+        nextVersionNumber,
+        versionLabel,
+        req.file!.originalname || 'unit_package.xlsx',
+        user?.id || null,
+        user?.username || 'کاربر سیستم',
+        JSON.stringify({ pending: true }),
+        now
+      );
+      versionId = Number(versionResult.lastInsertRowid);
 
-        if (!title && !nodeTitle) return;
+      // ۱. آماده‌سازی درخت‌های مورد نیاز و تولید شده
+      const getOrCreateTree = (treeType: 'required' | 'produced') => {
+        let t = sqlite.prepare(`
+          SELECT id, name FROM knowledge_trees
+          WHERE unit_id = ? AND period_id = ? AND type = ?
+          ORDER BY id DESC LIMIT 1
+        `).get(unitId, periodId, treeType) as any;
 
-        let linkedNodeId: number | null = null;
-        if (nodeTitle) {
-          linkedNodeId = nodeTitleToIdMap.get(`${requiredTreeId}_${nodeTitle.trim().toLowerCase()}`) ||
-                         nodeTitleToIdMap.get(`${producedTreeId}_${nodeTitle.trim().toLowerCase()}`) || null;
+        if (!t) {
+          const typeLabel = treeType === 'required' ? 'مورد نیاز' : 'تولید شده';
+          const tName = `درختواره دانش ${typeLabel} یگان ${unitRow.name} (${periodRow.name})`;
+          const res = sqlite.prepare(`
+            INSERT INTO knowledge_trees (name, type, description, period_id, base_id, unit_id, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+          `).run(tName, treeType, `همگام‌سازی از فایل بسته یگان ${unitRow.name}`, periodId, unitRow.base_id, unitId, now, now);
+          t = { id: Number(res.lastInsertRowid), name: tName };
+        }
+        return t.id;
+      };
+
+      requiredTreeId = getOrCreateTree('required');
+      producedTreeId = getOrCreateTree('produced');
+
+      // ۲. استخراج ردیف‌های درخت دانش
+      const rawNodes: any[] = [];
+      if (treeSheet) {
+        let sortOrder = 0;
+        treeSheet.eachRow((row, rowNumber) => {
+          if (rowNumber <= 2) return;
+          const nodeId = row.getCell(1).value;
+          const treeTypeText = row.getCell(2).value?.toString()?.trim();
+          const title = row.getCell(3).value?.toString()?.trim();
+          const level = row.getCell(4).value?.toString()?.trim().toUpperCase();
+          const parentTitle = row.getCell(5).value?.toString()?.trim();
+          const knowledgeType = row.getCell(6).value?.toString()?.trim();
+          const isGapText = row.getCell(7).value?.toString()?.trim();
+          const gapStatus = row.getCell(8).value?.toString()?.trim();
+          const desc = row.getCell(9).value?.toString()?.trim();
+          const templateIds = row.getCell(10).value?.toString()?.trim();
+
+          if (!title || !level) return;
+
+          // تضمین کنار گذاشتن ردیف‌های آموزشی
+          if (isSampleNodeRow(title, desc)) return;
+
+          const targetTreeId = (treeTypeText && treeTypeText.includes('تولید')) ? producedTreeId : requiredTreeId;
+          const isGap = (isGapText === 'بله' || isGapText === '1' || isGapText === 'true') ? 1 : 0;
+          let parsedGapStatus = gapStatus || (isGap === 1 ? 'open' : 'filled');
+          if (parsedGapStatus === 'باز') parsedGapStatus = 'open';
+          else if (parsedGapStatus === 'پر شده') parsedGapStatus = 'filled';
+          else if (parsedGapStatus === 'نیمه‌پر') parsedGapStatus = 'partially_filled';
+
+          sortOrder += 10;
+          rawNodes.push({
+            nodeId: nodeId ? Number(nodeId) : null,
+            treeId: targetTreeId,
+            title,
+            level,
+            parentTitle: parentTitle || null,
+            knowledgeType: knowledgeType || null,
+            description: desc || null,
+            templateIds: templateIds || null,
+            isGap,
+            gapStatus: parsedGapStatus,
+            sortOrder,
+          });
+        });
+      }
+
+      const levelPriority: Record<string, number> = { R: 1, T: 2, B: 3, SB: 4, L: 5, Q: 6 };
+      rawNodes.sort((a, b) => (levelPriority[a.level] || 99) - (levelPriority[b.level] || 99));
+
+      const existingDbNodes = sqlite.prepare(`
+        SELECT id, tree_id, title, level, parent_id, description, knowledge_type, is_gap, gap_status, sort_order
+        FROM tree_nodes WHERE tree_id IN (?, ?)
+      `).all(requiredTreeId, producedTreeId) as any[];
+
+      const nodeTitleToIdMap = new Map<string, number>();
+      existingDbNodes.forEach(n => nodeTitleToIdMap.set(`${n.tree_id}_${n.title.trim().toLowerCase()}`, n.id));
+
+      const insertNodeStmt = sqlite.prepare(`
+        INSERT INTO tree_nodes (tree_id, parent_id, level, title, description, knowledge_type, template_ids, is_gap, gap_status, sort_order, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const updateNodeStmt = sqlite.prepare(`
+        UPDATE tree_nodes
+        SET parent_id = ?, level = ?, title = ?, description = ?, knowledge_type = ?, is_gap = ?, gap_status = ?, sort_order = ?, updated_at = ?
+        WHERE id = ? AND tree_id = ?
+      `);
+
+      const insertLogStmt = sqlite.prepare(`
+        INSERT INTO record_version_logs (version_id, entity_type, entity_id, entity_title, action, field_name, old_value, new_value, conflict_detected, resolution_choice, resolved_by, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const node of rawNodes) {
+        let parentId: number | null = null;
+        if (node.parentTitle) {
+          parentId = nodeTitleToIdMap.get(`${node.treeId}_${node.parentTitle.trim().toLowerCase()}`) || null;
         }
 
-        // اطمینان از وجود گپ متناظر
-        let gapId: number | null = null;
-        if (linkedNodeId) {
-          let g = sqlite.prepare('SELECT id FROM gaps WHERE required_node_id = ? AND period_id = ? LIMIT 1').get(linkedNodeId, periodId) as any;
-          if (!g) {
-            const gapRes = sqlite.prepare(`
-              INSERT INTO gaps (period_id, required_node_id, status, gap_type, priority, match_score, description, created_at, updated_at)
-              VALUES (?, ?, 'open', 'دانشی', ?, 0, ?, ?, ?)
-            `).run(periodId, linkedNodeId, priority, desc || 'شکاف حاصل از بارگذاری داده‌های یگان', now, now);
-            gapId = Number(gapRes.lastInsertRowid);
+        let matchedNode: any = null;
+        if (node.nodeId) {
+          matchedNode = existingDbNodes.find(n => n.id === node.nodeId);
+        }
+        if (!matchedNode) {
+          const idByTitle = nodeTitleToIdMap.get(`${node.treeId}_${node.title.trim().toLowerCase()}`);
+          if (idByTitle) matchedNode = existingDbNodes.find(n => n.id === idByTitle);
+        }
+
+        if (matchedNode) {
+          const hasDiff = matchedNode.level !== node.level ||
+            matchedNode.title.trim() !== node.title ||
+            (matchedNode.description || '') !== (node.description || '') ||
+            (matchedNode.knowledge_type || '') !== (node.knowledgeType || '') ||
+            matchedNode.is_gap !== node.isGap;
+
+          if (!hasDiff) {
+            nodesUnchanged++;
+            nodeTitleToIdMap.set(`${node.treeId}_${node.title.trim().toLowerCase()}`, matchedNode.id);
+            continue;
+          }
+
+          const itemDecision = customResolutions[`node_${matchedNode.id}`] || (strategy === 'keep_existing' ? 'existing' : 'incoming');
+
+          if (itemDecision === 'existing') {
+            insertLogStmt.run(versionId, 'tree_node', matchedNode.id, matchedNode.title, 'keep_existing', 'تمام فیلدها', matchedNode.title, node.title, 1, 'existing', user?.username || 'کاربر', now);
+            nodesKept++;
+            nodeTitleToIdMap.set(`${node.treeId}_${matchedNode.title.trim().toLowerCase()}`, matchedNode.id);
           } else {
-            gapId = g.id;
+            // ذخیره اسنپ‌شات کامل قبل از اعمال جهت بازگردانی بی‌نقص
+            const oldSnapshot = {
+              id: matchedNode.id,
+              tree_id: matchedNode.tree_id,
+              parent_id: matchedNode.parent_id,
+              level: matchedNode.level,
+              title: matchedNode.title,
+              description: matchedNode.description,
+              knowledge_type: matchedNode.knowledge_type,
+              is_gap: matchedNode.is_gap,
+              gap_status: matchedNode.gap_status,
+              sort_order: matchedNode.sort_order,
+            };
+
+            const newSnapshot = {
+              id: matchedNode.id,
+              tree_id: node.treeId,
+              parent_id: parentId,
+              level: node.level,
+              title: node.title,
+              description: node.description,
+              knowledge_type: node.knowledgeType,
+              is_gap: node.isGap,
+              gap_status: node.gapStatus,
+              sort_order: node.sortOrder,
+            };
+
+            insertLogStmt.run(
+              versionId,
+              'tree_node',
+              matchedNode.id,
+              matchedNode.title,
+              'update',
+              '__snapshot__',
+              JSON.stringify(oldSnapshot),
+              JSON.stringify(newSnapshot),
+              1,
+              'incoming',
+              user?.username || 'کاربر',
+              now
+            );
+
+            if (matchedNode.level !== node.level) {
+              insertLogStmt.run(versionId, 'tree_node', matchedNode.id, matchedNode.title, 'conflict_merge', 'level', matchedNode.level, node.level, 1, 'incoming', user?.username || 'کاربر', now);
+            }
+            if (node.knowledgeType && matchedNode.knowledge_type !== node.knowledgeType) {
+              insertLogStmt.run(versionId, 'tree_node', matchedNode.id, matchedNode.title, 'conflict_merge', 'knowledge_type', matchedNode.knowledge_type, node.knowledgeType, 1, 'incoming', user?.username || 'کاربر', now);
+            }
+
+            updateNodeStmt.run(parentId, node.level, node.title, node.description, node.knowledgeType, node.isGap, node.gapStatus, node.sortOrder, now, matchedNode.id, node.treeId);
+            nodesUpdated++;
+            nodeTitleToIdMap.set(`${node.treeId}_${node.title.trim().toLowerCase()}`, matchedNode.id);
           }
+        } else {
+          const res = insertNodeStmt.run(node.treeId, parentId, node.level, node.title, node.description, node.knowledgeType, node.templateIds, node.isGap, node.gapStatus, node.sortOrder, now, now);
+          const newId = Number(res.lastInsertRowid);
+          insertLogStmt.run(versionId, 'tree_node', newId, node.title, 'create', 'گره جدید', null, node.title, 0, 'new', user?.username || 'کاربر', now);
+          nodeTitleToIdMap.set(`${node.treeId}_${node.title.trim().toLowerCase()}`, newId);
+          nodesCreated++;
         }
+      }
 
-        if (gapId && linkedNodeId) {
-          let matchedRes = resId && Number(resId) ? sqlite.prepare('SELECT id, importance FROM research_items WHERE id = ?').get(Number(resId)) as any : null;
-          if (!matchedRes) {
-            matchedRes = sqlite.prepare('SELECT id, importance FROM research_items WHERE node_id = ? AND gap_id = ? LIMIT 1').get(linkedNodeId, gapId) as any;
+      // ۳. پردازش نظام مسائل
+      if (issueSheet) {
+        const existingDbIssues = sqlite.prepare(`
+          SELECT * FROM issues WHERE period_id = ? AND (responsible_unit = ? OR responsible_unit IS NULL)
+        `).all(periodId, unitRow.name) as any[];
+
+        const insertIssueStmt = sqlite.prepare(`
+          INSERT INTO issues (period_id, domain_node_id, title, solution_direction, need_statement, action_priority, project_level, confidentiality_level, knowledge_type, knowledge_project_type, research_project_type, approval_authority, required_budget, approved_budget, completion_percent, bottlenecks, actions_taken, status, responsible_unit, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        const updateIssueStmt = sqlite.prepare(`
+          UPDATE issues
+          SET domain_node_id = ?, title = ?, solution_direction = ?, need_statement = ?, action_priority = ?, project_level = ?, confidentiality_level = ?, knowledge_type = ?, knowledge_project_type = ?, research_project_type = ?, approval_authority = ?, required_budget = ?, approved_budget = ?, completion_percent = ?, bottlenecks = ?, actions_taken = ?, status = ?, responsible_unit = ?, updated_at = ?
+          WHERE id = ?
+        `);
+
+        issueSheet.eachRow((row, rowNumber) => {
+          if (rowNumber <= 2) return;
+          const issueId = row.getCell(1).value;
+          const title = row.getCell(2).value?.toString()?.trim();
+          const solution = row.getCell(3).value?.toString()?.trim();
+          const desc = row.getCell(4).value?.toString()?.trim();
+          const priority = row.getCell(5).value?.toString()?.trim() || 'متوسط';
+          const projectLevel = row.getCell(6).value?.toString()?.trim() || 'عملیاتی';
+          const confidentiality = row.getCell(7).value?.toString()?.trim() || 'عادی';
+          const knowledgeType = row.getCell(8).value?.toString()?.trim() || 'دانش فنی';
+          const kpType = row.getCell(9).value?.toString()?.trim() || null;
+          const rpType = row.getCell(10).value?.toString()?.trim() || null;
+          const approvalAuthority = row.getCell(11).value?.toString()?.trim() || null;
+          const domainNodeTitle = row.getCell(12).value?.toString()?.trim();
+          const reqBudget = Number(row.getCell(13).value) || 0;
+          const appBudget = Number(row.getCell(14).value) || 0;
+          const completion = Number(row.getCell(15).value) || 0;
+          const bottlenecks = row.getCell(16).value?.toString()?.trim() || null;
+          const actions = row.getCell(17).value?.toString()?.trim() || null;
+          const status = row.getCell(18).value?.toString()?.trim() || 'پیش‌نویس';
+
+          if (!title) return;
+
+          // رد کردن نمونه آموزشی
+          if (isSampleIssueRow(title, desc)) return;
+
+          let domainNodeId: number | null = null;
+          if (domainNodeTitle) {
+            domainNodeId = nodeTitleToIdMap.get(`${requiredTreeId}_${domainNodeTitle.trim().toLowerCase()}`) ||
+                           nodeTitleToIdMap.get(`${producedTreeId}_${domainNodeTitle.trim().toLowerCase()}`) || null;
           }
 
-          if (matchedRes) {
-            sqlite.prepare(`
-              UPDATE research_items
-              SET importance = ?, combat_impact = ?, cost_benefit = ?, priority = ?, time_frame = ?, period_id = ?, updated_at = ?
-              WHERE id = ?
-            `).run(importance, combatImpact, costBenefit, priority, timeFrame, periodId, now, matchedRes.id);
-            insertLogStmt.run(versionId, 'research_item', matchedRes.id, title || nodeTitle, 'update', 'اولویت پژوهشی', matchedRes.importance, importance, 0, 'updated', user?.username || 'کاربر', now);
-            researchUpdated++;
+          let matchedIssue: any = null;
+          if (issueId && Number(issueId)) {
+            matchedIssue = existingDbIssues.find(i => i.id === Number(issueId));
+          }
+          if (!matchedIssue) {
+            matchedIssue = existingDbIssues.find(i => i.title.trim().toLowerCase() === title.toLowerCase());
+          }
+
+          if (matchedIssue) {
+            const hasDiff = matchedIssue.title.trim() !== title ||
+              (matchedIssue.solution_direction || '') !== (solution || '') ||
+              (matchedIssue.action_priority || '') !== priority ||
+              (matchedIssue.knowledge_type || '') !== knowledgeType ||
+              matchedIssue.required_budget !== reqBudget ||
+              matchedIssue.approved_budget !== appBudget ||
+              matchedIssue.completion_percent !== completion ||
+              (matchedIssue.status || '') !== status;
+
+            if (!hasDiff) {
+              issuesUnchanged++;
+              return;
+            }
+
+            const itemDecision = customResolutions[`issue_${matchedIssue.id}`] || (strategy === 'keep_existing' ? 'existing' : 'incoming');
+
+            if (itemDecision === 'existing') {
+              insertLogStmt.run(versionId, 'issue', matchedIssue.id, matchedIssue.title, 'keep_existing', 'تمام فیلدها', matchedIssue.title, title, 1, 'existing', user?.username || 'کاربر', now);
+              issuesKept++;
+            } else {
+              // ثبت اسنپ‌شات کامل مسئله برای بازگردانی دقیق همه فیلدها
+              insertLogStmt.run(
+                versionId,
+                'issue',
+                matchedIssue.id,
+                matchedIssue.title,
+                'update',
+                '__snapshot__',
+                JSON.stringify(matchedIssue),
+                JSON.stringify({
+                  domain_node_id: domainNodeId,
+                  title,
+                  solution_direction: solution,
+                  need_statement: desc,
+                  action_priority: priority,
+                  project_level: projectLevel,
+                  confidentiality_level: confidentiality,
+                  knowledge_type: knowledgeType,
+                  knowledge_project_type: kpType,
+                  research_project_type: rpType,
+                  approval_authority: approvalAuthority,
+                  required_budget: reqBudget,
+                  approved_budget: appBudget,
+                  completion_percent: completion,
+                  bottlenecks,
+                  actions_taken: actions,
+                  status,
+                  responsible_unit: unitRow.name,
+                }),
+                1,
+                'incoming',
+                user?.username || 'کاربر',
+                now
+              );
+
+              insertLogStmt.run(versionId, 'issue', matchedIssue.id, matchedIssue.title, 'conflict_merge', 'title', matchedIssue.title, title, 1, 'incoming', user?.username || 'کاربر', now);
+              updateIssueStmt.run(domainNodeId, title, solution, desc, priority, projectLevel, confidentiality, knowledgeType, kpType, rpType, approvalAuthority, reqBudget, appBudget, completion, bottlenecks, actions, status, unitRow.name, now, matchedIssue.id);
+              issuesUpdated++;
+            }
           } else {
-            const rRes = sqlite.prepare(`
-              INSERT INTO research_items (gap_id, node_id, period_id, importance, combat_impact, cost_benefit, priority, time_frame, program_coverages, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(gapId, linkedNodeId, periodId, importance, combatImpact, costBenefit, priority, timeFrame, JSON.stringify([programCoverage]), now, now);
-            const newResId = Number(rRes.lastInsertRowid);
-            insertLogStmt.run(versionId, 'research_item', newResId, title || nodeTitle, 'create', 'اولویت پژوهشی جدید', null, title || nodeTitle, 0, 'new', user?.username || 'کاربر', now);
-            researchCreated++;
+            const res = insertIssueStmt.run(periodId, domainNodeId, title, solution, desc, priority, projectLevel, confidentiality, knowledgeType, kpType, rpType, approvalAuthority, reqBudget, appBudget, completion, bottlenecks, actions, status, unitRow.name, now, now);
+            const newId = Number(res.lastInsertRowid);
+            insertLogStmt.run(versionId, 'issue', newId, title, 'create', 'مسئله جدید', null, title, 0, 'new', user?.username || 'کاربر', now);
+            issuesCreated++;
           }
-        }
-      });
-    }
+        });
+      }
 
-    const summaryData = {
-      unitId,
-      unitName: unitRow.name,
-      periodId,
-      periodName: periodRow.name,
-      requiredTreeId,
-      producedTreeId,
-      nodesCreated,
-      nodesUpdated,
-      nodesKept,
-      nodesUnchanged,
-      issuesCreated,
-      issuesUpdated,
-      issuesKept,
-      issuesUnchanged,
-      researchCreated,
-      researchUpdated,
-      totalChanges: nodesCreated + nodesUpdated + issuesCreated + issuesUpdated + researchCreated + researchUpdated,
-      strategy,
-    };
+      // ۴. پردازش درختواره پژوهشی و گپ‌ها
+      if (researchSheet) {
+        researchSheet.eachRow((row, rowNumber) => {
+          if (rowNumber <= 2) return;
+          const resId = row.getCell(1).value;
+          const title = row.getCell(2).value?.toString()?.trim();
+          const nodeTitle = row.getCell(3).value?.toString()?.trim();
+          const importance = row.getCell(4).value?.toString()?.trim() || 'کاربردی';
+          const combatImpact = parseInt(row.getCell(5).value?.toString()?.replace(/[^0-9]/g, '') || '4', 10);
+          const costBenefit = parseInt(row.getCell(6).value?.toString()?.replace(/[^0-9]/g, '') || '4', 10);
+          const priority = row.getCell(7).value?.toString()?.trim() || 'الف';
+          const timeFrame = row.getCell(8).value?.toString()?.trim() || 'میان‌مدت';
+          const programCoverage = row.getCell(9).value?.toString()?.trim() || 'برنامه پنج ساله';
+          const desc = row.getCell(12).value?.toString()?.trim() || null;
 
-    sqlite.prepare('UPDATE sync_versions SET summary = ? WHERE id = ?').run(JSON.stringify(summaryData), versionId);
+          if (!title && !nodeTitle) return;
+
+          // رد کردن نمونه آموزشی
+          if (isSampleResearchRow(title, nodeTitle, desc)) return;
+
+          let linkedNodeId: number | null = null;
+          if (nodeTitle) {
+            linkedNodeId = nodeTitleToIdMap.get(`${requiredTreeId}_${nodeTitle.trim().toLowerCase()}`) ||
+                           nodeTitleToIdMap.get(`${producedTreeId}_${nodeTitle.trim().toLowerCase()}`) || null;
+          }
+
+          // اطمینان از وجود گپ متناظر و ثبت آن در لاگ برای بازگردانی
+          let gapId: number | null = null;
+          if (linkedNodeId) {
+            let g = sqlite.prepare('SELECT id FROM gaps WHERE required_node_id = ? AND period_id = ? LIMIT 1').get(linkedNodeId, periodId) as any;
+            if (!g) {
+              const gapRes = sqlite.prepare(`
+                INSERT INTO gaps (period_id, required_node_id, status, gap_type, priority, match_score, description, created_at, updated_at)
+                VALUES (?, ?, 'open', 'دانشی', ?, 0, ?, ?, ?)
+              `).run(periodId, linkedNodeId, priority, desc || 'شکاف حاصل از بارگذاری داده‌های یگان', now, now);
+              gapId = Number(gapRes.lastInsertRowid);
+              // ثبت لاگ برای امکان بازگردانی شکاف ایجادشده
+              insertLogStmt.run(versionId, 'gap', gapId, 'شکاف خودکار حاصل از بارگذاری پژوهش', 'create', 'gap', null, String(gapId), 0, 'new', user?.username || 'سیستم', now);
+            } else {
+              gapId = g.id;
+            }
+          }
+
+          if (gapId && linkedNodeId) {
+            let matchedRes = resId && Number(resId) ? sqlite.prepare('SELECT * FROM research_items WHERE id = ?').get(Number(resId)) as any : null;
+            if (!matchedRes) {
+              matchedRes = sqlite.prepare('SELECT * FROM research_items WHERE node_id = ? AND gap_id = ? LIMIT 1').get(linkedNodeId, gapId) as any;
+            }
+
+            if (matchedRes) {
+              insertLogStmt.run(
+                versionId,
+                'research_item',
+                matchedRes.id,
+                title || nodeTitle,
+                'update',
+                '__snapshot__',
+                JSON.stringify(matchedRes),
+                JSON.stringify({
+                  importance,
+                  combat_impact: combatImpact,
+                  cost_benefit: costBenefit,
+                  priority,
+                  time_frame: timeFrame,
+                  period_id: periodId,
+                }),
+                0,
+                'updated',
+                user?.username || 'کاربر',
+                now
+              );
+
+              sqlite.prepare(`
+                UPDATE research_items
+                SET importance = ?, combat_impact = ?, cost_benefit = ?, priority = ?, time_frame = ?, period_id = ?, updated_at = ?
+                WHERE id = ?
+              `).run(importance, combatImpact, costBenefit, priority, timeFrame, periodId, now, matchedRes.id);
+              researchUpdated++;
+            } else {
+              const rRes = sqlite.prepare(`
+                INSERT INTO research_items (gap_id, node_id, period_id, importance, combat_impact, cost_benefit, priority, time_frame, program_coverages, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `).run(gapId, linkedNodeId, periodId, importance, combatImpact, costBenefit, priority, timeFrame, JSON.stringify([programCoverage]), now, now);
+              const newResId = Number(rRes.lastInsertRowid);
+              insertLogStmt.run(versionId, 'research_item', newResId, title || nodeTitle, 'create', 'اولویت پژوهشی جدید', null, title || nodeTitle, 0, 'new', user?.username || 'کاربر', now);
+              researchCreated++;
+            }
+          }
+        });
+      }
+
+      summaryData = {
+        unitId,
+        unitName: unitRow.name,
+        periodId,
+        periodName: periodRow.name,
+        requiredTreeId,
+        producedTreeId,
+        nodesCreated,
+        nodesUpdated,
+        nodesKept,
+        nodesUnchanged,
+        issuesCreated,
+        issuesUpdated,
+        issuesKept,
+        issuesUnchanged,
+        researchCreated,
+        researchUpdated,
+        totalChanges: nodesCreated + nodesUpdated + issuesCreated + issuesUpdated + researchCreated + researchUpdated,
+        strategy,
+      };
+
+      sqlite.prepare('UPDATE sync_versions SET summary = ? WHERE id = ?').run(JSON.stringify(summaryData), versionId);
+    });
+
+    // فراخوانی تراکنش اتمی
+    executeSyncTransaction();
 
     logAudit({
       userId: user?.id || null,
@@ -1592,7 +1997,7 @@ unitDataExchangeRoutes.post('/template/upload-sync', requireAuth, upload.single(
 
     res.json({
       success: true,
-      message: `اطلاعات بسته یگان "${unitRow.name}" با موفقیت تحلیل، یکپارچه‌سازی و در پایگاه داده اصلی ثبت شد.`,
+      message: `اطلاعات بسته یگان "${unitRow.name}" با موفقیت، اعتبارسنجی دقیق و به‌صورت کاملاً اتمی در پایگاه داده ثبت شد.`,
       version: {
         id: versionId,
         number: nextVersionNumber,
@@ -1693,7 +2098,7 @@ unitDataExchangeRoutes.get('/versions/:id/logs', requireAuth, async (req, res) =
 });
 
 // ====================================================================
-// ۶. بازگردانی به وضعیت قبل از اعمال نسخه (Rollback)
+// ۶. بازگردانی کامل به وضعیت قبل از اعمال نسخه (Rollback با تراکنش اتمی)
 // ====================================================================
 unitDataExchangeRoutes.post('/versions/:id/rollback', requireAuth, async (req, res) => {
   try {
@@ -1709,41 +2114,89 @@ unitDataExchangeRoutes.post('/versions/:id/rollback', requireAuth, async (req, r
       return res.status(400).json({ error: 'این نسخه قبلاً بازگردانی شده است.' });
     }
 
-    const logs = sqlite.prepare('SELECT * FROM record_version_logs WHERE version_id = ? ORDER BY id DESC').all(versionId) as any[];
+    const now = new Date().toISOString();
+    let revertedLogsCount = 0;
 
-    for (const log of logs) {
-      if (log.action === 'create') {
-        if (log.entity_type === 'tree_node') {
-          sqlite.prepare('DELETE FROM tree_nodes WHERE id = ?').run(log.entity_id);
-        } else if (log.entity_type === 'issue') {
-          sqlite.prepare('DELETE FROM issues WHERE id = ?').run(log.entity_id);
-        } else if (log.entity_type === 'research_item') {
-          sqlite.prepare('DELETE FROM research_items WHERE id = ?').run(log.entity_id);
-        }
-      } else if (log.action === 'conflict_merge' && log.old_value !== null) {
-        if (log.entity_type === 'tree_node' && log.field_name) {
-          sqlite.prepare(`UPDATE tree_nodes SET ${log.field_name} = ? WHERE id = ?`).run(log.old_value, log.entity_id);
-        } else if (log.entity_type === 'issue' && log.field_name) {
-          sqlite.prepare(`UPDATE issues SET ${log.field_name} = ? WHERE id = ?`).run(log.old_value, log.entity_id);
+    // 🟢 اجرای بازگردانی کامل در قالب یک تراکنش اتمی
+    const executeRollbackTransaction = sqlite.transaction(() => {
+      const logs = sqlite.prepare('SELECT * FROM record_version_logs WHERE version_id = ? ORDER BY id DESC').all(versionId) as any[];
+      revertedLogsCount = logs.length;
+
+      for (const log of logs) {
+        if (log.action === 'create') {
+          if (log.entity_type === 'tree_node') {
+            sqlite.prepare('DELETE FROM tree_nodes WHERE id = ?').run(log.entity_id);
+          } else if (log.entity_type === 'issue') {
+            sqlite.prepare('DELETE FROM issues WHERE id = ?').run(log.entity_id);
+          } else if (log.entity_type === 'research_item') {
+            sqlite.prepare('DELETE FROM research_items WHERE id = ?').run(log.entity_id);
+          } else if (log.entity_type === 'gap') {
+            sqlite.prepare('DELETE FROM gaps WHERE id = ?').run(log.entity_id);
+          }
+        } else if (log.action === 'update' || log.action === 'conflict_merge') {
+          if (log.field_name === '__snapshot__' && log.old_value) {
+            try {
+              const oldData = JSON.parse(log.old_value);
+              if (log.entity_type === 'tree_node') {
+                sqlite.prepare(`
+                  UPDATE tree_nodes
+                  SET parent_id = ?, level = ?, title = ?, description = ?, knowledge_type = ?, is_gap = ?, gap_status = ?, sort_order = ?, updated_at = ?
+                  WHERE id = ?
+                `).run(oldData.parent_id, oldData.level, oldData.title, oldData.description, oldData.knowledge_type, oldData.is_gap, oldData.gap_status, oldData.sort_order, now, log.entity_id);
+              } else if (log.entity_type === 'issue') {
+                sqlite.prepare(`
+                  UPDATE issues
+                  SET domain_node_id = ?, title = ?, solution_direction = ?, need_statement = ?, action_priority = ?, project_level = ?, confidentiality_level = ?, knowledge_type = ?, knowledge_project_type = ?, research_project_type = ?, approval_authority = ?, required_budget = ?, approved_budget = ?, completion_percent = ?, bottlenecks = ?, actions_taken = ?, status = ?, responsible_unit = ?, updated_at = ?
+                  WHERE id = ?
+                `).run(
+                  oldData.domain_node_id, oldData.title, oldData.solution_direction, oldData.need_statement,
+                  oldData.action_priority, oldData.project_level, oldData.confidentiality_level, oldData.knowledge_type,
+                  oldData.knowledge_project_type, oldData.research_project_type, oldData.approval_authority,
+                  oldData.required_budget, oldData.approved_budget, oldData.completion_percent,
+                  oldData.bottlenecks, oldData.actions_taken, oldData.status, oldData.responsible_unit,
+                  now, log.entity_id
+                );
+              } else if (log.entity_type === 'research_item') {
+                sqlite.prepare(`
+                  UPDATE research_items
+                  SET importance = ?, combat_impact = ?, cost_benefit = ?, priority = ?, time_frame = ?, period_id = ?, updated_at = ?
+                  WHERE id = ?
+                `).run(oldData.importance, oldData.combat_impact, oldData.cost_benefit, oldData.priority, oldData.time_frame, oldData.period_id, now, log.entity_id);
+              }
+            } catch (err) {
+              console.error('Error applying snapshot rollback:', err);
+            }
+          } else if (log.field_name && log.old_value !== null) {
+            // پشتیبانی از لاگ‌های فیلدی جداگانه
+            if (log.entity_type === 'tree_node') {
+              sqlite.prepare(`UPDATE tree_nodes SET ${log.field_name} = ? WHERE id = ?`).run(log.old_value, log.entity_id);
+            } else if (log.entity_type === 'issue') {
+              sqlite.prepare(`UPDATE issues SET ${log.field_name} = ? WHERE id = ?`).run(log.old_value, log.entity_id);
+            } else if (log.entity_type === 'research_item') {
+              sqlite.prepare(`UPDATE research_items SET ${log.field_name} = ? WHERE id = ?`).run(log.old_value, log.entity_id);
+            }
+          }
         }
       }
-    }
 
-    sqlite.prepare("UPDATE sync_versions SET status = 'reverted' WHERE id = ?").run(versionId);
+      sqlite.prepare("UPDATE sync_versions SET status = 'reverted' WHERE id = ?").run(versionId);
+    });
+
+    executeRollbackTransaction();
 
     logAudit({
       userId: user?.id || null,
       action: 'SYNC_VERSION_ROLLBACK',
       entityName: 'بازگردانی نسخه تبادل داده',
       entityId: versionId,
-      changes: { versionId, revertedLogsCount: logs.length },
+      changes: { versionId, revertedLogsCount },
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
 
     res.json({
       success: true,
-      message: `تغییرات نسخه "${version.version_label}" با موفقیت بازگردانی شد.`,
+      message: `تغییرات نسخه "${version.version_label}" با موفقیت و بازیابی کامل تمامی رکوردها بازگردانی شد.`,
     });
   } catch (error) {
     console.error('Error rolling back version:', error);

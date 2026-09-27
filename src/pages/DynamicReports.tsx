@@ -79,9 +79,116 @@ export const DynamicReports: React.FC = () => {
     workbook.creator = 'سامانه جامع دانا';
     workbook.created = new Date();
 
+    const FONT_NAME = 'Tahoma';
+    const borderStyle: any = {
+      top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+    };
+
+    // ============================================
+    // شیت ۱: داده‌های تجمیعی نمودار (Aggregated Chart Data)
+    // ============================================
+    const chartSheet = workbook.addWorksheet('تحلیل تجمیعی نمودار', {
+      views: [{ rightToLeft: true, showGridLines: true }],
+    });
+
+    const dataSourceLabels: Record<string, string> = {
+      issues: 'نظام مسائل',
+      gaps: 'شکاف‌های دانشی',
+      nodes: 'گره‌های دانشی',
+    };
+
+    const groupByLabels: Record<string, string> = {
+      status: 'وضعیت',
+      category: 'دسته‌بندی',
+      actionPriority: 'اولویت اقدام',
+      knowledgeType: 'نوع دانش',
+      projectLevel: 'سطح پروژه',
+      priority: 'اولویت شکاف',
+      gapType: 'نوع شکاف',
+      level: 'نوع گره',
+      levelId: 'سطح دانش',
+    };
+
+    // هدر مشخصات گزارش نمودار
+    const titleRow = chartSheet.addRow([`گزارش تحلیلی و تجمیعی نمودار - سامانه مدیریت دانش دانا`]);
+    chartSheet.mergeCells('A1:D1');
+    titleRow.height = 32;
+    titleRow.font = { name: FONT_NAME, bold: true, size: 13, color: { argb: 'FF1E3A8A' } };
+    titleRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    chartSheet.addRow([
+      `منبع داده: ${dataSourceLabels[dataSource] || dataSource}`,
+      `شاخص گروه‌بندی: ${groupByLabels[groupByField] || groupByField}`,
+      `تعداد کل رکوردها: ${exportData.length}`,
+      `تاریخ گزارش: ${new Date().toLocaleDateString('fa-IR')}`
+    ]);
+    chartSheet.getRow(2).font = { name: FONT_NAME, size: 9, color: { argb: 'FF475569' } };
+    chartSheet.getRow(2).alignment = { vertical: 'middle' };
+    chartSheet.addRow([]); // Blank row
+
+    chartSheet.columns = [
+      { header: 'ردیف', key: 'idx', width: 10 },
+      { header: `عنوان شاخص (${groupByLabels[groupByField] || groupByField})`, key: 'category', width: 35 },
+      { header: 'تعداد / فراوانی', key: 'count', width: 20 },
+      { header: 'درصد از کل (%)', key: 'percentage', width: 20 },
+    ];
+
+    const cHeaderRow = chartSheet.getRow(4);
+    cHeaderRow.values = ['ردیف', `عنوان شاخص (${groupByLabels[groupByField] || groupByField})`, 'تعداد / فراوانی', 'درصد از کل (%)'];
+    cHeaderRow.height = 28;
+    cHeaderRow.font = { name: FONT_NAME, bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+    cHeaderRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    cHeaderRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
+    cHeaderRow.eachCell(c => c.border = borderStyle);
+
+    const totalCount = chartData.reduce((sum: number, item: any) => sum + Number(item.مقدار || 0), 0);
+
+    chartData.forEach((item: any, idx: number) => {
+      const count = Number(item.مقدار || 0);
+      const pct = totalCount > 0 ? ((count / totalCount) * 100).toFixed(1) + '%' : '۰%';
+      const row = chartSheet.addRow({
+        idx: idx + 1,
+        category: item.name || 'نامشخص',
+        count: count,
+        percentage: pct,
+      });
+      row.height = 24;
+      row.font = { name: FONT_NAME, size: 10 };
+      row.alignment = { vertical: 'middle', horizontal: 'center' };
+      row.getCell('category').alignment = { vertical: 'middle', horizontal: 'right' };
+      row.eachCell((cell, colNum) => {
+        cell.border = borderStyle;
+        if (idx % 2 === 1) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+        }
+        if (colNum === 3) cell.numFmt = '#,##0';
+      });
+    });
+
+    // ردیف جمع کل
+    const chartTotalRow = chartSheet.addRow({
+      idx: 'جمع کل',
+      category: '-',
+      count: totalCount,
+      percentage: '۱۰۰%',
+    });
+    chartTotalRow.height = 26;
+    chartTotalRow.font = { name: FONT_NAME, bold: true, size: 10, color: { argb: 'FF1E293B' } };
+    chartTotalRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    chartTotalRow.eachCell(c => {
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+      c.border = { top: { style: 'medium' }, bottom: { style: 'double' } };
+    });
+
+    // ============================================
+    // شیت ۲: ریز داده‌ها با ستون‌های استاندارد فارسی
+    // ============================================
     if (dataSource === 'issues') {
-      const worksheet = workbook.addWorksheet('گزارش وضعیت مسائل', {
-        views: [{ rightToLeft: true }],
+      const worksheet = workbook.addWorksheet('ریز داده‌های مسائل', {
+        views: [{ rightToLeft: true, showGridLines: true }],
       });
 
       worksheet.columns = [
@@ -105,7 +212,7 @@ export const DynamicReports: React.FC = () => {
 
       const headerRow = worksheet.getRow(1);
       headerRow.height = 30;
-      headerRow.font = { name: 'Tahoma', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.font = { name: FONT_NAME, size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
       headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
       headerRow.fill = {
         type: 'pattern',
@@ -143,7 +250,7 @@ export const DynamicReports: React.FC = () => {
 
         row.height = 22;
         row.alignment = { vertical: 'middle', horizontal: 'center' };
-        row.font = { name: 'Tahoma', size: 9 };
+        row.font = { name: FONT_NAME, size: 9 };
         row.getCell('title').alignment = { vertical: 'middle', horizontal: 'right' };
         row.getCell('solutionDirection').alignment = { vertical: 'middle', horizontal: 'right' };
         row.getCell('bottlenecks').alignment = { vertical: 'middle', horizontal: 'right' };
@@ -151,19 +258,14 @@ export const DynamicReports: React.FC = () => {
         const statusCell = row.getCell('status');
         if (issue.status === 'completed') {
           statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
-          statusCell.font = { name: 'Tahoma', size: 9, bold: true, color: { argb: 'FF166534' } };
+          statusCell.font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF166534' } };
         } else if (issue.status === 'in_progress') {
           statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
-          statusCell.font = { name: 'Tahoma', size: 9, bold: true, color: { argb: 'FF1E40AF' } };
+          statusCell.font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF1E40AF' } };
         }
 
         row.eachCell((cell) => {
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          };
+          cell.border = borderStyle;
         });
 
         if (idx % 2 === 1) {
@@ -174,20 +276,129 @@ export const DynamicReports: React.FC = () => {
           });
         }
       });
+    } else if (dataSource === 'gaps') {
+      const worksheet = workbook.addWorksheet('ریز داده‌های شکاف‌ها', {
+        views: [{ rightToLeft: true, showGridLines: true }],
+      });
+
+      worksheet.columns = [
+        { header: 'ردیف', key: 'index', width: 8 },
+        { header: 'شناسه شکاف', key: 'id', width: 14 },
+        { header: 'شناسه گره', key: 'requiredNodeId', width: 14 },
+        { header: 'نوع شکاف', key: 'gapType', width: 18 },
+        { header: 'وضعیت', key: 'status', width: 16 },
+        { header: 'اولویت', key: 'priority', width: 14 },
+        { header: 'امتیاز تطابق', key: 'matchScore', width: 14 },
+        { header: 'توضیحات / شرح راهکار', key: 'description', width: 35 },
+        { header: 'تاریخ ثبت', key: 'createdAt', width: 18 },
+      ];
+
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 30;
+      headerRow.font = { name: FONT_NAME, size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } };
+
+      const statusMap: Record<string, string> = {
+        open: 'باز',
+        filled: 'پر شده',
+        partially_filled: 'نیمه‌پر',
+        resolved: 'رفع شده',
+      };
+      const priorityMap: Record<string, string> = {
+        critical: 'بحرانی',
+        high: 'بالا',
+        medium: 'متوسط',
+        low: 'پایین',
+      };
+
+      exportData.forEach((gap: any, idx: number) => {
+        const row = worksheet.addRow({
+          index: idx + 1,
+          id: gap.id ? `GAP-${String(gap.id).padStart(4, '0')}` : '-',
+          requiredNodeId: gap.requiredNodeId || '-',
+          gapType: gap.gapType || 'عمومی',
+          status: statusMap[gap.status] || gap.status || 'باز',
+          priority: priorityMap[gap.priority] || gap.priority || 'متوسط',
+          matchScore: gap.matchScore ? `${gap.matchScore}%` : '۰%',
+          description: gap.description || '-',
+          createdAt: gap.createdAt ? new Date(gap.createdAt).toLocaleDateString('fa-IR') : '-',
+        });
+
+        row.height = 22;
+        row.font = { name: FONT_NAME, size: 9 };
+        row.alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell('description').alignment = { vertical: 'middle', horizontal: 'right' };
+
+        row.eachCell(c => {
+          c.border = borderStyle;
+          if (idx % 2 === 1) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+        });
+      });
     } else {
-      const worksheet = workbook.addWorksheet('گزارش', { views: [{ rightToLeft: true }] });
-      const headers = Object.keys(exportData[0]);
-      const headerRow = worksheet.addRow(headers);
-      headerRow.font = { bold: true };
-      exportData.forEach(item => {
-        worksheet.addRow(Object.values(item));
+      const worksheet = workbook.addWorksheet('ریز داده‌های گره‌ها', {
+        views: [{ rightToLeft: true, showGridLines: true }],
+      });
+
+      worksheet.columns = [
+        { header: 'ردیف', key: 'index', width: 8 },
+        { header: 'شناسه گره', key: 'id', width: 14 },
+        { header: 'عنوان گره دانشی', key: 'title', width: 35 },
+        { header: 'سطح / نوع گره', key: 'level', width: 16 },
+        { header: 'وضعیت گپ', key: 'gapStatus', width: 16 },
+        { header: 'شناسه والد', key: 'parentId', width: 14 },
+        { header: 'نوع دانش', key: 'knowledgeType', width: 18 },
+        { header: 'توضیحات', key: 'description', width: 35 },
+      ];
+
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 30;
+      headerRow.font = { name: FONT_NAME, size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF059669' } };
+
+      const levelMap: Record<string, string> = {
+        L: 'برگ (دارایی دانش)',
+        Q: 'کیفیت (شاخه)',
+        branch: 'شاخه',
+        leaf: 'برگ',
+      };
+      const gapStatusMap: Record<string, string> = {
+        open: '🔴 گپ باز',
+        filled: '🟢 پر شده',
+        partially_filled: '🟡 نیمه‌پر',
+        none: '✅ بدون گپ',
+      };
+
+      exportData.forEach((node: any, idx: number) => {
+        const row = worksheet.addRow({
+          index: idx + 1,
+          id: node.id || '-',
+          title: node.title || '-',
+          level: levelMap[node.level] || node.level || '-',
+          gapStatus: gapStatusMap[node.gapStatus] || (node.isGap ? 'دارای گپ' : 'بدون گپ'),
+          parentId: node.parentId || 'ریشه',
+          knowledgeType: node.knowledgeType || '-',
+          description: node.description || '-',
+        });
+
+        row.height = 22;
+        row.font = { name: FONT_NAME, size: 9 };
+        row.alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell('title').alignment = { vertical: 'middle', horizontal: 'right' };
+        row.getCell('description').alignment = { vertical: 'middle', horizontal: 'right' };
+
+        row.eachCell(c => {
+          c.border = borderStyle;
+          if (idx % 2 === 1) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+        });
       });
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    saveAs(blob, `گزارش_جامع_${dataSource}_${new Date().toISOString().slice(0,10)}.xlsx`);
-    toast.success('فایل اکسل با موفقیت ایجاد شد');
+    saveAs(blob, `گزارش_تحلیلی_نمودار_${dataSource}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success('خروجی اکسل تحلیلی نمودار و داده‌ها با موفقیت ایجاد شد');
   };
 
   const renderChart = () => {
@@ -262,9 +473,10 @@ export const DynamicReports: React.FC = () => {
           <button
             onClick={exportToExcel}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+            title="خروجی شامل دو شیت: تحلیل تجمیعی نمودار و ریز رکوردهای تفصیلی"
           >
             <Download className="w-4 h-4 ml-2" />
-            خروجی اکسل نمودار جاری
+            خروجی اکسل تحلیلی نمودار و داده‌ها
           </button>
         </div>
       </div>

@@ -3,6 +3,7 @@ import { AuthRequest } from '../types/AuthRequest.js';
 // مدیریت خروجی‌ها - اکسل و گراف - نسخه نهایی ۳.۰
 
 import { Router } from 'express';
+import { Readable } from 'stream';
 import { db } from '../../src/db/index.js';
 import {
   knowledgeTrees,
@@ -327,6 +328,7 @@ outputRoutes.get('/tree/:treeId/excel', async (req, res) => {
 outputRoutes.get('/research/:treeId/excel', async (req, res) => {
   try {
     const { treeId } = req.params;
+    const { periodId, fromDate, toDate, responsibleUnit } = req.query;
     const treeIdNum = parseInt(treeId);
     const userId = (req as AuthRequest).user?.id || null;
 
@@ -353,6 +355,30 @@ outputRoutes.get('/research/:treeId/excel', async (req, res) => {
       researchItemsList = await db.select()
         .from(researchItems)
         .where(inArray(researchItems.nodeId, nodeIds));
+    }
+
+    // اعمال فیلترهای ارسالی در خروجی پژوهش
+    if (periodId && periodId !== 'all') {
+      const pId = parseInt(periodId as string);
+      researchItemsList = researchItemsList.filter(r => r.periodId === pId);
+    }
+    if (fromDate) {
+      const fromTime = new Date(fromDate as string).getTime();
+      researchItemsList = researchItemsList.filter(r => new Date(r.createdAt || r.updatedAt).getTime() >= fromTime);
+    }
+    if (toDate) {
+      const toTime = new Date(toDate as string).getTime();
+      researchItemsList = researchItemsList.filter(r => new Date(r.createdAt || r.updatedAt).getTime() <= toTime);
+    }
+    if (responsibleUnit && responsibleUnit !== 'all') {
+      const respUnit = String(responsibleUnit).trim().toLowerCase();
+      const relatedIssues = await db.select().from(issues).where(inArray(issues.domainNodeId, nodeIds));
+      const matchingNodeIds = new Set(
+        relatedIssues
+          .filter(i => i.responsibleUnit && i.responsibleUnit.toLowerCase().includes(respUnit))
+          .map(i => i.domainNodeId)
+      );
+      researchItemsList = researchItemsList.filter(r => matchingNodeIds.has(r.nodeId));
     }
 
     // ایجاد فایل اکسل
@@ -492,7 +518,7 @@ outputRoutes.get('/research/:treeId/excel', async (req, res) => {
 
 outputRoutes.get('/full-report', async (req, res) => {
   try {
-    const { treeId, includeTemplates, includeLevels, periodId, fromDate, toDate } = req.query;
+    const { treeId, includeTemplates, includeLevels, periodId, fromDate, toDate, responsibleUnit } = req.query;
     const userId = (req as AuthRequest).user?.id || null;
 
     if (!treeId) {
@@ -518,7 +544,7 @@ outputRoutes.get('/full-report', async (req, res) => {
     const nodeIds = nodes.map(n => n.id);
     
     // دریافت گپ‌ها
-    const gapsData: any[] = [];
+    let gapsData: any[] = [];
     if (nodeIds.length > 0) {
       for (let i = 0; i < nodeIds.length; i += 500) {
         const chunk = nodeIds.slice(i, i + 500);
@@ -530,7 +556,7 @@ outputRoutes.get('/full-report', async (req, res) => {
     }
 
     // دریافت آیتم‌های پژوهشی
-    const researchData: any[] = [];
+    let researchData: any[] = [];
     if (nodeIds.length > 0) {
       for (let i = 0; i < nodeIds.length; i += 500) {
         const chunk = nodeIds.slice(i, i + 500);
@@ -543,7 +569,7 @@ outputRoutes.get('/full-report', async (req, res) => {
 
     // دریافت مسائل
     const researchIds = researchData.map(r => r.id);
-    const issuesData: any[] = [];
+    let issuesData: any[] = [];
     if (researchIds.length > 0) {
       for (let i = 0; i < researchIds.length; i += 500) {
         const chunk = researchIds.slice(i, i + 500);
@@ -552,6 +578,33 @@ outputRoutes.get('/full-report', async (req, res) => {
           .where(inArray(issues.researchItemId, chunk));
         issuesData.push(...chunkIssues);
       }
+    }
+
+    // اعمال فیلترهای دوره، تاریخ و واحد در خروجی گزارش کامل
+    if (periodId && periodId !== 'all') {
+      const pId = parseInt(periodId as string);
+      gapsData = gapsData.filter(g => g.periodId === pId);
+      researchData = researchData.filter(r => r.periodId === pId);
+      issuesData = issuesData.filter(i => i.periodId === pId);
+    }
+
+    if (fromDate) {
+      const fromTime = new Date(fromDate as string).getTime();
+      gapsData = gapsData.filter(g => new Date(g.createdAt || g.updatedAt).getTime() >= fromTime);
+      researchData = researchData.filter(r => new Date(r.createdAt || r.updatedAt).getTime() >= fromTime);
+      issuesData = issuesData.filter(i => new Date(i.approvalDate || i.createdAt || i.updatedAt).getTime() >= fromTime);
+    }
+
+    if (toDate) {
+      const toTime = new Date(toDate as string).getTime();
+      gapsData = gapsData.filter(g => new Date(g.createdAt || g.updatedAt).getTime() <= toTime);
+      researchData = researchData.filter(r => new Date(r.createdAt || r.updatedAt).getTime() <= toTime);
+      issuesData = issuesData.filter(i => new Date(i.approvalDate || i.createdAt || i.updatedAt).getTime() <= toTime);
+    }
+
+    if (responsibleUnit && responsibleUnit !== 'all') {
+      const respUnit = String(responsibleUnit).trim().toLowerCase();
+      issuesData = issuesData.filter(i => i.responsibleUnit && i.responsibleUnit.toLowerCase().includes(respUnit));
     }
 
     // دریافت دارایی‌ها
@@ -564,6 +617,13 @@ outputRoutes.get('/full-report', async (req, res) => {
           .where(inArray(knowledgeAssets.nodeId, chunk));
         assets.push(...chunkAssets);
       }
+    }
+
+    // دریافت نام دوره برای درج در گزارش
+    let periodName = 'همه دوره‌ها';
+    if (periodId && periodId !== 'all') {
+      const p = await db.query.periods.findFirst({ where: eq(periods.id, parseInt(periodId as string)) });
+      if (p) periodName = p.name;
     }
 
     // دریافت قالب‌ها و سطوح
@@ -589,35 +649,40 @@ outputRoutes.get('/full-report', async (req, res) => {
       ['🌳 نام سیستم', 'DANA - سیستم مدیریت دانش و نظام مسائل'],
       ['📅 تاریخ تهیه', format(new Date(), 'yyyy/MM/dd HH:mm')],
       ['', ''],
+      ['🔍 فیلترهای اعمال‌شده در این گزارش', ''],
+      ['دوره زمانی', periodName],
+      ['بازه زمانی (تاریخ)', (fromDate || toDate) ? `از ${fromDate || '-'} تا ${toDate || '-'}` : 'بدون محدودیت تاریخ'],
+      ['واحد سازمانی فیلترشده', (responsibleUnit && responsibleUnit !== 'all') ? String(responsibleUnit) : 'همه واحدها'],
+      ['', ''],
       ['📋 اطلاعات درختواره', ''],
       ['نام درختواره', tree.name],
       ['نوع درختواره', tree.type === 'required' ? 'مورد نیاز' : tree.type === 'produced' ? 'تولیدشده' : 'پژوهشی'],
-      ['تعداد گره‌ها', nodes.length],
+      ['تعداد کل گره‌ها', nodes.length],
       ['تعداد برگ‌ها (L)', nodes.filter(n => n.level === 'L').length],
       ['تعداد کیفیت (Q)', nodes.filter(n => n.level === 'Q').length],
       ['', ''],
-      ['📊 آمار کلی', ''],
-      ['تعداد گپ‌ها', gapsData.length],
+      ['📊 آمار شکاف‌ها (فیلترشده)', ''],
+      ['تعداد کل گپ‌ها', gapsData.length],
       ['گپ‌های باز', gapsData.filter(g => g.status === 'open').length],
       ['گپ‌های پر شده', gapsData.filter(g => g.status === 'filled').length],
       ['گپ‌های نیمه‌پر', gapsData.filter(g => g.status === 'partially_filled').length],
       ['', ''],
-      ['🔬 آمار پژوهشی', ''],
+      ['🔬 آمار پژوهشی (فیلترشده)', ''],
       ['تعداد آیتم‌های پژوهشی', researchData.length],
       ['راهبردی', researchData.filter(r => r.importance === 'راهبردی').length],
       ['عملیاتی', researchData.filter(r => r.importance === 'عملیاتی').length],
       ['تاکتیکی', researchData.filter(r => r.importance === 'تاکتیکی').length],
       ['', ''],
-      ['🎯 آمار مسائل', ''],
-      ['تعداد مسائل', issuesData.length],
+      ['🎯 آمار مسائل (فیلترشده)', ''],
+      ['تعداد کل مسائل', issuesData.length],
       ['در انتظار', issuesData.filter(i => i.status === 'pending').length],
       ['در حال اجرا', issuesData.filter(i => i.status === 'in_progress').length],
       ['تکمیل شده', issuesData.filter(i => i.status === 'completed').length],
       ['لغو شده', issuesData.filter(i => i.status === 'canceled').length],
       ['متوقف', issuesData.filter(i => i.status === 'on_hold').length],
       ['', ''],
-      ['💰 بودجه کل', new Intl.NumberFormat('fa-IR').format(issuesData.reduce((s, i) => s + (Number(i.requiredBudget) || 0), 0)) + ' ریال'],
-      ['📈 میانگین پیشرفت', issuesData.length > 0 ? Math.round(issuesData.reduce((s, i) => s + (Number(i.completionPercent) || 0), 0) / issuesData.length) + '%' : '۰%'],
+      ['💰 بودجه کل مصوب مسائل', new Intl.NumberFormat('fa-IR').format(issuesData.reduce((s, i) => s + (Number(i.approvedBudget || i.requiredBudget) || 0), 0)) + ' ریال'],
+      ['📈 میانگین پیشرفت مسائل', issuesData.length > 0 ? Math.round(issuesData.reduce((s, i) => s + (Number(i.completionPercent) || 0), 0) / issuesData.length) + '%' : '۰%'],
     ];
 
     for (const [label, value] of infoData) {
@@ -886,6 +951,7 @@ outputRoutes.get('/full-report', async (req, res) => {
 outputRoutes.get('/gaps/:treeId/excel', async (req, res) => {
   try {
     const { treeId } = req.params;
+    const { periodId, fromDate, toDate, responsibleUnit } = req.query;
     const treeIdNum = parseInt(treeId);
     const userId = (req as AuthRequest).user?.id || null;
 
@@ -905,6 +971,30 @@ outputRoutes.get('/gaps/:treeId/excel', async (req, res) => {
     let gapsData: any[] = [];
     if (nodeIds.length > 0) {
       gapsData = await db.select().from(gaps).where(inArray(gaps.requiredNodeId, nodeIds));
+    }
+
+    // اعمال فیلترهای ارسالی در خروجی شکاف‌ها
+    if (periodId && periodId !== 'all') {
+      const pId = parseInt(periodId as string);
+      gapsData = gapsData.filter(g => g.periodId === pId);
+    }
+    if (fromDate) {
+      const fromTime = new Date(fromDate as string).getTime();
+      gapsData = gapsData.filter(g => new Date(g.createdAt || g.updatedAt).getTime() >= fromTime);
+    }
+    if (toDate) {
+      const toTime = new Date(toDate as string).getTime();
+      gapsData = gapsData.filter(g => new Date(g.createdAt || g.updatedAt).getTime() <= toTime);
+    }
+    if (responsibleUnit && responsibleUnit !== 'all') {
+      const respUnit = String(responsibleUnit).trim().toLowerCase();
+      const relatedIssues = await db.select().from(issues).where(inArray(issues.domainNodeId, nodeIds));
+      const matchingNodeIds = new Set(
+        relatedIssues
+          .filter(i => i.responsibleUnit && i.responsibleUnit.toLowerCase().includes(respUnit))
+          .map(i => i.domainNodeId)
+      );
+      gapsData = gapsData.filter(g => matchingNodeIds.has(g.requiredNodeId) || (g.description && g.description.toLowerCase().includes(respUnit)));
     }
 
     const workbook = new ExcelJS.Workbook();
@@ -999,7 +1089,7 @@ outputRoutes.post('/gaps/:treeId/excel-import', upload.single('file'), async (re
       return res.status(400).json({ error: 'فایلی ارسال نشده است' });
     }
 
-    const isTextFile = ['text/csv'].includes(req.file.mimetype);
+    const isTextFile = ['text/csv'].includes(req.file.mimetype) || Boolean(req.file.originalname && req.file.originalname.toLowerCase().endsWith('.csv'));
     if (!isTextFile) {
       const allowed = [
         'application/vnd.ms-excel',
@@ -1012,7 +1102,12 @@ outputRoutes.post('/gaps/:treeId/excel-import', upload.single('file'), async (re
     }
 
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(req.file.buffer);
+    if (isTextFile) {
+      const stream = Readable.from(req.file.buffer.toString('utf-8'));
+      await workbook.csv.read(stream);
+    } else {
+      await workbook.xlsx.load(req.file.buffer as any);
+    }
     
     const sheet = workbook.worksheets[0];
     if (!sheet) {
@@ -1048,27 +1143,41 @@ outputRoutes.post('/gaps/:treeId/excel-import', upload.single('file'), async (re
         if (reqNodeIdStr) {
           const nodeIdNum = parseInt(reqNodeIdStr);
           
-          // اعتبارسنجی: بررسی اینکه آیا گره مورد نظر متعلق به همین درختواره است یا خیر
+          // اعتبارسنجی ۱: بررسی اینکه آیا گره مورد نظر متعلق به همین درختواره انتخاب‌شده است
           const node = await db.query.treeNodes.findFirst({
             where: and(eq(treeNodes.id, nodeIdNum), eq(treeNodes.treeId, treeIdNum))
           });
 
           if (node) {
-            // به‌روزرسانی در دیتابیس
-            await db.update(gaps).set({
-              description: desc ? String(desc) : '',
-              status: parsedStatus,
-              priority: parsedPriority,
-              updatedAt: now
-            }).where(eq(gaps.id, parseInt(gapId.toString())));
+            const gapIdNum = parseInt(gapId.toString());
+            // اعتبارسنجی ۲: جلوگیری از بروزرسانی گپ نامربوط - گپ باید دقیقاً متعلق به همین گره در این درخت باشد
+            const existingGap = await db.query.gaps.findFirst({
+              where: and(
+                eq(gaps.id, gapIdNum),
+                eq(gaps.requiredNodeId, nodeIdNum)
+              )
+            });
 
-            await db.update(treeNodes).set({
-               isGap: parsedStatus === 'filled' ? 0 : 1,
-               gapStatus: parsedStatus,
-               updatedAt: now
-            }).where(eq(treeNodes.id, nodeIdNum));
-            
-            updatedCount++;
+            if (existingGap) {
+              // به‌روزرسانی امن در دیتابیس فقط با تطابق دوگانه شناسه گپ و گره
+              await db.update(gaps).set({
+                description: desc ? String(desc) : '',
+                status: parsedStatus,
+                priority: parsedPriority,
+                updatedAt: now
+              }).where(and(
+                eq(gaps.id, gapIdNum),
+                eq(gaps.requiredNodeId, nodeIdNum)
+              ));
+
+              await db.update(treeNodes).set({
+                 isGap: parsedStatus === 'filled' ? 0 : 1,
+                 gapStatus: parsedStatus,
+                 updatedAt: now
+              }).where(eq(treeNodes.id, nodeIdNum));
+              
+              updatedCount++;
+            }
           }
         }
       })());
@@ -1097,7 +1206,7 @@ outputRoutes.post('/gaps/:treeId/excel-import', upload.single('file'), async (re
 // ============================================
 outputRoutes.get('/issues/excel', async (req, res) => {
   try {
-    const { periodId, category, status, priority, search, unitId, responsibleUnit } = req.query;
+    const { periodId, category, status, priority, search, unitId, responsibleUnit, fromDate, toDate } = req.query;
     const userId = (req as AuthRequest).user?.id || null;
 
     // بازیابی تمام مسائل بر اساس فیلترها
@@ -1131,6 +1240,14 @@ outputRoutes.get('/issues/excel', async (req, res) => {
         (i.solutionDirection && i.solutionDirection.toLowerCase().includes(s)) ||
         (i.responsibleUnit && i.responsibleUnit.toLowerCase().includes(s))
       );
+    }
+    if (fromDate) {
+      const fromTime = new Date(fromDate as string).getTime();
+      allIssues = allIssues.filter(i => new Date(i.approvalDate || i.createdAt).getTime() >= fromTime);
+    }
+    if (toDate) {
+      const toTime = new Date(toDate as string).getTime();
+      allIssues = allIssues.filter(i => new Date(i.approvalDate || i.createdAt).getTime() <= toTime);
     }
 
     // بازیابی اطلاعات تکمیلی: دوره‌ها و گره‌ها

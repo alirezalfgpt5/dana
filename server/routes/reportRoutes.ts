@@ -122,18 +122,71 @@ reportRoutes.get('/data', requireAuth, async (req, res) => {
 // خروجی اکسل فرمت‌بندی شده و شکیل از وضعیت نظام مسائل
 reportRoutes.get('/issues/excel', requireAuth, async (req, res) => {
   try {
-    const allIssues = await db.select().from(issues).orderBy(desc(issues.createdAt));
-    
+    const { periodId, category, status, priority, search, unit, responsibleUnit, fromDate, toDate } = req.query;
+
+    let allIssues = await db.select().from(issues).orderBy(desc(issues.createdAt));
+
+    // اعمال فیلترهای ارسالی
+    if (periodId && periodId !== 'all') {
+      const pId = parseInt(periodId as string);
+      allIssues = allIssues.filter(i => i.periodId === pId);
+    }
+    if (status && status !== 'all') {
+      allIssues = allIssues.filter(i => i.status === status);
+    }
+    if (priority && priority !== 'all') {
+      allIssues = allIssues.filter(i => i.actionPriority === priority);
+    }
+    const targetUnit = (responsibleUnit || unit) as string | undefined;
+    if (targetUnit && targetUnit !== 'all') {
+      const u = targetUnit.trim().toLowerCase();
+      allIssues = allIssues.filter(i => i.responsibleUnit && i.responsibleUnit.toLowerCase().includes(u));
+    }
+    if (category && category !== 'all') {
+      const cat = String(category).trim().toLowerCase();
+      allIssues = allIssues.filter(i => 
+        (i.knowledgeType && i.knowledgeType.toLowerCase().includes(cat)) ||
+        (i.researchProjectType && i.researchProjectType.toLowerCase().includes(cat)) ||
+        (i.knowledgeProjectType && i.knowledgeProjectType.toLowerCase().includes(cat))
+      );
+    }
+    if (search) {
+      const s = String(search).trim().toLowerCase();
+      allIssues = allIssues.filter(i => 
+        (i.title && i.title.toLowerCase().includes(s)) ||
+        (i.solutionDirection && i.solutionDirection.toLowerCase().includes(s)) ||
+        (i.responsibleUnit && i.responsibleUnit.toLowerCase().includes(s))
+      );
+    }
+    if (fromDate) {
+      const fromTime = new Date(fromDate as string).getTime();
+      allIssues = allIssues.filter(i => new Date(i.approvalDate || i.createdAt).getTime() >= fromTime);
+    }
+    if (toDate) {
+      const toTime = new Date(toDate as string).getTime();
+      allIssues = allIssues.filter(i => new Date(i.approvalDate || i.createdAt).getTime() <= toTime);
+    }
+
     const domainNodeIds = allIssues.map(i => i.domainNodeId).filter(Boolean) as number[];
     let allNodes: any[] = [];
     if (domainNodeIds.length > 0) {
       allNodes = await db.select().from(treeNodes).where(inArray(treeNodes.id, Array.from(new Set(domainNodeIds))));
     }
 
+    // دوره انتخاب‌شده برای مشخصات هدر
+    let periodName = 'همه دوره‌ها';
+    if (periodId && periodId !== 'all') {
+      const p = await db.query.periods.findFirst({ where: eq(periods.id, parseInt(periodId as string)) });
+      if (p) periodName = p.name;
+    }
+
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'سامانه جامع دانا';
     workbook.created = new Date();
 
+    // ============================================
+    // شیت ۱: گزارش تفصیلی نظام مسائل
+    // ============================================
     const sheet = workbook.addWorksheet('گزارش وضعیت نظام مسائل', {
       views: [{ rightToLeft: true }],
       pageSetup: { orientation: 'landscape', paperSize: 9 }
@@ -152,9 +205,9 @@ reportRoutes.get('/issues/excel', requireAuth, async (req, res) => {
       { header: 'واحد متولی', key: 'responsibleUnit', width: 22 },
       { header: 'نوع دانش', key: 'knowledgeType', width: 16 },
       { header: 'سطح پروژه', key: 'projectLevel', width: 14 },
-      { header: 'بودجه مورد نیاز (ریال)', key: 'requiredBudget', width: 20 },
-      { header: 'بودجه مصوب (ریال)', key: 'approvedBudget', width: 20 },
-      { header: 'بودجه واگذار شده (ریال)', key: 'assignedBudget', width: 20 },
+      { header: 'بودجه مورد نیاز (ریال)', key: 'requiredBudget', width: 22 },
+      { header: 'بودجه مصوب (ریال)', key: 'approvedBudget', width: 22 },
+      { header: 'بودجه واگذار شده (ریال)', key: 'assignedBudget', width: 22 },
       { header: 'زمان انتظار (ماه)', key: 'expectedMonths', width: 16 },
       { header: 'تاریخ تصویب', key: 'approvalDate', width: 16 },
       { header: 'جهت‌گیری راه‌حل', key: 'solutionDirection', width: 32 },
@@ -182,9 +235,20 @@ reportRoutes.get('/issues/excel', requireAuth, async (req, res) => {
       canceled: 'لغو شده'
     };
 
+    let totalReq = 0;
+    let totalApp = 0;
+    let totalAss = 0;
+
     // افزودن ردیف‌های داده
     allIssues.forEach((issue, idx) => {
       const dNode = allNodes.find(n => n.id === issue.domainNodeId);
+      const reqB = Number(issue.requiredBudget || 0);
+      const appB = Number(issue.approvedBudget || 0);
+      const assB = Number(issue.assignedBudget || 0);
+      totalReq += reqB;
+      totalApp += appB;
+      totalAss += assB;
+
       const row = sheet.addRow({
         index: idx + 1,
         id: `ISS-${String(issue.id).padStart(4, '0')}`,
@@ -197,9 +261,9 @@ reportRoutes.get('/issues/excel', requireAuth, async (req, res) => {
         responsibleUnit: issue.responsibleUnit || '-',
         knowledgeType: issue.knowledgeType || '-',
         projectLevel: issue.projectLevel || '-',
-        requiredBudget: Number(issue.requiredBudget || 0).toLocaleString('fa-IR'),
-        approvedBudget: Number(issue.approvedBudget || 0).toLocaleString('fa-IR'),
-        assignedBudget: Number(issue.assignedBudget || 0).toLocaleString('fa-IR'),
+        requiredBudget: reqB.toLocaleString('fa-IR'),
+        approvedBudget: appB.toLocaleString('fa-IR'),
+        assignedBudget: assB.toLocaleString('fa-IR'),
         expectedMonths: issue.expectedMonths || 0,
         approvalDate: issue.approvalDate || '-',
         solutionDirection: issue.solutionDirection || '-',
@@ -251,8 +315,91 @@ reportRoutes.get('/issues/excel', requireAuth, async (req, res) => {
       }
     });
 
+    // ردیف خلاصه مجموع بودجه در انتهای شیت اول
+    const summaryRow = sheet.addRow({
+      index: 'مجموع',
+      id: '',
+      title: `تعداد کل مسائل: ${allIssues.length}`,
+      category: '',
+      domain: '',
+      status: '',
+      actionPriority: '',
+      completionPercent: allIssues.length > 0 ? `${Math.round(allIssues.reduce((a, b) => a + (b.completionPercent || 0), 0) / allIssues.length)}%` : '۰%',
+      responsibleUnit: '',
+      knowledgeType: '',
+      projectLevel: '',
+      requiredBudget: totalReq.toLocaleString('fa-IR'),
+      approvedBudget: totalApp.toLocaleString('fa-IR'),
+      assignedBudget: totalAss.toLocaleString('fa-IR'),
+      expectedMonths: '',
+      approvalDate: '',
+      solutionDirection: '',
+      bottlenecks: '',
+      actionsTaken: '',
+      createdAt: '',
+    });
+    summaryRow.height = 28;
+    summaryRow.font = { name: 'Tahoma', size: 10, bold: true, color: { argb: 'FF1E293B' } };
+    summaryRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    summaryRow.eachCell(c => {
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+      c.border = {
+        top: { style: 'medium', color: { argb: 'FF475569' } },
+        bottom: { style: 'double', color: { argb: 'FF475569' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      };
+    });
+
+    // ============================================
+    // شیت ۲: خلاصه آمار، بودجه و فیلترها
+    // ============================================
+    const summarySheet = workbook.addWorksheet('خلاصه آمار و بودجه', {
+      views: [{ rightToLeft: true, showGridLines: true }],
+    });
+    summarySheet.columns = [
+      { header: 'شاخص / پارامتر', key: 'metric', width: 30 },
+      { header: 'مقدار / مقدار عددی', key: 'value', width: 25 },
+      { header: 'توضیحات و جزئیات', key: 'note', width: 35 },
+    ];
+    const sHeader = summarySheet.getRow(1);
+    sHeader.height = 30;
+    sHeader.font = { name: 'Tahoma', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+    sHeader.alignment = { vertical: 'middle', horizontal: 'center' };
+    sHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } }; // Teal-700
+
+    const summaryItems = [
+      { metric: 'دوره زمانی اعمال‌شده', value: periodName, note: periodId ? `شناسه دوره: ${periodId}` : 'همه دوره‌ها' },
+      { metric: 'بازه تاریخی', value: (fromDate || toDate) ? `از ${fromDate || '-'} تا ${toDate || '-'}` : 'بدون فیلتر تاریخ', note: 'بر اساس تاریخ تصویب / ثبت' },
+      { metric: 'واحد سازمانی فیلترشده', value: targetUnit || 'همه واحدها', note: 'مسئول پیگیری' },
+      { metric: 'وضعیت فیلترشده', value: status ? (statusMap[String(status)] || String(status)) : 'همه وضعیت‌ها', note: 'فیلتر وضعیت مسئله' },
+      { metric: 'تعداد کل رکوردهای گزارش', value: allIssues.length, note: 'تعداد مسائل صادر شده' },
+      { metric: 'مجموع بودجه مورد نیاز (ریال)', value: totalReq.toLocaleString('fa-IR'), note: 'جمع بودجه درخواستی' },
+      { metric: 'مجموع بودجه مصوب (ریال)', value: totalApp.toLocaleString('fa-IR'), note: 'جمع بودجه مصوب' },
+      { metric: 'مجموع بودجه واگذار شده (ریال)', value: totalAss.toLocaleString('fa-IR'), note: 'جمع بودجه تخصیص‌یافته' },
+      { metric: 'مانده بودجه (ریال)', value: ((totalApp > 0 ? totalApp : totalReq) - totalAss).toLocaleString('fa-IR'), note: 'مانده اعتبار پروژه' },
+      { metric: 'میانگین درصد پیشرفت', value: allIssues.length > 0 ? `${Math.round(allIssues.reduce((a, b) => a + (b.completionPercent || 0), 0) / allIssues.length)}%` : '۰%', note: 'میانگین وزنی ساده پیشرفت' },
+    ];
+
+    summaryItems.forEach((item, i) => {
+      const r = summarySheet.addRow(item);
+      r.height = 24;
+      r.font = { name: 'Tahoma', size: 10 };
+      r.alignment = { vertical: 'middle', horizontal: 'right' };
+      r.getCell('value').alignment = { vertical: 'middle', horizontal: 'center' };
+      r.eachCell(c => {
+        c.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        };
+        if (i % 2 === 1) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+      });
+    });
+
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="dana_issues_report.xlsx"');
+    res.setHeader('Content-Disposition', 'attachment; filename="dana_issues_official_report.xlsx"');
 
     await workbook.xlsx.write(res);
     res.end();
