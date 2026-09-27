@@ -316,11 +316,15 @@ treeRoutes.get('/:id', async (req, res) => {
       if (nodeIds.length > 0) {
         for (let i = 0; i < nodeIds.length; i += 500) {
           const chunkIds = nodeIds.slice(i, i + 500);
-          const gapsChunk = await db.select().from(gaps).where(inArray(gaps.requiredNodeId, chunkIds));
-          gapsData.push(...gapsChunk);
           
           const researchChunk = await db.select().from(researchItems).where(inArray(researchItems.nodeId, chunkIds));
           researchData.push(...researchChunk);
+          
+          const gapIds = researchChunk.map(r => r.gapId).filter(Boolean);
+          if (gapIds.length > 0) {
+            const gapsChunk = await db.select().from(gaps).where(inArray(gaps.id, gapIds));
+            gapsData.push(...gapsChunk);
+          }
           
           await new Promise(r => setImmediate(r));
         }

@@ -59,37 +59,35 @@ researchRoutes.get('/', async (req, res) => {
       } else {
           conditions.push(eq(researchItems.nodeId, -1)); // No matches
       }
-    } else if (req.query.periodId) {
+    } else if (req.query.periodId && req.query.periodId !== 'all' && req.query.periodId !== 'undefined' && req.query.periodId !== 'null') {
       const periodId = parseInt(req.query.periodId as string);
-      
-      const treesInPeriod = await db.select({ id: knowledgeTrees.id })
-         .from(knowledgeTrees)
-         .where(eq(knowledgeTrees.periodId, periodId));
-         
-      const treeIds = treesInPeriod.map(t => t.id);
-      
-      if (treeIds.length > 0) {
-         const nodesInPeriod = await db.select({ id: treeNodes.id })
-            .from(treeNodes)
-            .where(inArray(treeNodes.treeId, treeIds));
-            
-         const nodeIds = nodesInPeriod.map(n => n.id);
-         
-         if (nodeIds.length > 0) {
-            if (nodeIds.length > 500) {
-              const chunks = [];
-              for (let i = 0; i < nodeIds.length; i += 500) {
-                chunks.push(inArray(researchItems.nodeId, nodeIds.slice(i, i + 500)));
-              }
-              conditions.push(or(...chunks));
-            } else {
-              conditions.push(inArray(researchItems.nodeId, nodeIds));
+      if (!isNaN(periodId)) {
+        const treesInPeriod = await db.select({ id: knowledgeTrees.id })
+           .from(knowledgeTrees)
+           .where(eq(knowledgeTrees.periodId, periodId));
+           
+        const treeIds = treesInPeriod.map(t => t.id);
+        let nodeIds: number[] = [];
+        if (treeIds.length > 0) {
+           const nodesInPeriod = await db.select({ id: treeNodes.id })
+              .from(treeNodes)
+              .where(inArray(treeNodes.treeId, treeIds));
+           nodeIds = nodesInPeriod.map(n => n.id);
+        }
+        
+        if (nodeIds.length > 0) {
+          if (nodeIds.length > 500) {
+            const chunks = [];
+            for (let i = 0; i < nodeIds.length; i += 500) {
+              chunks.push(inArray(researchItems.nodeId, nodeIds.slice(i, i + 500)));
             }
-         } else {
-            conditions.push(eq(researchItems.nodeId, -1)); // No matches
-         }
-      } else {
-         conditions.push(eq(researchItems.nodeId, -1)); // No matches
+            conditions.push(or(eq(researchItems.periodId, periodId), ...chunks));
+          } else {
+            conditions.push(or(eq(researchItems.periodId, periodId), inArray(researchItems.nodeId, nodeIds)));
+          }
+        } else {
+          conditions.push(eq(researchItems.periodId, periodId));
+        }
       }
     }
 

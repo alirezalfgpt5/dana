@@ -346,8 +346,11 @@ export function GapAnalysis() {
 
   // فیلتر کردن گپ‌ها
   const filteredGaps = gaps.filter(gap => {
-    const matchSearch = gap.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      gap.requiredNode?.title?.toLowerCase().includes(searchTerm.toLowerCase());
+    const term = searchTerm.trim().toLowerCase();
+    const matchSearch = !term || 
+      (gap.description ? gap.description.toLowerCase().includes(term) : false) ||
+      (gap.requiredNode?.title ? gap.requiredNode.title.toLowerCase().includes(term) : false) ||
+      (gap.producedNode?.title ? gap.producedNode.title.toLowerCase().includes(term) : false);
     const matchStatus = filterStatus === 'all' || gap.status === filterStatus;
     const matchPriority = filterPriority === 'all' || gap.priority === filterPriority;
     return matchSearch && matchStatus && matchPriority;

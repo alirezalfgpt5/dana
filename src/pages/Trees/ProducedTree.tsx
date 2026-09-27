@@ -70,8 +70,8 @@ export function ProducedTree() {
     if (!tree?.id) return;
     try {
       setIsCloning(true);
-      const res = await api.post(`/trees/${tree?.id}/clone`);
-      toast.success(res.data.message || 'نسخه جدید با موفقیت ایجاد شد');
+      const res: any = await api.post(`/api/trees/${tree?.id}/clone`);
+      toast.success(res?.message || res?.data?.message || 'نسخه جدید با موفقیت ایجاد شد');
       fetchTrees();
     } catch (e) {
       toast.error('خطا در ایجاد نسخه');

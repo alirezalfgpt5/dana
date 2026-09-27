@@ -94,13 +94,6 @@ gapRoutes.get('/', async (req, res) => {
       }
     }
 
-    if (periodId && periodId !== 'all' && periodId !== 'undefined' && periodId !== 'null') {
-      const pId = parseInt(periodId as string);
-      if (!isNaN(pId)) {
-        conditions.push(eq(gaps.periodId, pId));
-      }
-    }
-
     if (treeId) {
       const targetTree = await db.query.knowledgeTrees.findFirst({
         where: eq(knowledgeTrees.id, parseInt(treeId as string)),
@@ -149,32 +142,33 @@ gapRoutes.get('/', async (req, res) => {
       } else {
          conditions.push(eq(gaps.requiredNodeId, -1)); // No matches
       }
-    } else if (req.query.periodId) {
-      const periodId = parseInt(req.query.periodId as string);
+    } else if (periodId && periodId !== 'all' && periodId !== 'undefined' && periodId !== 'null') {
+      const pId = parseInt(periodId as string);
+      if (!isNaN(pId)) {
+        const treesInPeriod = await db.select({ id: knowledgeTrees.id })
+           .from(knowledgeTrees)
+           .where(eq(knowledgeTrees.periodId, pId));
 
-      const treesInPeriod = await db.select({ id: knowledgeTrees.id })
-         .from(knowledgeTrees)
-         .where(eq(knowledgeTrees.periodId, periodId));
+        const treeIds = treesInPeriod.map(t => t.id);
 
-      const treeIds = treesInPeriod.map(t => t.id);
+        if (treeIds.length > 0) {
+           const nodesInPeriod = await db.select({ id: treeNodes.id })
+              .from(treeNodes)
+              .where(inArray(treeNodes.treeId, treeIds));
 
-      if (treeIds.length > 0) {
-         const nodesInPeriod = await db.select({ id: treeNodes.id })
-            .from(treeNodes)
-            .where(inArray(treeNodes.treeId, treeIds));
+           const nodeIds = nodesInPeriod.map(n => n.id);
 
-         const nodeIds = nodesInPeriod.map(n => n.id);
-
-         if (nodeIds.length > 0) {
-            conditions.push(or(
-              eq(gaps.periodId, periodId),
-              inArray(gaps.requiredNodeId, nodeIds)
-            ));
-         } else {
-            conditions.push(eq(gaps.periodId, periodId));
-         }
-      } else {
-         conditions.push(eq(gaps.periodId, periodId));
+           if (nodeIds.length > 0) {
+              conditions.push(or(
+                eq(gaps.periodId, pId),
+                inArray(gaps.requiredNodeId, nodeIds)
+              ));
+           } else {
+              conditions.push(eq(gaps.periodId, pId));
+           }
+        } else {
+           conditions.push(eq(gaps.periodId, pId));
+        }
       }
     }
 
@@ -388,6 +382,41 @@ gapRoutes.get('/stats', async (req, res) => {
     const { treeId } = req.query;
 
     let query = db.select().from(gaps);
+    const conditions: any[] = [];
+
+    // کنترل دسترسی سازمانی
+    const user = (req as AuthRequest).user;
+    if (user) {
+      const orgScope = getUserOrgScope(user);
+      const isAggregate = req.query.mode === 'aggregate';
+      const effective = orgScope.getEffectiveFilter(
+        req.query.baseId ? parseInt(req.query.baseId as string) : null,
+        req.query.unitId ? parseInt(req.query.unitId as string) : null,
+        isAggregate
+      );
+
+      if (effective.unitIds && effective.unitIds.length > 0) {
+        const userTrees = await db.select({ id: knowledgeTrees.id })
+          .from(knowledgeTrees)
+          .where(inArray(knowledgeTrees.unitId, effective.unitIds));
+        const treeIds = userTrees.map(t => t.id);
+        if (treeIds.length > 0) {
+          const uNodes = await db.select({ id: treeNodes.id }).from(treeNodes).where(inArray(treeNodes.treeId, treeIds));
+          const uNodeIds = uNodes.map(n => n.id);
+          if (uNodeIds.length > 0) {
+            conditions.push(or(
+              inArray(gaps.requiredNodeId, uNodeIds),
+              inArray(gaps.producedNodeId, uNodeIds)
+            ));
+          } else {
+            conditions.push(eq(gaps.id, -1));
+          }
+        } else {
+          conditions.push(eq(gaps.id, -1));
+        }
+      }
+    }
+
     if (treeId) {
       const targetTree = await db.query.knowledgeTrees.findFirst({
         where: eq(knowledgeTrees.id, parseInt(treeId as string)),
@@ -409,12 +438,12 @@ gapRoutes.get('/stats', async (req, res) => {
               for (let i = 0; i < gapIds.length; i += 500) {
                 chunks.push(inArray(gaps.id, gapIds.slice(i, i + 500)));
               }
-              query = query.where(or(...chunks)) as any;
+              conditions.push(or(...chunks));
             } else {
-              query = query.where(inArray(gaps.id, gapIds)) as any;
+              conditions.push(inArray(gaps.id, gapIds));
             }
           } else {
-            query = query.where(eq(gaps.id, -1)) as any;
+            conditions.push(eq(gaps.id, -1));
           }
         } else {
           if (nodeIds.length > 500) {
@@ -422,14 +451,42 @@ gapRoutes.get('/stats', async (req, res) => {
             for (let i = 0; i < nodeIds.length; i += 500) {
               chunks.push(inArray(gaps.requiredNodeId, nodeIds.slice(i, i + 500)));
             }
-            query = query.where(or(...chunks)) as any;
+            conditions.push(or(...chunks));
           } else {
-            query = query.where(inArray(gaps.requiredNodeId, nodeIds)) as any;
+            conditions.push(inArray(gaps.requiredNodeId, nodeIds));
           }
         }
       } else {
-        query = query.where(eq(gaps.id, -1)) as any;
+        conditions.push(eq(gaps.id, -1));
       }
+    } else if (req.query.periodId && req.query.periodId !== 'all' && req.query.periodId !== 'undefined' && req.query.periodId !== 'null') {
+      const pId = parseInt(req.query.periodId as string);
+      if (!isNaN(pId)) {
+        const treesInPeriod = await db.select({ id: knowledgeTrees.id })
+           .from(knowledgeTrees)
+           .where(eq(knowledgeTrees.periodId, pId));
+        const treeIds = treesInPeriod.map(t => t.id);
+        if (treeIds.length > 0) {
+           const nodesInPeriod = await db.select({ id: treeNodes.id })
+              .from(treeNodes)
+              .where(inArray(treeNodes.treeId, treeIds));
+           const nodeIds = nodesInPeriod.map(n => n.id);
+           if (nodeIds.length > 0) {
+              conditions.push(or(
+                eq(gaps.periodId, pId),
+                inArray(gaps.requiredNodeId, nodeIds)
+              ));
+           } else {
+              conditions.push(eq(gaps.periodId, pId));
+           }
+        } else {
+           conditions.push(eq(gaps.periodId, pId));
+        }
+      }
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
     }
 
     const allGaps = await query;

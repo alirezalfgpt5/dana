@@ -21,14 +21,15 @@ export const DeepSearch: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await api.get(`/search?q=${encodeURIComponent(query)}`);
-      setResults(res.data);
+      const res: any = await api.get(`/api/search?q=${encodeURIComponent(query)}`);
+      const data = res?.data || res || { nodes: [], issues: [], gaps: [], trees: [], files: [] };
+      setResults(data);
       if (
-        res.data.nodes.length === 0 &&
-        res.data.issues.length === 0 &&
-        res.data.gaps.length === 0 &&
-        res.data.trees.length === 0 &&
-        res.data.files.length === 0
+        (!data.nodes || data.nodes.length === 0) &&
+        (!data.issues || data.issues.length === 0) &&
+        (!data.gaps || data.gaps.length === 0) &&
+        (!data.trees || data.trees.length === 0) &&
+        (!data.files || data.files.length === 0)
       ) {
         toast.error('نتیجه‌ای یافت نشد');
       }

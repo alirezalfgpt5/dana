@@ -77,7 +77,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       onIssueUpdate(issueId, newStatus);
 
       try {
-        await api.put(`/issues/${issueId}`, { status: newStatus });
+        await api.put(`/api/issues/${issueId}`, { status: newStatus });
         toast.success(`وضعیت مسئله به "${columns.find(c => c.id === newStatus)?.title || newStatus}" تغییر یافت`, {
           id: `kanban-status-${issueId}`,
         });

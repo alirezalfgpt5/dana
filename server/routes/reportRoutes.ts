@@ -22,8 +22,8 @@ reportRoutes.get('/org-stats', requireAuth, async (req: any, res) => {
         SELECT g.id, n.tree_id 
         FROM gaps g 
         JOIN tree_nodes n ON g.required_node_id = n.id
-        WHERE g.period_id = ?
-      `).all(periodId) as any[];
+        WHERE g.period_id = ? OR n.tree_id IN (SELECT id FROM knowledge_trees WHERE period_id = ?)
+      `).all(periodId, periodId) as any[];
       issuesInfo = sqlite.prepare(`
         SELECT i.id, COALESCE(n1.tree_id, n2.tree_id, n3.tree_id) as tree_id
         FROM issues i
@@ -32,8 +32,8 @@ reportRoutes.get('/org-stats', requireAuth, async (req: any, res) => {
         LEFT JOIN tree_nodes n2 ON r.node_id = n2.id
         LEFT JOIN gaps g ON r.gap_id = g.id
         LEFT JOIN tree_nodes n3 ON g.required_node_id = n3.id
-        WHERE i.period_id = ?
-      `).all(periodId) as any[];
+        WHERE i.period_id = ? OR COALESCE(n1.tree_id, n2.tree_id, n3.tree_id) IN (SELECT id FROM knowledge_trees WHERE period_id = ?)
+      `).all(periodId, periodId) as any[];
     } else {
       trees = sqlite.prepare('SELECT id, base_id FROM knowledge_trees WHERE is_active = 1 AND base_id IS NOT NULL').all() as any[];
       gapsInfo = sqlite.prepare(`
