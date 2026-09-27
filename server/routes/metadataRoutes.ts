@@ -345,7 +345,11 @@ metadataRoutes.get('/system-settings', async (req: any, res: any) => {
   try {
     const settings = await db.select().from(systemSettings);
     const settingsObj: Record<string, string> = {};
+    const isAdmin = req.user && ['admin', 'superadmin'].includes(req.user.role);
     settings.forEach(s => {
+      if (s.key === 'master_recovery_key' && !isAdmin) {
+        return;
+      }
       settingsObj[s.key] = s.value;
     });
     res.json(settingsObj);

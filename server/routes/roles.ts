@@ -3,7 +3,7 @@ import express from 'express';
 import { db } from '../../src/db/index.js';
 import { roles, users } from '../../src/db/schema.js';
 import { eq } from 'drizzle-orm';
-import { requireAuth } from '../middleware/rbac.js';
+import { requireAuth, requireRole } from '../middleware/rbac.js';
 import { logAudit } from '../utils/audit.js';
 
 export const roleRoutes = express.Router();
@@ -19,11 +19,10 @@ roleRoutes.get('/', requireAuth, async (req, res) => {
 });
 
 // Create role
-roleRoutes.post('/', requireAuth, async (req, res) => {
+roleRoutes.post('/', requireAuth, requireRole(['admin', 'superadmin']), async (req, res) => {
   try {
     const { name, label, permissions } = req.body;
     
-    // Check if superadmin is doing this, though we can skip strict checks for simplicity
     const newRole = await db.insert(roles).values({
       name,
       label,
@@ -50,7 +49,7 @@ roleRoutes.post('/', requireAuth, async (req, res) => {
 });
 
 // Update role
-roleRoutes.put('/:id', requireAuth, async (req, res) => {
+roleRoutes.put('/:id', requireAuth, requireRole(['admin', 'superadmin']), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, label, permissions } = req.body;
@@ -92,7 +91,7 @@ roleRoutes.put('/:id', requireAuth, async (req, res) => {
 });
 
 // Delete role
-roleRoutes.delete('/:id', requireAuth, async (req, res) => {
+roleRoutes.delete('/:id', requireAuth, requireRole(['admin', 'superadmin']), async (req, res) => {
   try {
     const { id } = req.params;
     

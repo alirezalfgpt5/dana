@@ -468,7 +468,9 @@ export function FilesManagement() {
   };
 
   const handleDownloadStorageFile = (name: string) => {
-    window.open(`/api/files/download/${name}`, '_blank');
+    const token = useAuthStore.getState().token;
+    const query = token ? `?token=${encodeURIComponent(token)}` : '';
+    window.open(`/api/files/download/${encodeURIComponent(name)}${query}`, '_blank');
   };
 
   const getFileIcon = (type: string, name: string) => {

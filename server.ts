@@ -166,9 +166,15 @@ const SESSION_TIMEOUT = process.env.SESSION_TIMEOUT || '86400';
 const userAuthCache = new Map<string, { user: any; expiresAt: number }>();
 
 app.use(async (req, res, next) => {
+  let token: string | undefined;
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
+    token = authHeader.substring(7);
+  } else if (req.query && typeof req.query.token === 'string') {
+    token = req.query.token;
+  }
+
+  if (token) {
     try {
       // 1. بررسی و اعتبارسنجی JWT
       const decoded = jwt.verify(token, JWT_SECRET) as any;
@@ -265,7 +271,12 @@ app.get('/api/metadata/system-settings', async (req: any, res: any) => {
     const { systemSettings } = await import('./src/db/schema.js');
     const settings = await db.select().from(systemSettings);
     const settingsObj: Record<string, string> = {};
+    const isAdmin = req.user && ['admin', 'superadmin'].includes(req.user.role);
     settings.forEach(s => {
+      // کلید حساس master_recovery_key هرگز نباید به کاربران عمومی یا غیرمدیر افشا شود
+      if (s.key === 'master_recovery_key' && !isAdmin) {
+        return;
+      }
       settingsObj[s.key] = s.value;
     });
     res.json(settingsObj);
