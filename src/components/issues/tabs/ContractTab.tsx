@@ -1,8 +1,8 @@
 // src/components/issues/tabs/ContractTab.tsx
-// تب قرارداد
+// تب قرارداد اجرایی با ورودی فایل و مدیریت پیوست
 
 import React from 'react';
-import { Calendar } from 'lucide-react';
+import { Calendar, FileText, Upload, Trash2 } from 'lucide-react';
 import { 
   DatePicker, 
   persian, 
@@ -16,11 +16,13 @@ import { formatNumber, parseNumberInput } from '../../../utils/numberFormat';
 interface ContractTabProps {
   contractData: ContractData;
   setContractData: React.Dispatch<React.SetStateAction<any>>;
+  handleFileUpload?: (field: string, file: File | null) => void;
 }
 
 export const ContractTab: React.FC<ContractTabProps> = ({
   contractData,
   setContractData,
+  handleFileUpload,
 }) => {
   return (
     <div className="space-y-4">
@@ -128,6 +130,41 @@ export const ContractTab: React.FC<ContractTabProps> = ({
           />
         </div>
       </div>
+
+      {/* ورودی فایل قرارداد (حل اولویت ۵) */}
+      <div className="bg-green-50/40 p-4 rounded-xl border border-green-200">
+        <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
+          <Upload size={16} className="text-green-600" />
+          <span>📎 فایل مستندات / تصویر قرارداد</span>
+        </label>
+        <div className="flex items-center gap-3">
+          <input
+            type="file"
+            onChange={e => {
+              const file = e.target.files?.[0] || null;
+              setContractData({...contractData, file});
+              if (file && handleFileUpload) handleFileUpload('قرارداد', file);
+            }}
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-white text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-100 file:text-green-800 hover:file:bg-green-200"
+          />
+          {contractData?.file && (
+            <div className="flex items-center gap-1.5 text-xs text-green-800 bg-green-100 px-3 py-2 rounded-xl whitespace-nowrap">
+              <FileText size={14} />
+              <span className="max-w-[150px] truncate">{contractData.file.name || 'فایل قرارداد'}</span>
+              <button
+                type="button"
+                onClick={() => setContractData({ ...contractData, file: null })}
+                className="text-red-500 hover:text-red-700 p-0.5 ml-1"
+                title="حذف فایل انتخابی"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
+
+export default ContractTab;

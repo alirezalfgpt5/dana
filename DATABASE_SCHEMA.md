@@ -440,6 +440,7 @@
 | `file_name` | TEXT | NOT NULL | - | نام اصلی فایل |
 | `file_size` | INTEGER | NULL | - | حجم فایل به بایت |
 | `file_type` | TEXT | NULL | - | نوع MIME فایل |
+| `field_tag` | TEXT | NULL | - | تگ فیلد مرتبط در فرم مسئله (need, contract, stage20, ...) |
 | `uploaded_at` | TEXT | NOT NULL | - | تاریخ بارگذاری |
 | `uploaded_by` | INTEGER | NULL | NULL | کاربر آپلودکننده: `FK -> users(id) ON DELETE SET NULL` |
 

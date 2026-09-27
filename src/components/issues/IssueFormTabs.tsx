@@ -27,7 +27,7 @@ interface IssueFormTabsProps {
   initialData?: any;
   onSave: (data: any) => Promise<any>;
   onCancel: () => void;
-  onUploadAttachment?: (issueId: number, file: File) => Promise<any>;
+  onUploadAttachment?: (issueId: number, file: File, fieldTag?: string) => Promise<any>;
   templates?: any[];
   knowledgeTypes?: string[];
   projectLevels?: string[];
@@ -523,43 +523,77 @@ export function IssueFormTabs({
       const savedIssue = await onSave(submitData);
       
       if (savedIssue && savedIssue.id && onUploadAttachment) {
-        const uploadPromises: Promise<any>[] = [];
+        const filesToUpload: { file: File; tag: string; name: string }[] = [];
         
         if (needStatementData?.file instanceof File) {
-          uploadPromises.push(onUploadAttachment(savedIssue.id, needStatementData.file));
+          filesToUpload.push({ file: needStatementData.file, tag: 'بیانیه نیاز', name: needStatementData.file.name });
         }
         if (contractData?.file instanceof File) {
-          uploadPromises.push(onUploadAttachment(savedIssue.id, contractData.file));
+          filesToUpload.push({ file: contractData.file, tag: 'قرارداد', name: contractData.file.name });
         }
         if (executiveContractData?.file instanceof File) {
-          uploadPromises.push(onUploadAttachment(savedIssue.id, executiveContractData.file));
+          filesToUpload.push({ file: executiveContractData.file, tag: 'شورای اجرایی', name: executiveContractData.file.name });
         }
         if (formData.macroProject?.file instanceof File) {
-          uploadPromises.push(onUploadAttachment(savedIssue.id, formData.macroProject.file));
+          filesToUpload.push({ file: formData.macroProject.file, tag: 'کلان پروژه', name: formData.macroProject.file.name });
         }
 
-        const stages = [stage20Data, stage50Data, stage100Data, applicationData];
-        for (const stage of stages) {
-          if (stage?.file instanceof File) {
-            uploadPromises.push(onUploadAttachment(savedIssue.id, stage.file));
+        const stages = [
+          { name: 'مقطع ۲۰٪', data: stage20Data },
+          { name: 'مقطع ۵۰٪', data: stage50Data },
+          { name: 'مقطع ۱۰۰٪', data: stage100Data },
+        ];
+
+        for (const s of stages) {
+          if (s.data?.file instanceof File) {
+            filesToUpload.push({ file: s.data.file, tag: `${s.name} - گزارش`, name: s.data.file.name });
           }
-          if (stage?.minutesFile instanceof File) {
-            uploadPromises.push(onUploadAttachment(savedIssue.id, stage.minutesFile));
+          if (s.data?.minutesFile instanceof File) {
+            filesToUpload.push({ file: s.data.minutesFile, tag: `${s.name} - صورتجلسه`, name: s.data.minutesFile.name });
           }
-          if (Array.isArray(stage?.recordsFiles)) {
-            for (const file of stage.recordsFiles) {
+          if (Array.isArray(s.data?.recordsFiles)) {
+            for (const file of s.data.recordsFiles) {
               if (file instanceof File) {
-                uploadPromises.push(onUploadAttachment(savedIssue.id, file as File));
+                filesToUpload.push({ file, tag: `${s.name} - سوابق`, name: file.name });
               }
             }
           }
         }
-        
-        if (uploadPromises.length > 0) {
-          toast.loading('در حال آپلود فایل‌های پیوست...', { id: 'upload-toast' });
-          await Promise.allSettled(uploadPromises);
-          toast.success('فایل‌های پیوست با موفقیت آپلود شدند', { id: 'upload-toast' });
+
+        if (applicationData?.file instanceof File) {
+          filesToUpload.push({ file: applicationData.file, tag: 'کاربست', name: applicationData.file.name });
         }
+        
+        if (filesToUpload.length > 0) {
+          toast.loading(`در حال آپلود ${filesToUpload.length} فایل پیوست...`, { id: 'upload-toast' });
+          const results = await Promise.allSettled(
+            filesToUpload.map(item => onUploadAttachment(savedIssue.id, item.file, item.tag))
+          );
+
+          const succeeded: string[] = [];
+          const failed: string[] = [];
+
+          results.forEach((res, idx) => {
+            if (res.status === 'fulfilled') {
+              succeeded.push(filesToUpload[idx].name);
+            } else {
+              failed.push(filesToUpload[idx].name);
+            }
+          });
+
+          if (failed.length === 0) {
+            toast.success(`تمامی ${succeeded.length} فایل پیوست با موفقیت آپلود شدند`, { id: 'upload-toast' });
+            onCancel();
+          } else if (succeeded.length === 0) {
+            toast.error(`خطا در آپلود کلیه فایل‌های پیوست: ${failed.join('، ')}`, { id: 'upload-toast' });
+          } else {
+            toast.error(`آپلود فایل‌های (${failed.join('، ')}) با شکست مواجه شد. ${succeeded.length} فایل ذخیره گردید.`, { id: 'upload-toast' });
+          }
+        } else {
+          onCancel();
+        }
+      } else {
+        onCancel();
       }
       
     } catch (error) {
@@ -650,6 +684,7 @@ export function IssueFormTabs({
           <ContractTab
             contractData={contractData}
             setContractData={setContractData}
+            handleFileUpload={handleFileUpload}
           />
         );
       case 'executive_contract':

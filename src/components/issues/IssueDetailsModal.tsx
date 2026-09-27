@@ -1,11 +1,12 @@
 // src/components/issues/IssueDetailsModal.tsx
-// مودال نمایش جامع و کامل تمامی فیلدهای نظام مسائل (۴۰+ فیلد دانشی و اجرایی)
+// مودال نمایش جامع و کامل تمامی فیلدهای نظام مسائل (۱۱ تب تخصصی + تب پیوست‌ها و خروجی Word)
 
 import React, { useState } from 'react';
 import { 
   X, FileText, Settings, ClipboardList, Users, Coins, 
   CheckCircle, Clock, RefreshCw, File, UserCog, Building2,
-  Calendar, Shield, AlertCircle, Paperclip, ChevronLeft
+  Calendar, Shield, AlertCircle, Paperclip, Download, ChevronLeft,
+  FileDown, ExternalLink
 } from 'lucide-react';
 import { format } from 'date-fns-jalali';
 import { formatCurrency, formatNumber } from '../../utils/numberFormat';
@@ -31,7 +32,7 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
     if (typeof data === 'string') {
       try { return JSON.parse(data); } catch { return defaultVal; }
     }
-    return data;
+    return typeof data === 'object' ? data : defaultVal;
   };
 
   const needStatement = safeJson(issue.needStatement);
@@ -42,18 +43,37 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
   const stage100 = safeJson(issue.stage100);
   const application = safeJson(issue.application);
   const teamMembers = safeJson(issue.issueResolutionTeam, []);
+  const macroProject = safeJson(issue.macroProject);
+  const collaborationNetwork = safeJson(issue.collaborationNetwork);
+  const attachments = Array.isArray(issue.attachments) ? issue.attachments : [];
 
   const tabs = [
     { id: 'general', label: 'اطلاعات کلی', icon: Settings },
     { id: 'need', label: 'بیانیه نیاز', icon: FileText },
-    { id: 'projects', label: 'پروژه‌ها و همکاری', icon: ClipboardList },
+    { id: 'projects', label: 'پروژه‌ها', icon: ClipboardList },
+    { id: 'collaboration', label: 'همکاری‌ها', icon: Users },
     { id: 'budget', label: 'اعتبارات و بودجه', icon: Coins },
     { id: 'actions', label: 'اقدامات و گلوگاه‌ها', icon: CheckCircle },
     { id: 'team', label: 'کارگروه', icon: UserCog },
-    { id: 'contract', label: 'قراردادها', icon: File },
+    { id: 'contract', label: 'قرارداد', icon: File },
+    { id: 'executive_contract', label: 'شورای اجرایی', icon: Users },
     { id: 'stages', label: 'مراحل اجرایی', icon: Clock },
     { id: 'application', label: 'کاربست نتایج', icon: RefreshCw },
+    { id: 'attachments', label: `پیوست‌ها (${attachments.length})`, icon: Paperclip },
   ];
+
+  const formatFileSize = (bytes?: number | null) => {
+    if (!bytes) return 'نامشخص';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleDownloadWord = () => {
+    const token = localStorage.getItem('token');
+    const url = `/api/export/issues/${issue.id}/word`;
+    window.open(url, '_blank');
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
@@ -94,7 +114,18 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
               </div>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
+            {/* دکمه دانلود شناسنامه Word (حل اولویت ۱۳) */}
+            <button
+              onClick={handleDownloadWord}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors shadow-sm flex items-center gap-1.5"
+              title="دریافت شناسنامه در قالب Word"
+            >
+              <FileDown size={14} />
+              <span>خروجی Word</span>
+            </button>
+
             {onEdit && issue.period?.isComplete !== 1 && (
               <button
                 onClick={() => { onClose(); onEdit(issue); }}
@@ -112,7 +143,7 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
           </div>
         </div>
 
-        {/* نوار ردیابی خط سیر بین دوره‌ای (Lineage Tracking - Audit Phase 9 Item 7) */}
+        {/* نوار ردیابی خط سیر بین دوره‌ای (Lineage Tracking) */}
         {(issue.sourceIssueId || issue.sourceIssue || issue.metadata?.snapshotSource) && (
           <div className="bg-indigo-50/90 border-b border-indigo-100 px-4 py-2 flex items-center justify-between text-xs text-indigo-900">
             <div className="flex items-center gap-2">
@@ -177,7 +208,7 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
                 <p className="text-sm text-gray-700 leading-relaxed">{issue.solutionDirection || 'ثبت نشده است'}</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                   <span className="text-xs text-gray-400 block mb-1">📚 نوع‌شناسی دانش</span>
                   <p className="text-sm font-semibold text-gray-800">{issue.knowledgeType || '-'}</p>
@@ -190,7 +221,18 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
                   <span className="text-xs text-gray-400 block mb-1">🏛️ مرجع تصویب</span>
                   <p className="text-sm font-semibold text-gray-800">{issue.approvalAuthority || '-'}</p>
                 </div>
+                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                  <span className="text-xs text-gray-400 block mb-1">🏷️ دسته‌بندی</span>
+                  <p className="text-sm font-semibold text-gray-800">{issue.category || 'عمومی'}</p>
+                </div>
               </div>
+
+              {issue.researchItem && (
+                <div className="bg-blue-50/50 p-3.5 rounded-xl border border-blue-100">
+                  <span className="text-xs text-blue-700 font-bold block mb-1">🔬 آیتم پژوهشی مرتبط (کد #{issue.researchItem.id}):</span>
+                  <p className="text-sm text-gray-800">{issue.researchItem.importance || 'تحلیل پژوهشی مرتبط'}</p>
+                </div>
+              )}
 
               {issue.templates && issue.templates.length > 0 && (
                 <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
@@ -207,25 +249,60 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
             </div>
           )}
 
-          {/* تب بیانیه نیاز */}
+          {/* تب بیانیه نیاز (پوشش کامل فیلدها - حل اولویت ۶) */}
           {activeTab === 'need' && (
             <div className="space-y-4">
               {needStatement ? (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                       <span className="text-xs text-gray-400 block mb-1">👤 متقاضی / کاربر نهایی</span>
                       <p className="text-sm font-semibold text-gray-800">{needStatement.user || '-'}</p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      <span className="text-xs text-gray-400 block mb-1">📊 سطح نیاز</span>
+                      <p className="text-sm font-semibold text-gray-800">{needStatement.level || '-'}</p>
                     </div>
                     <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                       <span className="text-xs text-gray-400 block mb-1">💰 بودجه پیشنهادی متقاضی</span>
                       <p className="text-sm font-semibold text-emerald-700">{formatCurrency(needStatement.suggestedBudget)} ریال</p>
                     </div>
                   </div>
+
                   <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
-                    <span className="text-xs text-gray-400 block mb-1.5">📝 شرح عینی مسئله و نیاز</span>
+                    <span className="text-xs text-gray-400 block mb-1.5">📝 شرح و بیان مسئله و نیاز</span>
                     <p className="text-sm text-gray-800 leading-relaxed">{needStatement.problem || '-'}</p>
                   </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      <span className="text-xs text-gray-400 block mb-1">📌 وضعیت تصویب</span>
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        needStatement.approvalStatus === 'approved' ? 'bg-green-100 text-green-800' :
+                        needStatement.approvalStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {needStatement.approvalStatus === 'approved' ? '✅ تصویب شد' :
+                         needStatement.approvalStatus === 'rejected' ? '❌ رد شد' : '⏳ در انتظار تصویب'}
+                      </span>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      <span className="text-xs text-gray-400 block mb-1">📅 تاریخ تصویب</span>
+                      <p className="text-sm font-semibold text-gray-800">{needStatement.approvalDate || '-'}</p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      <span className="text-xs text-gray-400 block mb-1">💰 مبلغ تصویب</span>
+                      <p className="text-sm font-semibold text-emerald-700">{formatCurrency(needStatement.approvedAmount)} ریال</p>
+                    </div>
+                  </div>
+
+                  {needStatement.file && (
+                    <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2 text-blue-900">
+                        <Paperclip size={14} />
+                        <span>فایل پیوست بیانیه نیاز: <strong>{needStatement.file.name || 'مستند نیاز'}</strong></span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-8 text-gray-400 text-sm">بیانیه نیازی برای این مسئله ثبت نشده است.</div>
@@ -233,7 +310,7 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
             </div>
           )}
 
-          {/* تب پروژه‌ها و همکاری */}
+          {/* تب پروژه‌ها */}
           {activeTab === 'projects' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -256,9 +333,25 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
                   <p className="text-sm font-semibold text-gray-800">{issue.scientificDiplomacy || '-'}</p>
                 </div>
               </div>
+              {macroProject && (
+                <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
+                  <span className="text-xs text-gray-400 block mb-1">🏗️ کلان پروژه مرتبط</span>
+                  <p className="text-sm text-gray-800">{macroProject.title || macroProject.name || JSON.stringify(macroProject)}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* تب همکاری‌ها و دیپلماسی علمی */}
+          {activeTab === 'collaboration' && (
+            <div className="space-y-4">
               <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
                 <span className="text-xs text-gray-400 block mb-1">🤝 همکاران و پژوهشگران</span>
-                <p className="text-sm text-gray-800">{issue.collaborators || '-'}</p>
+                <p className="text-sm text-gray-800">{issue.collaborators || 'همکاری ثبت نشده است'}</p>
+              </div>
+              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
+                <span className="text-xs text-gray-400 block mb-1">🌐 شبکه همکاران</span>
+                <p className="text-sm text-gray-800">{collaborationNetwork ? (collaborationNetwork.description || JSON.stringify(collaborationNetwork)) : 'شبکه همکاری ثبت نشده است'}</p>
               </div>
             </div>
           )}
@@ -352,7 +445,7 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
             </div>
           )}
 
-          {/* تب قراردادها */}
+          {/* تب قراردادها (پوشش کامل فیلدها - حل اولویت ۶) */}
           {activeTab === 'contract' && (
             <div className="space-y-4">
               {contract ? (
@@ -371,24 +464,61 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
                       <span className="text-gray-400 block mb-0.5">مبلغ قرارداد:</span>
                       <span className="font-semibold text-emerald-700">{formatCurrency(contract.amount)} ریال</span>
                     </div>
+                    <div>
+                      <span className="text-gray-400 block mb-0.5">تاریخ قرارداد:</span>
+                      <span className="font-semibold text-gray-800">{contract.date || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block mb-0.5">تاریخ شروع:</span>
+                      <span className="font-semibold text-gray-800">{contract.startDate || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block mb-0.5">مدت (ماه):</span>
+                      <span className="font-semibold text-gray-800">{contract.duration || '-'} ماه</span>
+                    </div>
                   </div>
-                </div>
-              ) : null}
 
-              {executiveContract ? (
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-2">
-                  <h4 className="font-bold text-sm text-gray-800">🏛️ مصوبه شورای اجرایی</h4>
-                  <p className="text-xs text-gray-700">{executiveContract.minutes || 'ثبت نشده است'}</p>
-                </div>
-              ) : null}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-2 border-t border-gray-200">
+                    <div>
+                      <span className="text-gray-400 block mb-0.5">همکاران مجری:</span>
+                      <span className="text-gray-700">{Array.isArray(contract.collaborators) ? contract.collaborators.join('، ') : (contract.collaborators || '-')}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block mb-0.5">عوامل (استاد راهنما، ارزیاب، مشاور):</span>
+                      <span className="text-gray-700">{Array.isArray(contract.agents) ? contract.agents.join('، ') : (contract.agents || '-')}</span>
+                    </div>
+                  </div>
 
-              {!contract && !executiveContract && (
-                <div className="text-center py-8 text-gray-400 text-sm">قراردادی ثبت نشده است.</div>
+                  {contract.file && (
+                    <div className="bg-green-50 p-2.5 rounded-lg border border-green-200 flex items-center justify-between text-xs mt-2">
+                      <div className="flex items-center gap-2 text-green-900">
+                        <Paperclip size={14} />
+                        <span>فایل قرارداد: <strong>{contract.file.name || 'مستند قرارداد'}</strong></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400 text-sm">قرارداد اجرایی ثبت نشده است.</div>
               )}
             </div>
           )}
 
-          {/* تب مراحل اجرایی */}
+          {/* تب شورای اجرایی */}
+          {activeTab === 'executive_contract' && (
+            <div className="space-y-4">
+              {executiveContract ? (
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-2">
+                  <h4 className="font-bold text-sm text-gray-800">🏛️ مصوبه و صورتجلسه شورای اجرایی</h4>
+                  <p className="text-xs text-gray-700 leading-relaxed">{executiveContract.minutes || 'مصوبه‌ای ثبت نشده است'}</p>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400 text-sm">مصوبه‌ای از شورای اجرایی ثبت نشده است.</div>
+              )}
+            </div>
+          )}
+
+          {/* تب مراحل اجرایی (پوشش کامل فیلدها - حل اولویت ۶) */}
           {activeTab === 'stages' && (
             <div className="space-y-3">
               {[
@@ -396,16 +526,24 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
                 { label: 'مرحله ۵۰٪ (گزارش میانی و آزمون)', data: stage50 },
                 { label: 'مرحله ۱۰۰٪ (دفاع نهایی و تحویل‌گیری)', data: stage100 },
               ].map((stage, idx) => (
-                <div key={idx} className="bg-gray-50 p-3.5 rounded-xl border border-gray-200">
-                  <h5 className="font-bold text-xs text-purple-800 mb-2">{stage.label}</h5>
+                <div key={idx} className="bg-gray-50 p-3.5 rounded-xl border border-gray-200 space-y-2">
+                  <h5 className="font-bold text-xs text-purple-800">{stage.label}</h5>
                   {stage.data ? (
-                    <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <span className="text-gray-400 block">پروپوزال / شرح:</span>
+                        <span className="font-semibold">{stage.data.proposal || '-'}</span>
+                      </div>
                       <div>
                         <span className="text-gray-400 block">تاریخ دفاع:</span>
                         <span className="font-semibold">{stage.data.defenseDate || '-'}</span>
                       </div>
                       <div>
-                        <span className="text-gray-400 block">مبلغ پرداختی این مرحله:</span>
+                        <span className="text-gray-400 block">شماره صورتجلسه:</span>
+                        <span className="font-semibold">{stage.data.minutes || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 block">اعتبار پرداختی:</span>
                         <span className="font-semibold text-emerald-700">{formatCurrency(stage.data.paidAmount)} ریال</span>
                       </div>
                     </div>
@@ -417,12 +555,12 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
             </div>
           )}
 
-          {/* تب کاربست */}
+          {/* تب کاربست (پوشش کامل فیلدها - حل اولویت ۶) */}
           {activeTab === 'application' && (
             <div className="space-y-4">
               {application ? (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                       <span className="text-xs text-gray-400 block mb-1">نوع کاربست</span>
                       <p className="text-sm font-semibold text-gray-800">{application.applicationType || '-'}</p>
@@ -430,6 +568,14 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
                     <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                       <span className="text-xs text-gray-400 block mb-1">تاریخ کاربست</span>
                       <p className="text-sm font-semibold text-gray-800">{application.applicationDate || '-'}</p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      <span className="text-xs text-gray-400 block mb-1">کارگروه کاربست</span>
+                      <p className="text-sm font-semibold text-gray-800">{application.workingGroup || '-'}</p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      <span className="text-xs text-gray-400 block mb-1">شماره صورتجلسه</span>
+                      <p className="text-sm font-semibold text-gray-800">{application.minutes || '-'}</p>
                     </div>
                   </div>
                   <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
@@ -442,10 +588,58 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
               )}
             </div>
           )}
+
+          {/* تب فایل‌ها و پیوست‌ها (نمایش عملیاتی و دانلود امن - حل اولویت ۵) */}
+          {activeTab === 'attachments' && (
+            <div className="space-y-3">
+              {attachments && attachments.length > 0 ? (
+                <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden bg-white">
+                  {attachments.map((att: any) => {
+                    const downloadUrl = `/api/issues/${issue.id}/attachment/${att.id}/download`;
+                    return (
+                      <div key={att.id} className="p-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-purple-50 text-purple-700 rounded-lg">
+                            <FileText size={18} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-800">{att.fileName}</p>
+                            <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
+                              <span>حجم: {formatFileSize(att.fileSize)}</span>
+                              {att.uploadedAt && (
+                                <span>تاریخ بارگذاری: {format(new Date(att.uploadedAt), 'yyyy/MM/dd HH:mm')}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <a
+                          href={downloadUrl}
+                          download
+                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors border border-blue-200"
+                        >
+                          <Download size={13} />
+                          <span>دریافت فایل</span>
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-10 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-gray-400 text-sm">
+                  <Paperclip size={24} className="mx-auto mb-2 opacity-40" />
+                  <span>هنوز هیچ فایل پیوستی برای این مسئله بارگذاری نشده است.</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-gray-50 border-t border-gray-100 flex justify-end">
+        <div className="p-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          <div className="text-xs text-gray-500">
+            شناسنامه تفصیلی نظام مسائل دانا
+          </div>
           <button
             onClick={onClose}
             className="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition-colors"
@@ -457,4 +651,5 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
     </div>
   );
 };
+
 export default IssueDetailsModal;

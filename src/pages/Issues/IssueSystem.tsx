@@ -35,6 +35,7 @@ export function IssueSystem() {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     selectedIssue,
     loading,
+    stats: serverStats,
     pagination,
     fetchIssues,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -56,6 +57,7 @@ export function IssueSystem() {
   const [viewingIssue, setViewingIssue] = useState<any | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [showFilters, setShowFilters] = useState(true);
+  const [showAdvancedQuery, setShowAdvancedQuery] = useState(false);
   const [expandedIssue, setExpandedIssue] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
@@ -90,7 +92,15 @@ export function IssueSystem() {
   const handleExportExcel = async () => {
     try {
       toast.loading('در حال آماده‌سازی گزارش جامع اکسل...', { id: 'excel-toast' });
-      const res = await api.get('/api/reports/issues/excel', { responseType: 'blob' });
+      const params = new URLSearchParams();
+      if (filterByPeriod && activePeriod?.id) params.append('periodId', String(activePeriod.id));
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (priorityFilter !== 'all') params.append('priority', priorityFilter);
+      if (categoryFilter !== 'all') params.append('category', categoryFilter);
+      if (timeFrameFilter !== 'all') params.append('timeFrame', timeFrameFilter);
+      if (searchTerm) params.append('search', searchTerm);
+
+      const res = await api.get(`/api/reports/issues/excel?${params.toString()}`, { responseType: 'blob' });
       const blob = res instanceof Blob 
         ? res 
         : new Blob([res as any], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -156,7 +166,8 @@ export function IssueSystem() {
     }
   }, [location, navigate]);
 
-  const stats = getIssueStats(issues);
+  const pageStats = getIssueStats(issues);
+  const stats = serverStats && (serverStats.total > 0 || (pagination && pagination.total === 0)) ? serverStats : pageStats;
 
   const isIssuePeriodFrozen = (periodId?: number | null) => {
     if (!periodId) return false;
@@ -247,8 +258,10 @@ export function IssueSystem() {
       return;
     }
     if (confirm('⚠️ آیا از حذف این مسئله اطمینان دارید؟')) {
-      await deleteIssue(issueId);
-      toast.success('🗑️ مسئله با موفقیت حذف شد');
+      const success = await deleteIssue(issueId);
+      if (success) {
+        toast.success('🗑️ مسئله با موفقیت حذف شد');
+      }
     }
   };
 
@@ -551,7 +564,7 @@ export function IssueSystem() {
           </div>
 
           {/* فیلترها و دکمه پاک‌سازی با چیدمان منعطف grid/flex */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 items-center w-full lg:w-auto shrink-0">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 items-center w-full lg:w-auto shrink-0">
             {/* وضعیت */}
             <div className="min-w-0">
               <select
@@ -610,8 +623,30 @@ export function IssueSystem() {
               </select>
             </div>
 
+            {/* دکمه فیلتر پیشرفته */}
+            <div className="min-w-0">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedQuery(!showAdvancedQuery)}
+                className={`w-full px-2.5 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5 border truncate ${
+                  showAdvancedQuery || (advancedFilter && advancedFilter.rules && advancedFilter.rules.length > 0)
+                    ? 'bg-purple-100 text-purple-700 border-purple-300'
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                }`}
+                title="فیلتر پیشرفته ترکیبی"
+              >
+                <Filter size={13} />
+                <span>فیلتر پیشرفته</span>
+                {advancedFilter && advancedFilter.rules && advancedFilter.rules.length > 0 && (
+                  <span className="bg-purple-600 text-white rounded-full px-1.5 py-0.2 text-[10px]">
+                    {advancedFilter.rules.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
             {/* پاک‌سازی فیلترها */}
-            <div className="col-span-2 sm:col-span-1 md:col-span-1 min-w-0">
+            <div className="min-w-0">
               <button
                 onClick={() => {
                   setSearchTerm('');
@@ -619,6 +654,7 @@ export function IssueSystem() {
                   setPriorityFilter('all');
                   setCategoryFilter('all');
                   setTimeFrameFilter('all');
+                  setAdvancedFilter(null);
                 }}
                 className="w-full px-2.5 py-2 text-gray-500 hover:text-red-600 hover:bg-red-50 border border-gray-200 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
                 title="پاک کردن تمام فیلترها"
@@ -630,10 +666,87 @@ export function IssueSystem() {
           </div>
         </div>
 
+        {/* پنل ساخت فیلتر پیشرفته (حل اولویت ۱۱) */}
+        {showAdvancedQuery && (
+          <div className="mt-4 pt-4 border-t border-purple-100 bg-purple-50/40 p-4 rounded-xl">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Filter size={16} className="text-purple-600" />
+                <span className="text-xs sm:text-sm font-bold text-gray-800">سازنده پرس‌وجوی پیشرفته نظام مسائل</span>
+              </div>
+              {advancedFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdvancedFilter(null);
+                    fetchIssues({
+                      page: 1,
+                      limit: pagination.limit || 20,
+                      periodId: filterByPeriod && activePeriod ? activePeriod.id : undefined,
+                      status: statusFilter !== 'all' ? statusFilter : undefined,
+                      priority: priorityFilter !== 'all' ? priorityFilter : undefined,
+                      category: categoryFilter !== 'all' ? categoryFilter : undefined,
+                      timeFrame: timeFrameFilter !== 'all' ? timeFrameFilter : undefined,
+                      search: searchTerm || undefined,
+                      advancedFilter: undefined,
+                    });
+                  }}
+                  className="text-xs text-red-600 hover:text-red-700 hover:underline"
+                >
+                  حذف فیلتر پیشرفته
+                </button>
+              )}
+            </div>
+            <AdvancedQueryBuilder
+              fields={filterFields}
+              initialFilter={advancedFilter || undefined}
+              onChange={(newFilter) => {
+                setAdvancedFilter(newFilter);
+              }}
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  loadIssuesData(1);
+                  toast.success('فیلتر پیشرفته اعمال شد');
+                }}
+                className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+              >
+                اعمال فیلتر پیشرفته
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* فیلترهای فعال */}
-        {(searchTerm || statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all') && (
+        {(searchTerm || statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all' || (advancedFilter && advancedFilter.rules && advancedFilter.rules.length > 0)) && (
           <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
             <span className="text-xs text-gray-400 ml-2">🔍 فیلترهای فعال:</span>
+            {advancedFilter && advancedFilter.rules && advancedFilter.rules.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 text-purple-800 rounded-full text-[10px]">
+                فیلتر پیشرفته فعال ({advancedFilter.rules.length} شرط)
+                <button
+                  onClick={() => {
+                    setAdvancedFilter(null);
+                    fetchIssues({
+                      page: 1,
+                      limit: pagination.limit || 20,
+                      periodId: filterByPeriod && activePeriod ? activePeriod.id : undefined,
+                      status: statusFilter !== 'all' ? statusFilter : undefined,
+                      priority: priorityFilter !== 'all' ? priorityFilter : undefined,
+                      category: categoryFilter !== 'all' ? categoryFilter : undefined,
+                      timeFrame: timeFrameFilter !== 'all' ? timeFrameFilter : undefined,
+                      search: searchTerm || undefined,
+                      advancedFilter: undefined,
+                    });
+                  }}
+                  className="hover:text-red-500"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
             {searchTerm && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-[10px]">
                 جستجو: {searchTerm}

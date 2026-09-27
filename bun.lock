@@ -10,6 +10,7 @@
         "@vitejs/plugin-react": "^6.1.1",
         "axios": "^1.20.0",
         "bcryptjs": "^3.0.3",
+        "better-sqlite3": "file:./src/db/better-sqlite3-shim",
         "clsx": "^2.1.1",
         "cors": "^2.8.6",
         "d3": "^7.9.0",
@@ -384,6 +385,8 @@
     "baseline-browser-mapping": ["baseline-browser-mapping@2.11.26", "", { "bin": { "baseline-browser-mapping": "dist/cli.cjs" } }, "sha512-GLQdD3y6UF8iVuMJl5fHgE4jdn/ua7n+toKfLgNlg3BqQtOZjpy68T8Tup8/wGWZCDlm7KMg7tPb4MPn7oN0TQ=="],
 
     "bcryptjs": ["bcryptjs@3.0.3", "", { "bin": { "bcrypt": "bin/bcrypt" } }, "sha512-GlF5wPWnSa/X5LKM1o0wz0suXIINz1iHRLvTS+sLyi7XPbe5ycmYI3DlZqVGZZtDgl4DmasFg7gOB3JYbphV5g=="],
+
+    "better-sqlite3": ["better-sqlite3@file:src/db/better-sqlite3-shim", {}],
 
     "big-integer": ["big-integer@1.6.52", "", {}, "sha512-QxD8cf2eVqJOOz63z6JIN9BzvVs/dlySa5HGSBH5xtR8dPteIRQnBxxKqkNTiT6jbDTF6jAfrd4oMcND9RGbQg=="],
 

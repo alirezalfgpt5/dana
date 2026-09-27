@@ -1,0 +1,263 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "سامانه مدیریت دانش و نظام مسائل (دانا) - API Specification",
+    "description": "مستندات رسمی و دقیق Swagger / OpenAPI 3.0 برای وب‌سرویس‌های نظام مسائل، گردش کار، گزارشات، پیوست‌ها و خروجی‌های سامانه دانا",
+    "version": "5.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "سرور محلی و عملیاتی دانا"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Issue": {
+        "type": "object",
+        "required": ["title", "domainNodeId"],
+        "properties": {
+          "id": { "type": "integer", "readOnly": true },
+          "title": { "type": "string", "example": "طراحی و توسعه ماژول رمزنگاری کوانتومی" },
+          "domainNodeId": { "type": "integer", "description": "شناسه گره دانشی در درختواره" },
+          "periodId": { "type": "integer", "nullable": true, "description": "شناسه دوره زمانی" },
+          "researchItemId": { "type": "integer", "nullable": true, "description": "شناسه آیتم پژوهشی مرتبط" },
+          "sourceIssueId": { "type": "integer", "nullable": true, "description": "شناسه مسئله مرجع در صورت انتقال بین‌دوره‌ای" },
+          "gapId": { "type": "integer", "nullable": true, "description": "شناسه گپ دانشی مرتبط" },
+          "solutionDirection": { "type": "string", "nullable": true },
+          "responsibleUnit": { "type": "string", "nullable": true },
+          "confidentialityLevel": { "type": "string", "enum": ["عمومی", "محرمانه", "خیلی محرمانه", "سری", "به‌کلی سری"], "default": "عمومی" },
+          "actionPriority": { "type": "string", "enum": ["خیلی زیاد", "زیاد", "متوسط", "کم"], "default": "متوسط" },
+          "approvalDate": { "type": "string", "nullable": true },
+          "knowledgeType": { "type": "string", "nullable": true },
+          "projectLevel": { "type": "string", "nullable": true },
+          "approvalAuthority": { "type": "string", "nullable": true },
+          "researchProjectType": { "type": "string", "nullable": true },
+          "knowledgeProjectType": { "type": "string", "nullable": true },
+          "events": { "type": "string", "nullable": true },
+          "scientificDiplomacy": { "type": "string", "nullable": true },
+          "collaborators": { "type": "string", "nullable": true },
+          "referenceDocument": { "type": "string", "nullable": true },
+          "actionsTaken": { "type": "string", "nullable": true },
+          "bottlenecks": { "type": "string", "nullable": true },
+          "orders": { "type": "string", "nullable": true },
+          "category": { "type": "string", "nullable": true },
+          "requiredBudget": { "type": "number", "default": 0 },
+          "approvedBudget": { "type": "number", "default": 0 },
+          "assignedBudget": { "type": "number", "default": 0 },
+          "expectedMonths": { "type": "integer", "default": 0 },
+          "completionPercent": { "type": "integer", "minimum": 0, "maximum": 100, "default": 0 },
+          "status": { "type": "string", "enum": ["pending", "in_progress", "completed", "canceled", "on_hold"], "default": "pending" },
+          "needStatement": { "type": "object", "description": "اطلاعات تب بیان نیاز" },
+          "contract": { "type": "object", "description": "اطلاعات تب قرارداد" },
+          "executiveContract": { "type": "object", "description": "اطلاعات تب قرارداد اجرایی" },
+          "stage20": { "type": "object", "description": "اطلاعات مقطع ۲۰٪" },
+          "stage50": { "type": "object", "description": "اطلاعات مقطع ۵۰٪" },
+          "stage100": { "type": "object", "description": "اطلاعات مقطع ۱۰۰٪" },
+          "application": { "type": "object", "description": "اطلاعات تب کاربست" },
+          "macroProject": { "type": "object", "description": "اطلاعات تب کلان‌پروژه" },
+          "collaborationNetwork": { "type": "object", "description": "شبکه همکاران" },
+          "issueResolutionTeam": { "type": "array", "items": { "type": "object" }, "description": "تیم حل مسئله" },
+          "templateIds": { "type": "array", "items": { "type": "integer" } },
+          "metadata": { "type": "object" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CarryOverRequest": {
+        "type": "object",
+        "required": ["sourcePeriodId", "targetPeriodId"],
+        "properties": {
+          "sourcePeriodId": { "type": "integer" },
+          "targetPeriodId": { "type": "integer" },
+          "mode": { "type": "string", "enum": ["open_only", "all", "selected"], "default": "open_only" },
+          "issueIds": { "type": "array", "items": { "type": "integer" }, "description": "در حالت selected الزامی است" },
+          "responsibleUnit": { "type": "string" }
+        }
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/issues": {
+      "get": {
+        "summary": "دریافت فهرست مسائل با صفحه‌بندی و کنترل دسترسی سازمانی",
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "periodId", "in": "query", "schema": { "type": "integer" } },
+          { "name": "domain", "in": "query", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "priority", "in": "query", "schema": { "type": "string" } },
+          { "name": "category", "in": "query", "schema": { "type": "string" } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "advancedFilter", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "لیست مسائل همراه با اطلاعات صفحه‌بندی" }
+        }
+      },
+      "post": {
+        "summary": "ثبت مسئله جدید",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Issue" } } }
+        },
+        "responses": {
+          "201": { "description": "مسئله با موفقیت ایجاد شد" },
+          "400": { "description": "خطای اعتبارسنجی فیلدها" },
+          "403": { "description": "عدم دسترسی به حوزه دانشی مربوطه" }
+        }
+      }
+    },
+    "/issues/{id}": {
+      "get": {
+        "summary": "دریافت جزئیات کامل یک مسئله همراه با اعتبارسنجی دسترسی سازمانی",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": { "description": "اطلاعات مسئله" },
+          "403": { "description": "عدم دسترسی سازمانی" },
+          "404": { "description": "مسئله یافت نشد" }
+        }
+      },
+      "put": {
+        "summary": "ویرایش مسئله با اعتبارسنجی فیلدها و ذخیره‌سازی ارتباط پژوهشی و متادیتا",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Issue" } } }
+        },
+        "responses": {
+          "200": { "description": "مسئله بروزرسانی شد" },
+          "400": { "description": "خطا در داده‌ها یا فریز بودن دوره" },
+          "403": { "description": "عدم دسترسی سازمانی" }
+        }
+      },
+      "delete": {
+        "summary": "حذف مسئله",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": { "description": "مسئله حذف شد" },
+          "403": { "description": "عدم دسترسی یا فریز بودن دوره" }
+        }
+      }
+    },
+    "/issues/{id}/status": {
+      "put": {
+        "summary": "تغییر وضعیت مسئله و ثبت در تاریخچه",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {
+                  "status": { "type": "string", "enum": ["pending", "in_progress", "completed", "canceled", "on_hold"] },
+                  "note": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "وضعیت بروزرسانی شد" } }
+      }
+    },
+    "/issues/{id}/lineage": {
+      "get": {
+        "summary": "ردیابی خط سیر و زنجیره انتقال بین‌دوره‌ای مسئله با کنترل دسترسی",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "شجره و خط سیر مسئله در ادوار زمانی" } }
+      }
+    },
+    "/issues/{id}/history": {
+      "get": {
+        "summary": "دریافت تاریخچه ریز تغییرات فیلدهای مسئله با کنترل دسترسی",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "لیست رخدادها و تغییرات" } }
+      }
+    },
+    "/issues/{id}/attachments": {
+      "get": {
+        "summary": "دریافت پیوست‌های مسئله بر اساس تگ فیلد",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "fieldTag", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "لیست فایل‌های پیوست" } }
+      },
+      "post": {
+        "summary": "آپلود فایل پیوست برای مسئله با برچسب فیلد فرم",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "fieldTag": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "فایل آپلود شد" } }
+      }
+    },
+    "/issues/{id}/attachments/{attachmentId}": {
+      "delete": {
+        "summary": "حذف پیوست مسئله با بررسی دسترسی سازمانی",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "attachmentId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "پیوست حذف شد" } }
+      }
+    },
+    "/issues/carry-over": {
+      "post": {
+        "summary": "انتقال بین‌دوره‌ای مسائل با کپی فیلدها، دسته‌بندی و پیوست‌ها",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CarryOverRequest" } } }
+        },
+        "responses": { "200": { "description": "نتیجه انتقال مسائل" } }
+      }
+    },
+    "/issues/batch-import": {
+      "post": {
+        "summary": "ورود دسته‌ای مسائل با انطباق قوانین اعتبارسنجی سرور و کلاینت",
+        "responses": { "200": { "description": "نتیجه واردسازی دسته‌ای" } }
+      }
+    },
+    "/issues/stats": {
+      "get": {
+        "summary": "دریافت آمار تجمیعی واقعی کل پایگاه بر اساس فیلترهای جاری",
+        "responses": { "200": { "description": "آمار تفکیکی وضعیت، بودجه‌ها و اولویت‌ها" } }
+      }
+    },
+    "/reports/issues/excel": {
+      "get": {
+        "summary": "صدور فایل اکسل گزارش جامع مسائل با اعمال محدودیت سازمانی و فیلترها",
+        "responses": { "200": { "description": "فایل اکسل خروجی" } }
+      }
+    },
+    "/exports/issues/{id}/word": {
+      "get": {
+        "summary": "صدور شناسنامه مستند رسمی ورد (Word DOCX) مسئله با اطلاعات واقعی و ساختار رسمی",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "فایل DOCX رسمی" } }
+      }
+    }
+  }
+}

@@ -72,6 +72,7 @@ import { auditRoutes } from './server/routes/audit.js';
 import { searchRoutes } from './server/routes/searchRoutes.js';
 import { reportRoutes } from './server/routes/reportRoutes.js';
 import { dynamicFieldsRoutes } from './server/routes/dynamicFieldsRoutes.js';
+import { exportRoutes } from './server/routes/exportRoutes.js';
 import { logAudit } from './server/utils/audit.js';
 import { requireAuth } from './server/middleware/rbac.js';
 
@@ -286,6 +287,11 @@ app.get('/api/metadata/system-settings', async (req: any, res: any) => {
   }
 });
 
+// مسیر مستندات رسمی OpenAPI / Swagger
+app.get('/api/docs/swagger.json', (_req, res) => {
+  res.sendFile(path.resolve('./docs/swagger.json'));
+});
+
 app.use('/api/metadata', requireAuth, metadataRoutes);
 app.use('/api/trees', requireAuth, treeRoutes);
 app.use('/api/templates', requireAuth, templateRoutes);
@@ -311,6 +317,8 @@ app.use('/api/audit', requireAuth, auditRoutes);
 app.use('/api/search', requireAuth, searchRoutes);
 app.use('/api/reports', requireAuth, reportRoutes);
 app.use('/api/dynamic-fields', requireAuth, dynamicFieldsRoutes);
+app.use('/api/export', requireAuth, exportRoutes);
+app.use('/api/exports', requireAuth, exportRoutes);
 
 // ============================================
 // Login
