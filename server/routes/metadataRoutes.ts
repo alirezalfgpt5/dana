@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
 import { 
   projectLevels, approvalAuthorities, knowledgeProjectTypes, 
   scientificDiplomacyLevels, confidentialityLevels, actionPriorities,
@@ -365,6 +367,20 @@ metadataRoutes.post('/system-settings', requireRole(['admin', 'superadmin']), as
     const now = new Date().toISOString();
     for (const [key, value] of Object.entries(settingsObj)) {
       if (value !== undefined && value !== null) {
+        if (key === 'master_recovery_key') {
+          const keyStr = String(value).trim();
+          if (!keyStr || keyStr === 'DANA-ADMIN-SECURE-2026') {
+            return res.status(400).json({ error: 'استفاده از کلید پیش‌فرض و ناامن قدیمی مجاز نمی‌باشد' });
+          }
+          if (keyStr.length < 8) {
+            return res.status(400).json({ error: 'کلید بازیابی اضطراری باید حداقل ۸ کاراکتر باشد' });
+          }
+          try {
+            const recoveryKeyPath = path.join(process.cwd(), '.recoverykey');
+            fs.writeFileSync(recoveryKeyPath, keyStr, { mode: 0o600 });
+          } catch { /* ignore file write error */ }
+        }
+
         await db.insert(systemSettings)
           .values({ key, value: String(value), updatedAt: now })
           .onConflictDoUpdate({

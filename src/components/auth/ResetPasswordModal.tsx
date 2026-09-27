@@ -169,7 +169,7 @@ export function ResetPasswordModal({
                     value={recoveryKey}
                     onChange={(e) => setRecoveryKey(e.target.value)}
                     required
-                    placeholder="مثال: DANA-ADMIN-SECURE-2026"
+                    placeholder="کلید بازیابی اضطراری سیستم..."
                     className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none bg-gray-50/50 focus:bg-white transition-all font-mono font-bold text-purple-700"
                   />
                   <Shield className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500" size={17} />

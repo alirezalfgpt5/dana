@@ -2,7 +2,7 @@
 // کلاینت API ساده با مدیریت خطا و toast
 
 import toast from 'react-hot-toast';
-import { useAuthStore } from '../store';
+import { useAuthStore, useSecurityStore } from '../store';
 
 interface ApiOptions extends RequestInit {
   showErrorToast?: boolean;
@@ -23,7 +23,6 @@ export async function apiClient<T = any>(
 
   // 🟢 اگر نشست منقضی شده و صفحه قفل است، درخواست‌های جدید زودتر قطع می‌شوند (جلوگیری از طوفان درخواست و پیام تکراری)
   if ((window as any)._sessionExpiredHandled) {
-    const { useSecurityStore } = await import('../store');
     if (useSecurityStore.getState().isLocked) {
       throw new Error('Session locked');
     }
@@ -96,11 +95,9 @@ export async function apiClient<T = any>(
             });
             // 🟢 قفل صفحه (اسکرین‌لاک) به‌جای ردن به صفحه لاگین:
             // داده‌ها و وضعیت کاربر حفظ می‌شود و با رمز صحیح ادامه می‌دهد
-            import('../store').then(({ useSecurityStore }) => {
-              useSecurityStore.getState().setLocked(true);
-              // توکن نامعتبر حذف می‌شود اما user و همه stateها حفظ می‌مانند
-              useAuthStore.setState({ token: null });
-            });
+            useSecurityStore.getState().setLocked(true);
+            // توکن نامعتبر حذف می‌شود اما user و همه stateها حفظ می‌مانند
+            useAuthStore.setState({ token: null });
           }
         }
         throw new Error('Unauthorized');
@@ -130,7 +127,7 @@ export async function apiClient<T = any>(
       error.message?.includes('NetworkError')
     ) {
       if (showErrorToast && !error._toastShown) {
-        toast.error('خطا در برقراری ارتباط با سرور (اتصال اینترنت را بررسی کنید)', { id: 'network-fetch-error' });
+        toast.error('خطا در برقراری ارتباط با سرور محلی (از روشن بودن سرویس سرور اطمینان حاصل کنید)', { id: 'network-fetch-error' });
         error._toastShown = true;
       }
     }

@@ -95,7 +95,7 @@ export function Settings() {
   });
 
   const [logoBase64, setLogoBase64] = useState<string | null>(siteLogo);
-  const [masterRecoveryKey, setMasterRecoveryKey] = useState('DANA-ADMIN-SECURE-2026');
+  const [masterRecoveryKey, setMasterRecoveryKey] = useState('');
   const [savingMasterKey, setSavingMasterKey] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
 
@@ -1104,6 +1104,7 @@ export function Settings() {
               dir="ltr"
               value={masterRecoveryKey}
               onChange={(e) => setMasterRecoveryKey(e.target.value)}
+              placeholder="در حال بارگذاری یا کلید امن جدید..."
               className="flex-1 px-3 py-2 text-sm font-mono font-bold text-purple-700 dark:text-purple-300 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-purple-500"
             />
             <button
@@ -1143,6 +1144,14 @@ export function Settings() {
               onClick={async () => {
                 if (!masterRecoveryKey.trim()) {
                   toast.error('کلید بازیابی نمی‌تواند خالی باشد');
+                  return;
+                }
+                if (masterRecoveryKey.trim() === 'DANA-ADMIN-SECURE-2026') {
+                  toast.error('استفاده از کلید پیش‌فرض و ناامن قدیمی مجاز نیست. لطفاً یک کلید اختصاصی و جدید وارد کنید.');
+                  return;
+                }
+                if (masterRecoveryKey.trim().length < 8) {
+                  toast.error('کلید بازیابی باید حداقل ۸ کاراکتر باشد');
                   return;
                 }
                 setSavingMasterKey(true);

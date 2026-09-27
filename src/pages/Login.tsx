@@ -2,7 +2,7 @@
 // صفحه ورود به سیستم — فشرده، زیبا و بهینه با کپچای زنده و تولتیپ اطلاعات توسعه‌دهنده بدون ریرندر
 
 import React, { useState, useCallback } from 'react';
-import { useAuthStore, useUIStore } from '../store';
+import { useAuthStore, useUIStore, useSecurityStore } from '../store';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BookOpen, Sparkles, KeyRound, User, Shield, Eye, EyeOff, Info } from 'lucide-react';
 import { OfflineCaptcha } from '../components/auth/OfflineCaptcha';
@@ -56,7 +56,6 @@ export function Login() {
 
       if (data.user && data.token) {
         try {
-          const { useSecurityStore } = await import('../store');
           useSecurityStore.getState().setLocked(false);
           (window as any)._sessionExpiredHandled = false;
         } catch { /* noop */ }

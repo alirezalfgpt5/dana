@@ -123,16 +123,46 @@ async function setupAdmin() {
     }
 
     const { systemSettings } = await import('./src/db/schema.js');
-    const masterKeyExists = await db.query.systemSettings.findFirst({
+
+    // 🔒 مدیریت امن کلید بازیابی اضطراری بدون استفاده از مقدار پیش‌فرض ثابت و ناامن
+    let resolvedRecoveryKey = process.env.MASTER_RECOVERY_KEY?.trim();
+    const recoveryKeyPath = path.join(currentDir, '.recoverykey');
+
+    if (!resolvedRecoveryKey) {
+      if (fs.existsSync(recoveryKeyPath)) {
+        try {
+          const fileContent = fs.readFileSync(recoveryKeyPath, 'utf8').trim();
+          if (fileContent && fileContent !== 'DANA-ADMIN-SECURE-2026') {
+            resolvedRecoveryKey = fileContent;
+          }
+        } catch { /* ignore read error */ }
+      }
+    }
+
+    if (!resolvedRecoveryKey || resolvedRecoveryKey === 'DANA-ADMIN-SECURE-2026') {
+      const randHex = crypto.randomBytes(16).toString('hex').toUpperCase();
+      resolvedRecoveryKey = `DANA-REC-${randHex.slice(0, 8)}-${randHex.slice(8, 16)}-${randHex.slice(16, 24)}-${randHex.slice(24, 32)}`;
+      try {
+        fs.writeFileSync(recoveryKeyPath, resolvedRecoveryKey, { mode: 0o600 });
+      } catch { /* ignore write error */ }
+    }
+
+    const masterKeySetting = await db.query.systemSettings.findFirst({
       where: (settings, { eq }) => eq(settings.key, 'master_recovery_key')
     });
-    if (!masterKeyExists) {
+
+    if (!masterKeySetting) {
       await db.insert(systemSettings).values({
         key: 'master_recovery_key',
-        value: 'DANA-ADMIN-SECURE-2026',
+        value: resolvedRecoveryKey,
         updatedAt: new Date().toISOString(),
       });
-      console.log('🔑 Master Recovery Key initialized: DANA-ADMIN-SECURE-2026');
+      console.log('🔒 Master Recovery Key initialized securely (stored locally in .recoverykey and system settings).');
+    } else if (masterKeySetting.value === 'DANA-ADMIN-SECURE-2026' || !masterKeySetting.value) {
+      await db.update(systemSettings)
+        .set({ value: resolvedRecoveryKey, updatedAt: new Date().toISOString() })
+        .where(eq(systemSettings.key, 'master_recovery_key'));
+      console.log('🔒 Migrated legacy predictable recovery key to a cryptographically secure key.');
     }
   } catch (e) {}
 }
@@ -403,8 +433,16 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   }
 });
 
+// ریت‌لیمیت اختصاصی مسیر بازیابی رمز برای جلوگیری از حملات Brute-Force
+const recoveryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'تعداد تلاش‌های ناموفق بازیابی بیش از حد مجاز است. لطفاً ۱۵ دقیقه دیگر تلاش کنید.' },
+  validate: { trustProxy: true, xForwardedForHeader: false }
+});
+
 // بازنشانی محلی رمز عبور در حالت آفلاین
-app.post('/api/auth/reset-password-offline', async (req, res) => {
+app.post('/api/auth/reset-password-offline', recoveryLimiter, async (req, res) => {
   try {
     const { username, newPassword, recoveryKey } = req.body;
     if (!username || !newPassword || !recoveryKey) {
@@ -412,6 +450,12 @@ app.post('/api/auth/reset-password-offline', async (req, res) => {
     }
     if (newPassword.length < 6) {
       return res.status(400).json({ error: 'رمز عبور جدید باید حداقل ۶ کاراکتر باشد' });
+    }
+
+    const trimmedInputKey = String(recoveryKey).trim();
+    // رد صریح کلید پیش‌فرض قدیمی
+    if (trimmedInputKey === 'DANA-ADMIN-SECURE-2026') {
+      return res.status(403).json({ error: 'کلید پیش‌فرض قدیمی نامعتبر و منسوخ شده است' });
     }
 
     const user = await db.query.users.findFirst({
@@ -425,9 +469,29 @@ app.post('/api/auth/reset-password-offline', async (req, res) => {
     const masterSetting = await db.query.systemSettings.findFirst({
       where: (settings, { eq }) => eq(settings.key, 'master_recovery_key')
     });
-    const validKey = masterSetting?.value || 'DANA-ADMIN-SECURE-2026';
 
-    if (recoveryKey.trim() !== validKey.trim()) {
+    let validKey = masterSetting?.value?.trim();
+    if (!validKey || validKey === 'DANA-ADMIN-SECURE-2026') {
+      const recoveryKeyPath = path.join(currentDir, '.recoverykey');
+      if (fs.existsSync(recoveryKeyPath)) {
+        try {
+          const fileVal = fs.readFileSync(recoveryKeyPath, 'utf8').trim();
+          if (fileVal && fileVal !== 'DANA-ADMIN-SECURE-2026') {
+            validKey = fileVal;
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
+    if (!validKey || validKey === 'DANA-ADMIN-SECURE-2026') {
+      return res.status(403).json({ error: 'کلید بازیابی اضطراری در سیستم تنظیم نشده است' });
+    }
+
+    const inputBuf = Buffer.from(trimmedInputKey);
+    const validBuf = Buffer.from(validKey);
+    const isMatch = inputBuf.length === validBuf.length && crypto.timingSafeEqual(inputBuf, validBuf);
+
+    if (!isMatch) {
       return res.status(403).json({ error: 'کلید بازیابی اضطراری وارد شده نامعتبر است' });
     }
 
@@ -536,8 +600,9 @@ async function startServer() {
 
   setupGracefulShutdown(httpServer);
 
-  listenWithAutoPortRecovery(httpServer, PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+  const HOST = process.env.HOST || '0.0.0.0';
+  listenWithAutoPortRecovery(httpServer, PORT, HOST, () => {
+    console.log(`🚀 Server running on http://${HOST}:${PORT}`);
     console.log(`👤 Admin: admin / admin123`);
   });
 
