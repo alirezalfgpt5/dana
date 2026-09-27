@@ -132,10 +132,14 @@ export function ProducedTree() {
   // Load data
   useEffect(() => {
     const loadData = async () => {
-      await fetchTrees({ type: 'produced' });
-      await fetchTemplates();
-      await fetchPeriods();
-      await fetchOrgData();
+      try {
+        await fetchTrees({ type: 'produced' });
+        await fetchTemplates();
+        await fetchPeriods();
+        await fetchOrgData();
+      } catch (err) {
+        console.error('Error loading produced tree initial data:', err);
+      }
     };
     loadData();
   }, []);

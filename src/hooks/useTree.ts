@@ -59,12 +59,16 @@ export function useTree() {
   // ============================================
 
   const fetchTemplates = useCallback(async (retry = true) => {
+    setError(null);
+    let lastError: any = null;
+
     try {
       const data = await apiClient('/api/metadata/templates', { showErrorToast: false });
       const validData = Array.isArray(data) ? data : [];
       setTemplates(validData);
       return validData;
     } catch (err: any) {
+      lastError = err;
       if (retry) {
         // تلاش مجدد با تأخیر در صورت در حال راه‌اندازی بودن سرور
         await new Promise(r => setTimeout(r, 600));
@@ -73,9 +77,14 @@ export function useTree() {
           const validData = Array.isArray(retryData) ? retryData : [];
           setTemplates(validData);
           return validData;
-        } catch {}
+        } catch (retryErr: any) {
+          lastError = retryErr || err;
+        }
       }
-      return [];
+      const errorMsg = lastError?.message || 'خطا در بارگذاری قالب‌ها';
+      setError(errorMsg);
+      console.error('Error loading templates:', lastError);
+      throw lastError || new Error(errorMsg);
     }
   }, []);
 

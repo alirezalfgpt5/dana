@@ -131,10 +131,14 @@ export function RequiredTree() {
   // Load data
   useEffect(() => {
     const loadData = async () => {
-      await fetchTrees({ type: 'required' });
-      await fetchTemplates();
-      await fetchPeriods();
-      await fetchOrgData();
+      try {
+        await fetchTrees({ type: 'required' });
+        await fetchTemplates();
+        await fetchPeriods();
+        await fetchOrgData();
+      } catch (err) {
+        console.error('Error loading required tree initial data:', err);
+      }
     };
     loadData();
   }, []);

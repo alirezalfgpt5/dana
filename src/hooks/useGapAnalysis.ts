@@ -1,7 +1,7 @@
 // src/hooks/useGapAnalysis.ts
 // هوک تحلیل شکاف دانشی
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { apiClient } from '../lib/apiClient';
 
@@ -25,6 +25,21 @@ interface Gap {
   researchItemId?: number | null;
   researchItem?: any;
   issue?: any;
+}
+
+export interface GapFilters {
+  treeId?: number;
+  periodId?: number | string;
+  status?: string;
+  gapType?: string;
+  priority?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  advancedFilter?: string;
+  baseId?: number | string;
+  unitId?: number | string;
+  mode?: string;
 }
 
 interface GapAnalysisReport {
@@ -69,40 +84,39 @@ export function useGapAnalysis() {
     totalPages: 0,
   });
 
+  const lastFiltersRef = useRef<GapFilters>({});
+
   // ============================================
   // دریافت لیست گپ‌ها با فیلتر
   // ============================================
 
-  const fetchGaps = useCallback(async (filters?: {
-    treeId?: number;
-    periodId?: number | string;
-    status?: string;
-    gapType?: string;
-    priority?: string;
-    search?: string;
-    page?: number;
-    limit?: number;
-    advancedFilter?: string;
-    baseId?: number | string;
-    unitId?: number | string;
-    mode?: string;
-  }) => {
+  const fetchGaps = useCallback(async (filters?: GapFilters) => {
     setLoading(true);
 
     try {
+      const hasFilterKeys = filters && Object.keys(filters).some(
+        k => k !== 'page' && k !== 'limit'
+      );
+
+      const effectiveFilters: GapFilters = hasFilterKeys
+        ? (filters || {})
+        : { ...lastFiltersRef.current, ...filters };
+
+      lastFiltersRef.current = effectiveFilters;
+
       const params = new URLSearchParams();
-      if (filters?.treeId) params.append('treeId', String(filters.treeId));
-      if (filters?.periodId !== undefined && filters.periodId !== 'all') params.append('periodId', String(filters.periodId));
-      if (filters?.status) params.append('status', filters.status);
-      if (filters?.gapType) params.append('gapType', filters.gapType);
-      if (filters?.priority) params.append('priority', filters.priority);
-      if (filters?.search) params.append('search', filters.search);
-      if (filters?.page) params.append('page', String(filters.page));
-      if (filters?.limit) params.append('limit', String(filters.limit));
-      if (filters?.advancedFilter) params.append('advancedFilter', filters.advancedFilter);
-      if (filters?.baseId) params.append('baseId', String(filters.baseId));
-      if (filters?.unitId) params.append('unitId', String(filters.unitId));
-      if (filters?.mode) params.append('mode', filters.mode);
+      if (effectiveFilters.treeId) params.append('treeId', String(effectiveFilters.treeId));
+      if (effectiveFilters.periodId !== undefined && effectiveFilters.periodId !== 'all') params.append('periodId', String(effectiveFilters.periodId));
+      if (effectiveFilters.status) params.append('status', effectiveFilters.status);
+      if (effectiveFilters.gapType) params.append('gapType', effectiveFilters.gapType);
+      if (effectiveFilters.priority) params.append('priority', effectiveFilters.priority);
+      if (effectiveFilters.search) params.append('search', effectiveFilters.search);
+      if (effectiveFilters.page) params.append('page', String(effectiveFilters.page));
+      if (effectiveFilters.limit) params.append('limit', String(effectiveFilters.limit));
+      if (effectiveFilters.advancedFilter) params.append('advancedFilter', effectiveFilters.advancedFilter);
+      if (effectiveFilters.baseId) params.append('baseId', String(effectiveFilters.baseId));
+      if (effectiveFilters.unitId) params.append('unitId', String(effectiveFilters.unitId));
+      if (effectiveFilters.mode) params.append('mode', effectiveFilters.mode);
 
       const url = `/api/gaps${params.toString() ? '?' + params.toString() : ''}`;
       const response: PaginatedResponse = await apiClient(url);
@@ -185,7 +199,7 @@ export function useGapAnalysis() {
         body: JSON.stringify({ verdict, newStatus, note }),
       });
       toast.success(data.message || 'نظر شما ثبت شد');
-      await fetchGaps({ page: pagination.page, limit: pagination.limit });
+      await fetchGaps({ ...lastFiltersRef.current, page: pagination.page, limit: pagination.limit });
       return data;
     } catch (err: any) {
       toast.error(err.message || 'خطا در ثبت نظر');
@@ -214,7 +228,7 @@ export function useGapAnalysis() {
       });
 
       toast.success(statusChoice === 'partially_filled' ? 'گپ با تطابق جزئی ثبت شد' : 'گپ با موفقیت پر شد');
-      await fetchGaps({ page: pagination.page, limit: pagination.limit });
+      await fetchGaps({ ...lastFiltersRef.current, page: pagination.page, limit: pagination.limit });
       return data;
     } catch (err: any) {
       toast.error(err.message || 'خطا در پر کردن گپ');
@@ -241,7 +255,7 @@ export function useGapAnalysis() {
       });
 
       toast.success('گپ با موفقیت حذف شد');
-      await fetchGaps({ page: pagination.page, limit: pagination.limit });
+      await fetchGaps({ ...lastFiltersRef.current, page: pagination.page, limit: pagination.limit });
       return true;
     } catch (err: any) {
       toast.error(err.message || 'خطا در حذف گپ');

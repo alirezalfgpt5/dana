@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
-      const item = window.localStorage.getItem(key);
+      const item = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
       console.warn(error);
@@ -11,17 +11,35 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
     }
   });
 
-  const setValue = (value: T | ((val: T) => T)) => {
+  // در صورت تغییر key، مقدار جدید از localStorage خوانده شود
+  useEffect(() => {
     try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(key, JSON.stringify(valueToStore));
-      }
+      const item = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+      setStoredValue(item ? JSON.parse(item) : initialValue);
+    } catch (error) {
+      console.warn(error);
+      setStoredValue(initialValue);
+    }
+  }, [key, initialValue]);
+
+  const setValue = useCallback((value: T | ((val: T) => T)) => {
+    try {
+      setStoredValue((prev) => {
+        const valueToStore = value instanceof Function ? value(prev) : value;
+        if (typeof window !== 'undefined') {
+          try {
+            window.localStorage.setItem(key, JSON.stringify(valueToStore));
+          } catch (e) {
+            console.warn(e);
+          }
+        }
+        return valueToStore;
+      });
     } catch (error) {
       console.warn(error);
     }
-  };
+  }, [key]);
 
   return [storedValue, setValue];
 }
+

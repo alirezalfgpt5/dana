@@ -119,7 +119,7 @@ export function IssueSystem() {
   }, [location.search, activePeriod?.id, filterByPeriod, timeFrameFilter, statusFilter, priorityFilter, categoryFilter, searchTerm]);
 
   useEffect(() => {
-    fetchTemplates();
+    fetchTemplates().catch(console.error);
     api.get('/api/metadata/action-priorities').then((res: any) => {
       if (Array.isArray(res) && res.length > 0) {
         setDynamicPriorities(res.map((r: any) => r.name || r));

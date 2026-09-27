@@ -1,7 +1,7 @@
 // src/hooks/useIssues.ts
 // هوک مدیریت نظام مسائل - با فیلترهای پیشرفته
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { apiClient } from '../lib/apiClient';
 
@@ -96,6 +96,8 @@ export function useIssues() {
     totalPages: 0,
   });
 
+  const lastFiltersRef = useRef<IssueFilters>({});
+
   // ============================================
   // دریافت لیست مسائل با فیلتر
   // ============================================
@@ -104,26 +106,37 @@ export function useIssues() {
     setLoading(true);
 
     try {
+      // بررسی وجود فیلترهای مشخص به غیر از صفحه‌بندی
+      const hasFilterKeys = filters && Object.keys(filters).some(
+        k => k !== 'page' && k !== 'limit'
+      );
+
+      const effectiveFilters: IssueFilters = hasFilterKeys
+        ? (filters || {})
+        : { ...lastFiltersRef.current, ...filters };
+
+      lastFiltersRef.current = effectiveFilters;
+
       const params = new URLSearchParams();
-      if (filters?.periodId !== undefined && filters.periodId !== 'all') {
-        params.append('periodId', String(filters.periodId));
+      if (effectiveFilters.periodId !== undefined && effectiveFilters.periodId !== 'all') {
+        params.append('periodId', String(effectiveFilters.periodId));
       }
-      if (filters?.domain) params.append('domain', filters.domain);
-      if (filters?.status) params.append('status', filters.status);
-      if (filters?.priority) params.append('priority', filters.priority);
-      if (filters?.projectLevel) params.append('projectLevel', filters.projectLevel);
-      if (filters?.timeFrame) params.append('timeFrame', filters.timeFrame);
-      if (filters?.knowledgeType) params.append('knowledgeType', filters.knowledgeType);
-      if (filters?.category && filters.category !== 'all') params.append('category', filters.category);
-      if (filters?.search) params.append('search', filters.search);
-      if (filters?.fromDate) params.append('fromDate', filters.fromDate);
-      if (filters?.toDate) params.append('toDate', filters.toDate);
-      if (filters?.page) params.append('page', String(filters.page));
-      if (filters?.limit) params.append('limit', String(filters.limit));
-      if (filters?.advancedFilter) params.append('advancedFilter', filters.advancedFilter);
-      if (filters?.baseId) params.append('baseId', String(filters.baseId));
-      if (filters?.unitId) params.append('unitId', String(filters.unitId));
-      if (filters?.mode) params.append('mode', filters.mode);
+      if (effectiveFilters.domain) params.append('domain', effectiveFilters.domain);
+      if (effectiveFilters.status) params.append('status', effectiveFilters.status);
+      if (effectiveFilters.priority) params.append('priority', effectiveFilters.priority);
+      if (effectiveFilters.projectLevel) params.append('projectLevel', effectiveFilters.projectLevel);
+      if (effectiveFilters.timeFrame) params.append('timeFrame', effectiveFilters.timeFrame);
+      if (effectiveFilters.knowledgeType) params.append('knowledgeType', effectiveFilters.knowledgeType);
+      if (effectiveFilters.category && effectiveFilters.category !== 'all') params.append('category', effectiveFilters.category);
+      if (effectiveFilters.search) params.append('search', effectiveFilters.search);
+      if (effectiveFilters.fromDate) params.append('fromDate', effectiveFilters.fromDate);
+      if (effectiveFilters.toDate) params.append('toDate', effectiveFilters.toDate);
+      if (effectiveFilters.page) params.append('page', String(effectiveFilters.page));
+      if (effectiveFilters.limit) params.append('limit', String(effectiveFilters.limit));
+      if (effectiveFilters.advancedFilter) params.append('advancedFilter', effectiveFilters.advancedFilter);
+      if (effectiveFilters.baseId) params.append('baseId', String(effectiveFilters.baseId));
+      if (effectiveFilters.unitId) params.append('unitId', String(effectiveFilters.unitId));
+      if (effectiveFilters.mode) params.append('mode', effectiveFilters.mode);
 
       const url = `/api/issues${params.toString() ? '?' + params.toString() : ''}`;
       const response: PaginatedResponse = await apiClient(url);
@@ -175,7 +188,7 @@ export function useIssues() {
       });
 
       toast.success('مسئله با موفقیت ایجاد شد');
-      await fetchIssues({ page: pagination.page, limit: pagination.limit });
+      await fetchIssues({ ...lastFiltersRef.current, page: pagination.page, limit: pagination.limit });
       return result;
     } catch (err: any) {
       toast.error(err.message || 'خطا در ایجاد مسئله');
@@ -200,7 +213,7 @@ export function useIssues() {
       });
 
       toast.success('مسئله با موفقیت ویرایش شد');
-      await fetchIssues({ page: pagination.page, limit: pagination.limit });
+      await fetchIssues({ ...lastFiltersRef.current, page: pagination.page, limit: pagination.limit });
       if (selectedIssue?.id === issueId) {
         await fetchIssue(issueId);
       }
@@ -228,7 +241,7 @@ export function useIssues() {
       });
 
       toast.success(`وضعیت مسئله با موفقیت به "${status}" تغییر یافت`);
-      await fetchIssues({ page: pagination.page, limit: pagination.limit });
+      await fetchIssues({ ...lastFiltersRef.current, page: pagination.page, limit: pagination.limit });
       if (selectedIssue?.id === issueId) {
         await fetchIssue(issueId);
       }
@@ -254,7 +267,7 @@ export function useIssues() {
       });
 
       // toast.success('مسئله با موفقیت حذف شد');
-      await fetchIssues({ page: pagination.page, limit: pagination.limit });
+      await fetchIssues({ ...lastFiltersRef.current, page: pagination.page, limit: pagination.limit });
       if (selectedIssue?.id === issueId) {
         setSelectedIssue(null);
       }

@@ -1,7 +1,7 @@
 // src/hooks/useOutputs.ts
 // هوک مدیریت خروجی‌ها
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { apiClient } from '../lib/apiClient';
 
@@ -49,25 +49,37 @@ export function useOutputs() {
   const [loading, setLoading] = useState(false);
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const latestTreeIdRef = useRef<number | null>(null);
+  const latestReqIdRef = useRef<number>(0);
 
   // ============================================
   // دریافت داده‌های گراف
   // ============================================
 
   const getGraphData = useCallback(async (treeId: number) => {
+    const currentReqId = ++latestReqIdRef.current;
+    latestTreeIdRef.current = treeId;
     setLoading(true);
     setError(null);
 
     try {
       const data = await apiClient(`/api/outputs/tree/${treeId}/graph`);
+      if (currentReqId !== latestReqIdRef.current || latestTreeIdRef.current !== treeId) {
+        return null;
+      }
       setGraphData(data);
       return data;
     } catch (err: any) {
+      if (currentReqId !== latestReqIdRef.current || latestTreeIdRef.current !== treeId) {
+        return null;
+      }
       setError(err.message || 'خطا در دریافت داده‌های گراف');
       toast.error(err.message || 'خطا در دریافت داده‌های گراف');
       return null;
     } finally {
-      setLoading(false);
+      if (currentReqId === latestReqIdRef.current && latestTreeIdRef.current === treeId) {
+        setLoading(false);
+      }
     }
   }, []);
 

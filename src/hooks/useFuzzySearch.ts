@@ -28,51 +28,17 @@ export function useFuzzySearch<T = any>(
   const [searchTerm, setSearchTerm] = useState('');
   const [isFuzzy, setIsFuzzy] = useState(true);
 
-  // ایجاد نمونه Fuse
+  // ایجاد نمونه Fuse با حفظ مقادیر 0 و false
   const fuse = useMemo(() => {
     return new Fuse(data, {
       keys: options.keys,
-      threshold: options.threshold || 0.4,
-      includeScore: options.includeScore || false,
-      ignoreLocation: options.ignoreLocation || true,
-      minMatchCharLength: options.minMatchCharLength || 2,
+      threshold: options.threshold !== undefined ? options.threshold : 0.4,
+      includeScore: options.includeScore !== undefined ? options.includeScore : false,
+      ignoreLocation: options.ignoreLocation !== undefined ? options.ignoreLocation : true,
+      minMatchCharLength: options.minMatchCharLength !== undefined ? options.minMatchCharLength : 2,
       shouldSort: true,
     });
   }, [data, options]);
-
-  // نتایج جستجو
-  const results = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return data.map(item => ({ item, score: 1 }));
-    }
-
-    if (isFuzzy) {
-      const fuseResults = fuse.search(searchTerm);
-      return fuseResults.map(result => ({
-        item: result.item,
-        score: result.score || 0,
-      }));
-    } else {
-      // جستجوی دقیق (حساس به حروف بزرگ/کوچک)
-      const term = searchTerm.toLowerCase();
-      return data
-        .filter(item => {
-          return options.keys.some(key => {
-            const value = getNestedValue(item, key);
-            if (typeof value === 'string') {
-              return value.toLowerCase().includes(term);
-            }
-            if (Array.isArray(value)) {
-              return value.some(v => 
-                typeof v === 'string' && v.toLowerCase().includes(term)
-              );
-            }
-            return false;
-          });
-        })
-        .map(item => ({ item, score: 0 }));
-    }
-  }, [data, searchTerm, isFuzzy, fuse]);
 
   // تابع دریافت مقدار تو در تو
   const getNestedValue = (obj: any, path: string): any => {
@@ -84,6 +50,73 @@ export function useFuzzySearch<T = any>(
     }
     return current;
   };
+
+  // نتایج جستجو
+  const results = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return data.map(item => ({ item, score: 1 }));
+    }
+
+    const tokens = searchTerm.trim().split(/\s+/).filter(Boolean);
+
+    if (isFuzzy) {
+      let fuseResults;
+      if (options.matchAll && tokens.length > 1) {
+        fuseResults = fuse.search({
+          $and: tokens.map(token => ({
+            $or: options.keys.map(key => ({ [key]: token }))
+          }))
+        });
+      } else {
+        fuseResults = fuse.search(searchTerm);
+      }
+      return fuseResults.map(result => ({
+        item: result.item,
+        score: result.score !== undefined ? result.score : 0,
+      }));
+    } else {
+      // جستجوی دقیق (حساس به حروف بزرگ/کوچک)
+      if (options.matchAll && tokens.length > 1) {
+        const lowerTokens = tokens.map(t => t.toLowerCase());
+        return data
+          .filter(item => {
+            return lowerTokens.every(token =>
+              options.keys.some(key => {
+                const value = getNestedValue(item, key);
+                if (typeof value === 'string') {
+                  return value.toLowerCase().includes(token);
+                }
+                if (Array.isArray(value)) {
+                  return value.some(v => 
+                    typeof v === 'string' && v.toLowerCase().includes(token)
+                  );
+                }
+                return false;
+              })
+            );
+          })
+          .map(item => ({ item, score: 0 }));
+      } else {
+        const term = searchTerm.toLowerCase();
+        return data
+          .filter(item => {
+            return options.keys.some(key => {
+              const value = getNestedValue(item, key);
+              if (typeof value === 'string') {
+                return value.toLowerCase().includes(term);
+              }
+              if (Array.isArray(value)) {
+                return value.some(v => 
+                  typeof v === 'string' && v.toLowerCase().includes(term)
+                );
+              }
+              return false;
+            });
+          })
+          .map(item => ({ item, score: 0 }));
+      }
+    }
+  }, [data, searchTerm, isFuzzy, fuse, options]);
 
   // تابع جستجو
   const search = useCallback((term: string, fuzzy?: boolean) => {
