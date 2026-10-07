@@ -3,6 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Ignore Vite HMR WebSocket connection errors in preview iframe environment
+      window.addEventListener('unhandledrejection', function(event) {
+        var str = String(event?.reason?.stack || event?.reason?.message || event?.reason || '');
+        if (str.includes('WebSocket') || str.includes('@vite/client') || str.includes('createWebSocketModuleRunnerTransport')) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      });
+      window.addEventListener('error', function(event) {
+        var str = String(event?.message || '') + ' ' + String(event?.filename || '');
+        if (str.includes('WebSocket') || str.includes('@vite/client') || str.includes('createWebSocketModuleRunnerTransport')) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+    </script>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <title>سیستم مدیریت دانش و نظام مسائل (دانا)</title>
     <meta name="description" content="سامانه جامع مدیریت دانش، نظام مسائل، درخت دانش و ارزیابی پژوهش (DANA)" />

@@ -17,7 +17,7 @@ import {
   units,
   periods,
 } from '../../src/db/schema.js';
-import { eq, and, isNull, not, inArray, or, like, desc } from 'drizzle-orm';
+import { eq, and, isNull, not, inArray, or, like, desc, sql } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
 import fs from 'fs';
 import path from 'path';
@@ -147,15 +147,15 @@ treeRoutes.get('/', async (req, res) => {
       type: knowledgeTrees.type,
       description: knowledgeTrees.description,
       periodId: knowledgeTrees.periodId,
-      periodName: periods.name,
+      periodName: sql<string>`${periods.name}`.as('period_name'),
       baseId: knowledgeTrees.baseId,
       unitId: knowledgeTrees.unitId,
       metadata: knowledgeTrees.metadata,
       isActive: knowledgeTrees.isActive,
       createdAt: knowledgeTrees.createdAt,
       updatedAt: knowledgeTrees.updatedAt,
-      baseName: bases.name,
-      unitName: units.name,
+      baseName: sql<string>`${bases.name}`.as('base_name'),
+      unitName: sql<string>`${units.name}`.as('unit_name'),
     })
     .from(knowledgeTrees)
     .leftJoin(bases, eq(knowledgeTrees.baseId, bases.id))
@@ -257,18 +257,20 @@ treeRoutes.get('/:id', async (req, res) => {
       type: knowledgeTrees.type,
       description: knowledgeTrees.description,
       periodId: knowledgeTrees.periodId,
+      periodName: sql<string>`${periods.name}`.as('period_name'),
       baseId: knowledgeTrees.baseId,
       unitId: knowledgeTrees.unitId,
       metadata: knowledgeTrees.metadata,
       isActive: knowledgeTrees.isActive,
       createdAt: knowledgeTrees.createdAt,
       updatedAt: knowledgeTrees.updatedAt,
-      baseName: bases.name,
-      unitName: units.name,
+      baseName: sql<string>`${bases.name}`.as('base_name'),
+      unitName: sql<string>`${units.name}`.as('unit_name'),
     })
     .from(knowledgeTrees)
     .leftJoin(bases, eq(knowledgeTrees.baseId, bases.id))
     .leftJoin(units, eq(knowledgeTrees.unitId, units.id))
+    .leftJoin(periods, eq(knowledgeTrees.periodId, periods.id))
     .where(eq(knowledgeTrees.id, treeId));
     
     if (treeArr.length === 0) {
@@ -283,7 +285,7 @@ treeRoutes.get('/:id', async (req, res) => {
     res.write('{');
     
     for (const [key, value] of Object.entries(tree)) {
-      res.write(`"${key}":${JSON.stringify(value)},`);
+      res.write(`"${key}":${JSON.stringify(value ?? null)},`);
     }
     
     res.write('"nodes":[');
