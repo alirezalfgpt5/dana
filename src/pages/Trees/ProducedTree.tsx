@@ -1,23 +1,21 @@
 // src/pages/Trees/ProducedTree.tsx
-// صفحه مدیریت درختواره دانشی تولید شده - هدر تکراری حذف شده
+// صفحه مدیریت درختواره دانشی تولید شده - با صفحه ایندکس، حذف نرم، ریکاوری و نوار ابزار استاندارد
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useTree } from '../../hooks/useTree';
 import { useAuthStore, useUIStore } from '../../store';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { 
-  Plus, Copy, Download, Trash2, Search, Edit2, X, 
-  Eye, EyeOff, GitBranch, HelpCircle, RefreshCw, 
-  Maximize2, Minimize2, Building2 
-, Circle, CheckCircle } from 'lucide-react';
+  Plus, Copy, Download, Trash2, Edit2, 
+  FolderOpen, HelpCircle, ChevronRight, FileText
+} from 'lucide-react';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
-import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import toast from 'react-hot-toast';
 import { useSimulatedFullscreen } from '../../hooks/useSimulatedFullscreen';
 import { getTreeOrgText } from '../../utils/orgHelper';
 
 // کامپوننت‌ها
-import { TreeHelp } from './components/TreeHelp';
 import { TreeStats } from './components/TreeStats';
 import api from '../../services/api';
 import { TreeModal } from './modals/TreeModal';
@@ -25,12 +23,16 @@ import { NodeModal } from './modals/NodeModal';
 import { TemplateModal } from './modals/TemplateModal';
 import { AssetModal } from './modals/AssetModal';
 import { useTreeData } from './hooks/useTreeData';
-import { LEVELS, LEVEL_ORDER } from './constants/treeLevels';
 import { TreeVisualization } from '../../components/trees/TreeVisualization';
 import { TreeLevelsHelp } from './components/TreeLevelsHelp';
-
+import { TreeIndexPage } from '../../components/trees/TreeIndexPage';
+import { PageToolbar } from '../../components/ui/PageToolbar';
 
 export function ProducedTree() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const treeIdParam = searchParams.get('treeId');
+  const selectedTreeId = treeIdParam ? parseInt(treeIdParam) : null;
+
   const {
     tree,
     trees,
@@ -43,6 +45,7 @@ export function ProducedTree() {
     createTree,
     updateTree,
     deleteTree,
+    restoreTree,
     copyTree,
     addNode,
     updateNode,
@@ -56,23 +59,23 @@ export function ProducedTree() {
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
   // State
-  const [selectedTreeId, setSelectedTreeId] = useState<number | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const [activeNode, setActiveNode] = useState<any>(null);
   const [showHelp, setShowHelp] = useState(false);
       
   // Modal states
   const [showTreeModal, setShowTreeModal] = useState(false);
+  const [editingTreeId, setEditingTreeId] = useState<number | null>(null);
   const { user } = useAuthStore();
   const [isCloning, setIsCloning] = useState(false);
 
-  const handleCloneTree = async () => {
-    if (!tree?.id) return;
+  const handleCloneTree = async (treeToClone?: any) => {
+    const targetId = treeToClone?.id || selectedTreeId;
+    if (!targetId) return;
     try {
       setIsCloning(true);
-      const res: any = await api.post(`/api/trees/${tree?.id}/clone`);
+      const res: any = await api.post(`/api/trees/${targetId}/clone`);
       toast.success(res?.message || res?.data?.message || 'نسخه جدید با موفقیت ایجاد شد');
-      fetchTrees();
+      await fetchTrees();
     } catch (e) {
       toast.error('خطا در ایجاد نسخه');
     } finally {
@@ -95,11 +98,11 @@ export function ProducedTree() {
   const [editingNodeId, setEditingNodeId] = useState<number | null>(null);
 
   // State برای تنظیمات نمایش
-  const [viewMode, setViewMode] = useLocalStorage<'rich' | 'simple' | 'vertical'>('req_viewMode', 'rich');
-  const [fontSizeScale, setFontSizeScale] = useLocalStorage<number>('req_fontSize', 1);
-  const [layoutDirection, setLayoutDirection] = useLocalStorage<'LR' | 'RL' | 'TB' | 'BT'>('req_layoutDirection', 'RL');
-  const [showLabels, setShowLabels] = useLocalStorage<boolean>('req_showLabels', true);
-  const [levelColors, setLevelColors] = useLocalStorage<Record<string, string>>('req_levelColors', {
+  const [viewMode, setViewMode] = useLocalStorage<'rich' | 'simple' | 'vertical'>('prod_viewMode', 'rich');
+  const [fontSizeScale, setFontSizeScale] = useLocalStorage<number>('prod_fontSize', 1);
+  const [layoutDirection, setLayoutDirection] = useLocalStorage<'LR' | 'RL' | 'TB' | 'BT'>('prod_layoutDirection', 'RL');
+  const [showLabels, setShowLabels] = useLocalStorage<boolean>('prod_showLabels', true);
+  const [levelColors, setLevelColors] = useLocalStorage<Record<string, string>>('prod_levelColors', {
     'R': '#3b82f6',
     'T': '#8b5cf6',
     'B': '#10b981',
@@ -107,7 +110,7 @@ export function ProducedTree() {
     'L': '#6366f1',
     'Q': '#ec4899'
   });
-  const { isFullscreen, toggleFullscreen } = useSimulatedFullscreen();
+  const { isFullscreen } = useSimulatedFullscreen();
 
   // Form data
   const [treeFormData, setTreeFormData] = useState({ 
@@ -129,14 +132,16 @@ export function ProducedTree() {
   const [selectedLeafId, setSelectedLeafId] = useState<number | null>(null);
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
 
-  // Load data
+  // Load initial data
   useEffect(() => {
     const loadData = async () => {
       try {
-        await fetchTrees({ type: 'produced' });
-        await fetchTemplates();
-        await fetchPeriods();
-        await fetchOrgData();
+        await Promise.all([
+          fetchTrees({ type: 'produced' }),
+          fetchTemplates(),
+          fetchPeriods(),
+          fetchOrgData(),
+        ]);
       } catch (err) {
         console.error('Error loading produced tree initial data:', err);
       }
@@ -170,8 +175,9 @@ export function ProducedTree() {
     }
     
     try {
-      if (isEditingTree && selectedTreeId) {
-        await updateTree(selectedTreeId, {
+      const activeEditId = editingTreeId || (isEditingTree && selectedTreeId ? selectedTreeId : null);
+      if (isEditingTree && activeEditId) {
+        await updateTree(activeEditId, {
           name: treeFormData.name,
           description: treeFormData.description || undefined,
           periodId: parseInt(treeFormData.periodId),
@@ -180,12 +186,14 @@ export function ProducedTree() {
         });
         setShowTreeModal(false);
         setIsEditingTree(false);
+        setEditingTreeId(null);
         setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' });
         toast.success('درختواره با موفقیت ویرایش شد');
+        await fetchTrees({ type: 'produced' });
       } else {
         const newTree = await createTree({
           name: treeFormData.name,
-          type: 'required',
+          type: 'produced',
           description: treeFormData.description || undefined,
           periodId: parseInt(treeFormData.periodId),
           baseId: parseInt(treeFormData.baseId),
@@ -193,23 +201,25 @@ export function ProducedTree() {
         });
         setShowTreeModal(false);
         setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' });
-        if (newTree && newTree.id) {
-          setSelectedTreeId(newTree.id);
-        }
         toast.success('درختواره با موفقیت ایجاد شد');
+        await fetchTrees({ type: 'produced' });
+        if (newTree && newTree.id) {
+          setSearchParams({ treeId: String(newTree.id) });
+        }
       }
     } catch (error: any) {
       toast.error(error.message || 'خطا در ذخیره درختواره');
     }
   };
 
-  const handleEditTreeClick = () => {
-    if (!tree) {
+  const handleEditTreeClick = (targetTree?: any) => {
+    const currentTarget = targetTree || tree;
+    if (!currentTarget) {
       toast.error('درختواره‌ای انتخاب نشده است');
       return;
     }
     
-    const treeData = (tree as any).tree || tree;
+    const treeData = (currentTarget as any).tree || currentTarget;
     
     let base = null;
     let orgLevel = '';
@@ -238,41 +248,24 @@ export function ProducedTree() {
       unitId: treeData.unitId ? String(treeData.unitId) : ''
     });
     
+    setEditingTreeId(treeData.id);
     setIsEditingTree(true);
     setShowTreeModal(true);
   };
 
-  const handleImportFromRequired = async () => {
-    const requiredTrees = trees.filter(t => t.type === 'required');
-    if (requiredTrees.length === 0) {
-      toast.error('هیچ درختواره مورد نیازی یافت نشد');
-      return;
-    }
-    const treeOptions = requiredTrees.map(t => `ID: ${t.id} - ${t.name}`).join('\n');
-    const inputId = prompt('شماره ID درختواره مورد نیاز را وارد کنید:\n' + treeOptions);
-    if (inputId && !isNaN(parseInt(inputId))) {
-      const newName = prompt('نام درختواره تولید شده جدید:', `${requiredTrees.find(t => t.id === parseInt(inputId))?.name} (وارد شده)`);
-      if (newName) {
-        await copyTree(parseInt(inputId), newName, 'produced');
-      }
-    }
-  };
-
-  const handleCopyTree = async () => {
-    if (!selectedTreeId) return;
-    const newName = prompt('نام درختواره جدید:', `${tree?.name} (کپی)`);
-    if (newName) {
-      await copyTree(selectedTreeId, newName);
-    }
-  };
-
   const handleDeleteTree = () => {
     if (!selectedTreeId) return;
-    if (window.confirm('آیا از حذف این درختواره اطمینان دارید؟')) {
-      deleteTree(selectedTreeId).then(() => {
-        setSelectedTreeId(null);
-      });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'انتقال درختواره به سطل بازیافت',
+      message: `آیا از انتقال درختواره «${tree?.name}» به سطل بازیافت اطمینان دارید؟`,
+      action: async () => {
+        const ok = await deleteTree(selectedTreeId, false);
+        if (ok) {
+          setSearchParams({});
+        }
+      }
+    });
   };
 
   const handleExportTree = async () => {
@@ -298,35 +291,6 @@ export function ProducedTree() {
     setShowNodeModal(true);
   };
 
-  const handleToggleNodeStatus = async (node: any) => {
-    const isChecked = node.instanceIds?.includes('checked');
-    const newInstanceIds = isChecked 
-      ? (node.instanceIds || '').split(',').filter((id: string) => id !== 'checked' && id).join(',')
-      : `${node.instanceIds || ''},checked`.replace(/^,/, '');
-      
-    try {
-      await updateNode(node.id, { instanceIds: newInstanceIds });
-    } catch(err) {
-      // toast shown
-    }
-  };
-
-  const renderLeafActions = (node: any) => {
-    return (
-      <button 
-        onClick={(e) => { 
-          e.stopPropagation(); 
-          setSelectedNodeForAsset(node);
-          setShowAssetModal(true);
-        }}
-        className="p-1.5 rounded-lg transition-all hover:scale-110 text-blue-600 bg-blue-100 hover:bg-blue-200"
-        title="مدیریت مستندات (دارایی‌ها)"
-      >
-        <Plus size={14} />
-      </button>
-    );
-  };
-
   const handleEditNode = (node: any) => {
     setNodeFormData({
       title: node.title || '',
@@ -344,59 +308,18 @@ export function ProducedTree() {
   const handleFocusNode = (node: any) => {
     setActiveNode(node);
     toast.success(`فوکوس روی گره "${node.title}"`);
-    
-    const event = new CustomEvent('focusNode', { 
-      detail: { nodeId: node.id } 
-    });
-    document.dispatchEvent(event);
   };
 
   const handleAnchorNode = (node: any) => {
     setActiveNode(node);
-    toast.success(`لنگر روی شاخه "${node.title}"`);
-    
-    const event = new CustomEvent('anchorNode', { 
-      detail: { nodeId: node.id } 
-    });
-    document.dispatchEvent(event);
+    toast.success(`تثبیت گره "${node.title}"`);
   };
 
   const handleSelectNode = (node: any) => {
     setActiveNode(node);
   };
 
-  const handleSaveNode = async () => {
-    if (!nodeFormData.title.trim()) {
-      toast.error('عنوان گره الزامی است');
-      return;
-    }
-    
-    try {
-      const data = {
-        title: nodeFormData.title.trim(),
-        description: nodeFormData.description || undefined,
-        level: nodeFormData.level,
-        parentId: nodeFormData.parentId,
-        templateIds: nodeFormData.templateIds.join(','),
-        instanceIds: nodeFormData.instanceIds.join(','),
-      };
-      
-      if (isEditingNode && editingNodeId) {
-        await updateNode(editingNodeId, data);
-        toast.success('گره با موفقیت ویرایش شد');
-      } else {
-        await addNode(selectedTreeId!, data);
-        toast.success('گره با موفقیت افزوده شد');
-      }
-      
-      setShowNodeModal(false);
-      if (selectedTreeId) await fetchTree(selectedTreeId);
-    } catch (error: any) {
-      toast.error(error.message || 'خطا در ذخیره گره');
-    }
-  };
-
-  const getDescendantIds = useCallback((parentId: number) => {
+  const getDescendantIds = useCallback((parentId: number): number[] => {
     let ids: number[] = [];
     const children = nodes.filter(n => n.parentId === parentId);
     children.forEach(c => {
@@ -414,7 +337,6 @@ export function ProducedTree() {
     }
 
     const descendants = getDescendantIds(nodeId);
-    
     const confirmMsg = descendants.length > 0
       ? `گره "${node.title}" دارای ${descendants.length} زیرمجموعه است. با حذف این گره، تمام زیرمجموعه‌های آن نیز حذف خواهند شد. آیا اطمینان دارید؟`
       : `آیا از حذف گره "${node.title}" اطمینان دارید؟`;
@@ -425,18 +347,9 @@ export function ProducedTree() {
       message: confirmMsg,
       action: async () => {
         try {
-          const sortedDescendants = descendants.sort((a, b) => b - a);
-          for (const id of sortedDescendants) {
-            const success = await deleteNode(id);
-            if (!success) {
-              throw new Error(`حذف گره ${id} با شکست مواجه شد`);
-            }
-          }
-          const success = await deleteNode(nodeId);
-          if (success) {
-            setActiveNode(null);
-            if (selectedTreeId) await fetchTree(selectedTreeId);
-            toast.success('گره و زیرمجموعه‌های آن با موفقیت حذف شدند');
+          if (selectedTreeId) {
+            await deleteNode(nodeId);
+            toast.success('گره با موفقیت حذف شد');
           }
         } catch (error: any) {
           toast.error(error.message || 'خطا در حذف گره');
@@ -445,14 +358,41 @@ export function ProducedTree() {
     });
   };
 
-  // ============================================
-  // Template handlers
-  // ============================================
+  const handleSaveNode = async () => {
+    if (!selectedTreeId) return;
+    if (!nodeFormData.title.trim()) {
+      toast.error('عنوان گره الزامی است');
+      return;
+    }
 
-  const handleOpenTemplateModal = (leafId: number, currentTemplateIds: string[]) => {
-    setSelectedLeafId(leafId);
-    setSelectedTemplates(currentTemplateIds);
-    setShowTemplateModal(true);
+    try {
+      if (isEditingNode && editingNodeId) {
+        await updateNode(editingNodeId, {
+          title: nodeFormData.title,
+          description: nodeFormData.description,
+          level: nodeFormData.level,
+          templateIds: nodeFormData.templateIds.join(','),
+          instanceIds: nodeFormData.instanceIds?.join(',') || '',
+        });
+        toast.success('گره با موفقیت ویرایش شد');
+      } else {
+        await addNode(selectedTreeId, {
+          title: nodeFormData.title,
+          description: nodeFormData.description,
+          level: nodeFormData.level,
+          parentId: nodeFormData.parentId,
+          templateIds: nodeFormData.templateIds.join(','),
+          instanceIds: nodeFormData.instanceIds?.join(',') || '',
+        });
+        toast.success('گره با موفقیت افزوده شد');
+      }
+      setShowNodeModal(false);
+      setIsEditingNode(false);
+      setEditingNodeId(null);
+      await fetchTree(selectedTreeId);
+    } catch (error: any) {
+      toast.error(error.message || 'خطا در ذخیره گره');
+    }
   };
 
   const handleSaveTemplates = async () => {
@@ -469,16 +409,11 @@ export function ProducedTree() {
     }
   };
 
-  // ============================================
-  // Fullscreen handlers
-  // ============================================
+  const handleAddRootNode = () => {
+    handleAddNode(null, 'R');
+  };
 
-  // ============================================
-  // Fit to view
-  // ============================================
   // Stats
-  // ============================================
-
   const stats = {
     total: nodes.length,
     byLevel: nodes.reduce((acc: Record<string, number>, n) => { 
@@ -486,146 +421,159 @@ export function ProducedTree() {
       return acc; 
     }, {}),
     leaves: nodes.filter(n => n.level === 'L').length,
-    gaps: nodes.filter(n => n.isGap === 1).length,
   };
 
-  const filteredTrees = trees.filter(t => 
-    t.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // =========================================================================
+  // گام اول: در صورت عدم انتخاب درختواره، صفحه ایندکس باز می‌شود
+  // =========================================================================
+  if (!selectedTreeId) {
+    return (
+      <div className="space-y-6" dir="rtl">
+        <TreeIndexPage
+          title="📂 درختواره‌های دانشی تولیدشده"
+          subtitle="دانش موجود و عملکردی سازمان و یگان‌ها (R → T → B → SB → L)"
+          treeType="produced"
+          icon={FolderOpen}
+          iconGradient="from-emerald-600 to-teal-600"
+          trees={trees.filter(t => t.type === 'produced')}
+          periods={periods}
+          bases={bases}
+          loading={loading}
+          onRefresh={async () => {
+            await fetchTrees({ type: 'produced' });
+          }}
+          onSelectTree={(id) => setSearchParams({ treeId: String(id) })}
+          onAddNewTree={() => {
+            if (periods.length === 0) {
+              toast.error('ابتدا باید حداقل یک دوره زمانی تعریف کنید');
+              return;
+            }
+            if (bases.length === 0) {
+              toast.error('ابتدا باید ساختار سازمانی (یگان اصلی) تعریف کنید');
+              return;
+            }
+            setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' });
+            setIsEditingTree(false);
+            setEditingTreeId(null);
+            setShowTreeModal(true);
+          }}
+          onEditTree={(t) => handleEditTreeClick(t)}
+          onCloneTree={handleCloneTree}
+          onSoftDeleteTree={async (id) => {
+            return await deleteTree(id, false);
+          }}
+          onRestoreTree={async (id) => {
+            return await restoreTree(id);
+          }}
+          onPermanentDeleteTree={async (id) => {
+            return await deleteTree(id, true);
+          }}
+          onShowHelp={() => setShowHelp(true)}
+        />
 
-  // تابع برای افزودن گره ریشه از هدر
-  const handleAddRootNode = () => {
-    handleAddNode(null, 'R');
-  };
+        {/* مدال ایجاد / ویرایش درختواره */}
+        <TreeModal 
+          isOpen={showTreeModal} 
+          onClose={() => { 
+            setShowTreeModal(false); 
+            setIsEditingTree(false);
+            setEditingTreeId(null);
+          }} 
+          isEditing={isEditingTree} 
+          onSubmit={handleCreateTree}
+          formData={treeFormData} 
+          setFormData={setTreeFormData} 
+          periods={periods} 
+          bases={bases} 
+          units={units} 
+          orgLevels={orgLevels} 
+        />
+
+        {showHelp && <TreeLevelsHelp />}
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // گام دوم: صفحه نمایش و مدیریت درختواره (با نوار ابزار جدید در بالا)
+  // =========================================================================
+  const viewToolbarActions = [
+    {
+      id: 'back',
+      label: 'بازگشت به فهرست',
+      icon: ChevronRight,
+      variant: 'secondary' as const,
+      onClick: () => setSearchParams({}),
+      title: 'بازگشت به فهرست درختواره‌ها',
+    },
+    {
+      id: 'add-root',
+      label: 'گره ریشه',
+      icon: Plus,
+      variant: 'primary' as const,
+      onClick: handleAddRootNode,
+      title: 'افزودن گره ریشه جدید',
+    },
+    {
+      id: 'clone',
+      label: 'نسخه جدید',
+      icon: Copy,
+      variant: 'purple' as const,
+      onClick: () => handleCloneTree(),
+      disabled: isCloning,
+      title: 'ایجاد نسخه/اسنپ‌شات جدید از درختواره',
+    },
+    {
+      id: 'export',
+      label: 'خروجی اکسل',
+      icon: Download,
+      variant: 'success' as const,
+      onClick: handleExportTree,
+      title: 'دریافت خروجی اکسل از این درختواره',
+    },
+    {
+      id: 'edit',
+      label: 'ویرایش مشخصات',
+      icon: Edit2,
+      variant: 'warning' as const,
+      onClick: () => handleEditTreeClick(tree),
+      title: 'ویرایش مشخصات درختواره',
+    },
+    {
+      id: 'delete',
+      label: 'حذف درختواره',
+      icon: Trash2,
+      variant: 'danger' as const,
+      onClick: handleDeleteTree,
+      title: 'انتقال به سطل بازیافت',
+    },
+    {
+      id: 'help',
+      label: 'راهنمای سطوح',
+      icon: HelpCircle,
+      variant: 'ghost' as const,
+      onClick: () => setShowHelp(true),
+      title: 'راهنمای سطوح و ساختار درختواره',
+    },
+  ];
 
   return (
     <div className="space-y-6" dir="rtl">
-      {/* Header اصلی صفحه */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-blue-200/50">
-              <GitBranch size={24} className="text-white" />
-            </div>
-            <div> 
-              <h1 className="text-2xl font-bold text-gray-800">🌳 درختواره دانشی تولید شده</h1>
-              <p className="text-gray-500 text-sm">مرجع تصویب - تعریف سلسله‌مراتب دانش (R → T → B → SB → L)</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button 
-            onClick={() => { 
-              if (periods.length === 0) {
-                toast.error('ابتدا باید حداقل یک دوره زمانی تعریف کنید');
-                return;
-              }
-              if (bases.length === 0) {
-                toast.error('ابتدا باید ساختار سازمانی (یگان اصلی) تعریف کنید');
-                return;
-              }
-              setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' }); 
-              setIsEditingTree(false); 
-              setShowTreeModal(true); 
-            }} 
-            className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl shadow-lg shadow-blue-200/50 transition-all hover:scale-105"
-            title="درختواره جدید"
-          >
-            <Plus size={20} />
-          </button>
-          {selectedTreeId && (
-            <>
-              <button 
-                onClick={handleCopyTree} 
-                className="bg-purple-600 hover:bg-purple-700 text-white p-2.5 rounded-xl shadow-lg shadow-purple-200/50 transition-all hover:scale-105"
-                title="کپی"
-              >
-                <Copy size={20} />
-              </button>
-              <button 
-                onClick={handleExportTree} 
-                className="bg-green-600 hover:bg-green-700 text-white p-2.5 rounded-xl shadow-lg shadow-green-200/50 transition-all hover:scale-105"
-                title="خروجی اکسل"
-              >
-                <Download size={20} />
-              </button>
-              <button 
-                onClick={handleEditTreeClick} 
-                className="bg-amber-500 hover:bg-amber-600 text-white p-2.5 rounded-xl shadow-lg shadow-amber-200/50 transition-all hover:scale-105"
-                title="ویرایش درختواره"
-              >
-                <Edit2 size={20} />
-              </button>
-              <button 
-                onClick={handleDeleteTree} 
-                className="bg-red-600 hover:bg-red-700 text-white p-2.5 rounded-xl shadow-lg shadow-red-200/50 transition-all hover:scale-105"
-                title="حذف درختواره"
-              >
-                <Trash2 size={20} />
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      {/* نوار ابزار استاندارد بالای صفحه با آیکون در بالا و عنوان در زیر */}
+      <PageToolbar
+        title={tree?.name || 'درختواره دانشی تولیدشده'}
+        subtitle={tree ? `ساختار سازمانی: ${getTreeOrgText(tree)} • دوره: ${(tree as any).periodName || 'نامشخص'}` : 'در حال بارگذاری...'}
+        icon={FolderOpen}
+        iconColor="from-emerald-600 to-teal-600"
+        actions={viewToolbarActions}
+      />
 
-      <TreeLevelsHelp />
+      {/* آمار درختواره */}
+      {tree && <TreeStats stats={stats} />}
 
-      {/* Selector */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">انتخاب درختواره دانشی تولید شده</label>
-            <SearchableSelect
-              options={filteredTrees.map(t => ({ 
-                value: String(t.id), 
-                label: `${t.name} (تولید شده)`,
-                sublabel: `ساختار سازمانی: ${getTreeOrgText(t)}`,
-              }))}
-              value={selectedTreeId ? String(selectedTreeId) : ''}
-              onChange={(val) => setSelectedTreeId(val ? parseInt(val as string) : null)}
-              placeholder="انتخاب درختواره دانشی تولید شده..." 
-            />
-            {selectedTreeId && tree && (
-              <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-400">
-                <Building2 size={13} className="text-gray-400 shrink-0" />
-                <span>ساختار سازمانی:</span>
-                <span className="text-gray-500 font-medium">{getTreeOrgText(tree)}</span>
-                <span className="text-gray-300">•</span>
-                <span className="text-emerald-600 font-medium">تولید شده</span>
-              </div>
-            )}
-          </div>
-          <div className="sm:w-48">
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">جستجو</label>
-            <div className="relative">
-              <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input 
-                type="text" 
-                value={searchTerm} 
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full px-4 pr-9 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 focus:bg-white text-sm" 
-                placeholder="جستجو..." 
-              />
-              {searchTerm && (
-                <button 
-                  onClick={() => setSearchTerm('')} 
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats */}
-      {selectedTreeId && tree && <TreeStats stats={stats} />}
-
-      {/* Tree Display - هدر تکراری حذف شده */}
-      {selectedTreeId && tree ? (
-        <div ref={treeContainerRef} className={`bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden transition-all ${isFullscreen ? 'simulated-fullscreen flex flex-col' : 'h-[calc(100vh-220px)] min-h-[600px] flex flex-col'}`}>
-          {/* کامپوننت نمایش درخت - با هدر تلفیقی */}
+      {/* بخش نمایش گراف و بوم درختواره — دکمه‌های مربوط به کنترل بوم دقیقاً در جای قبلی خود حفظ شده‌اند */}
+      {tree && (
+        <div ref={treeContainerRef} className={`bg-white dark:bg-[#1e1e2f] rounded-xl shadow-sm border border-gray-200/80 dark:border-gray-800 overflow-hidden transition-all ${isFullscreen ? 'simulated-fullscreen flex flex-col' : 'h-[calc(100vh-220px)] min-h-[600px] flex flex-col'}`}>
           <TreeVisualization
             data={{ nodes: nodes, tree }}
             onNodeClick={handleSelectNode}
@@ -651,71 +599,27 @@ export function ProducedTree() {
                   'L': '#6366f1',
                   'Q': '#ec4899'
                 });
+                setShowLabels(true);
               } else {
                 if (settings.viewMode) setViewMode(settings.viewMode);
-                if (settings.fontSizeScale) setFontSizeScale(settings.fontSizeScale);
                 if (settings.layoutDirection) setLayoutDirection(settings.layoutDirection);
                 if (settings.levelColors) setLevelColors(settings.levelColors);
+                if (settings.showLabels !== undefined) setShowLabels(settings.showLabels);
+                if (settings.fontSizeScale) setFontSizeScale(settings.fontSizeScale);
               }
             }}
             fontSizeScale={fontSizeScale}
-            isAuthenticated={true}
-            containerRef={treeContainerRef}
-            renderLeafActions={renderLeafActions}
-            // Props برای تلفیق هدر
-            treeName={tree.name}
-            treeDescription={tree.description || ''}
-            orgStructure={getTreeOrgText(tree)}
-            treeType="produced"
-            nodeCount={nodes.length}
-            onAddRootNode={handleAddRootNode}
-            onToggleFullscreen={toggleFullscreen}
-            isFullscreen={isFullscreen}
-            onToggleHelp={() => setShowHelp(!showHelp)}
-            showHelp={showHelp}
           />
-          {showHelp && (
-            <div className="border-t border-gray-200/80 bg-white">
-              <TreeHelp stats={stats} />
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-12 text-center">
-          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <div className="text-gray-300 text-4xl">🌳</div>
-          </div>
-          <h3 className="text-xl font-bold text-gray-600 mb-2">درختواره‌ای انتخاب نشده است</h3>
-          <p className="text-gray-400 text-sm max-w-md mx-auto">
-            یک درختواره از لیست انتخاب کنید یا با کلیک روی دکمه <span className="font-bold text-blue-600">"درختواره جدید"</span> ایجاد کنید.
-          </p>
-          <button 
-            onClick={() => { 
-              if (periods.length === 0) {
-                toast.error('ابتدا باید حداقل یک دوره زمانی تعریف کنید');
-                return;
-              }
-              if (bases.length === 0) {
-                toast.error('ابتدا باید ساختار سازمانی (یگان اصلی) تعریف کنید');
-                return;
-              }
-              setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' }); 
-              setIsEditingTree(false); 
-              setShowTreeModal(true); 
-            }} 
-            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 mx-auto shadow-lg shadow-blue-200/50"
-          >
-            <Plus size={18} /> ایجاد درختواره جدید
-          </button>
         </div>
       )}
 
-      {/* Modals */}
+      {/* مدال‌ها */}
       <TreeModal 
         isOpen={showTreeModal} 
         onClose={() => { 
           setShowTreeModal(false); 
-          setIsEditingTree(false); 
+          setIsEditingTree(false);
+          setEditingTreeId(null);
         }} 
         isEditing={isEditingTree} 
         onSubmit={handleCreateTree}
@@ -767,6 +671,8 @@ export function ProducedTree() {
         title={confirmModal.title} 
         message={confirmModal.message} 
       />
+
+      {showHelp && <TreeLevelsHelp />}
     </div>
   );
 }

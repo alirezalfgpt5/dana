@@ -304,7 +304,8 @@ export function Sidebar() {
   // باز کردن خودکار منو بر اساس مسیر فعلی
   useEffect(() => {
     const currentPath = location.pathname;
-    const itemsToExpand = new Set(sidebarExpandedItems);
+    const currentItems = useUIStore.getState().sidebarExpandedItems;
+    const itemsToExpand = new Set(currentItems);
     let changed = false;
 
     for (const item of MENU_ITEMS) {
@@ -331,7 +332,7 @@ export function Sidebar() {
     if (changed) {
       setSidebarExpandedItems(Array.from(itemsToExpand));
     }
-  }, [location.pathname, sidebarExpandedItems, setSidebarExpandedItems]);
+  }, [location.pathname, setSidebarExpandedItems]);
 
   const filteredMenu = useMemo(() => {
     const userRole = user?.role || 'user';

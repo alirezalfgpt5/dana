@@ -20,6 +20,7 @@ import { TreeGraphView } from '../Trees/components/TreeGraphView';
 import { useNavigate } from 'react-router-dom';
 import ExcelIcon from '../../components/icon/ExcelIcon';
 import { getTreeOrgText, getGapOrgText } from '../../utils/orgHelper';
+import { PageToolbar } from '../../components/ui/PageToolbar';
 
 /** برچسب فارسی سطوح درختواره */
 const LEVEL_LABELS: Record<string, string> = {
@@ -375,115 +376,75 @@ export function GapAnalysis() {
 
   return (
     <div className="space-y-6">
-      {/* ═══════════════ Header ═══════════════ */}
-      <div className="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5">
-        <div className="absolute inset-0 bg-gradient-to-l from-rose-50/60 via-transparent to-transparent pointer-events-none" />
-        <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-gradient-to-br from-rose-500 to-red-600 rounded-xl shadow-lg shadow-rose-200/60">
-                <Target size={24} className="text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">تحلیل شکاف دانشی</h1>
-                <div className="flex items-center gap-3 mt-0.5">
-                  <p className="text-gray-500 text-sm">
-                    مقایسه درختواره مورد نیاز و تولیدشده - شناسایی گپ‌های دانشی
-                  </p>
-                  <button
-                    onClick={() => setShowHelp(!showHelp)}
-                    className="text-xs text-rose-600 hover:text-rose-800 flex items-center gap-1"
-                  >
-                    <HelpCircle size={14} />
-                    راهنما
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={handleAnalyze}
-              disabled={!requiredTreeId || producedTreeId === null || loading}
-              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                !requiredTreeId || producedTreeId === null || loading
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-l from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white shadow-lg shadow-rose-200/60 hover:shadow-rose-300/60 hover:-translate-y-0.5'
-              }`}
-            >
-              {loading ? (
-                <RefreshCw size={18} className="animate-spin" />
-              ) : (
-                <Zap size={18} />
-              )}
-              {loading ? 'در حال تحلیل...' : 'اجرای تحلیل شکاف'}
-            </button>
-
-            <button
-              onClick={handleGenerateResearchTree}
-              disabled={!report || generating}
-              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                !report || generating
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-200/60 hover:-translate-y-0.5'
-              }`}
-            >
-              {generating ? (
-                <RefreshCw size={18} className="animate-spin" />
-              ) : (
-                <Target size={18} />
-              )}
-              تولید درختواره پژوهشی
-            </button>
-
-            <button
-              onClick={() => window.print()}
-              disabled={gaps.length === 0}
-              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                gaps.length === 0
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm'
-              }`}
-            >
-              <Download size={18} />
-              PDF
-            </button>
-            <button
-              onClick={handleExport}
-              disabled={gaps.length === 0}
-              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                gaps.length === 0
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 shadow-sm'
-              }`}
-              title="خروجی اکسل"
-            >
-              <Download size={18} />
-              <ExcelIcon color="#059669" />
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImport}
-              accept=".xlsx, .xls"
-              className="hidden"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!requiredTreeId}
-              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                !requiredTreeId
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-white border border-sky-200 text-sky-600 hover:bg-sky-50 hover:border-sky-300 shadow-sm'
-              }`}
-              title="ورود اطلاعات از اکسل"
-            >
-              <Upload size={18} />
-              <ExcelIcon color="#0284c7" />
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* ═══════════════ Header & PageToolbar ═══════════════ */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImport}
+        accept=".xlsx, .xls"
+        className="hidden"
+      />
+      <PageToolbar
+        title="تحلیل شکاف دانشی"
+        subtitle="مقایسه درختواره مورد نیاز و تولیدشده - شناسایی گپ‌های دانشی و نیازمندی‌های پژوهش"
+        icon={Target}
+        iconColor="from-rose-500 to-red-600"
+        actions={[
+          {
+            id: 'analyze',
+            label: loading ? 'در حال تحلیل' : 'اجرای تحلیل',
+            icon: Zap,
+            variant: 'danger',
+            disabled: !requiredTreeId || producedTreeId === null || loading,
+            onClick: handleAnalyze,
+            title: 'اجرای تحلیل هوشمند شکاف دانشی',
+          },
+          {
+            id: 'gen-research',
+            label: 'درختواره پژوهش',
+            icon: Target,
+            variant: 'purple',
+            disabled: !report || generating,
+            onClick: handleGenerateResearchTree,
+            title: 'تولید خودکار درختواره پژوهشی بر اساس گپ‌ها',
+          },
+          {
+            id: 'export-excel',
+            label: 'خروجی اکسل',
+            icon: Download,
+            variant: 'success',
+            disabled: gaps.length === 0,
+            onClick: handleExport,
+            title: 'دریافت خروجی اکسل از شکاف‌ها',
+          },
+          {
+            id: 'import-excel',
+            label: 'ورود از اکسل',
+            icon: Upload,
+            variant: 'secondary',
+            disabled: !requiredTreeId,
+            onClick: () => fileInputRef.current?.click(),
+            title: 'ورود اطلاعات گپ‌ها از فایل اکسل',
+          },
+          {
+            id: 'pdf-print',
+            label: 'چاپ / PDF',
+            icon: FileText,
+            variant: 'indigo',
+            disabled: gaps.length === 0,
+            onClick: () => window.print(),
+            title: 'چاپ یا دریافت نسخه PDF گزارش تحلیل',
+          },
+          {
+            id: 'help',
+            label: 'راهنما',
+            icon: HelpCircle,
+            variant: 'ghost',
+            onClick: () => setShowHelp(!showHelp),
+            title: 'راهنمای کاربری تحلیل شکاف',
+          },
+        ]}
+      />
 
       {/* ═══════════════ سوابق تحلیل‌های قبلی ═══════════════ */}
       {runHistory.length > 0 && (

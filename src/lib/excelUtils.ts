@@ -2,6 +2,7 @@
 // ابزارهای کمکی برای تولید اکسل
 
 import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 export const EXCEL_FONT_NAME = 'Vazirmatn';
 
@@ -156,6 +157,49 @@ export function createGapsSheet(workbook: ExcelJS.Workbook, gaps: any[], sheetNa
   return sheet;
 }
 
+export async function exportToExcel(data: Record<string, any>[], filename: string = 'export.xlsx') {
+  if (!data || data.length === 0) return;
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'سامانه جامع دانا';
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet('داده‌ها', { views: [{ rightToLeft: true, showGridLines: true }] });
+
+  const keys = Object.keys(data[0]);
+  sheet.columns = keys.map(k => ({
+    header: k,
+    key: k,
+    width: Math.max(k.length * 2.2, 16),
+  }));
+
+  const headerRow = sheet.getRow(1);
+  headerRow.height = 30;
+  headerRow.font = { name: EXCEL_FONT_NAME, size: 11, bold: true, color: { argb: EXCEL_COLORS.headerText } };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: EXCEL_COLORS.headerBg },
+  };
+
+  data.forEach((item, idx) => {
+    const row = sheet.addRow(item);
+    row.height = 24;
+    row.font = { name: EXCEL_FONT_NAME, size: 10 };
+    row.alignment = { vertical: 'middle', horizontal: 'center' };
+    row.eachCell(c => {
+      c.border = excelStyles.cell.border;
+      if (idx % 2 === 1) {
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+      }
+    });
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  saveAs(blob, filename);
+}
+
 export default {
   EXCEL_FONT_NAME,
   EXCEL_COLORS,
@@ -164,4 +208,5 @@ export default {
   applyStyleToCell,
   createTreeSheet,
   createGapsSheet,
+  exportToExcel,
 };

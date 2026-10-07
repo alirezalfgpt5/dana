@@ -3,7 +3,7 @@ import { AuthRequest } from '../types/AuthRequest.js';
 // مدیریت کامل درختواره‌های دانش (مورد نیاز، تولیدشده، پژوهشی) - نسخه ۳.۱ با پشتیبانی از نمونه‌های قالب
 
 import { Router } from 'express';
-import { db } from '../../src/db/index.js';
+import { db, sqlite } from '../../src/db/index.js';
 import {
   knowledgeTrees,
   treeNodes,
@@ -15,6 +15,7 @@ import {
   issues,
   bases,
   units,
+  periods,
 } from '../../src/db/schema.js';
 import { eq, and, isNull, not, inArray, or, like, desc } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
@@ -146,6 +147,7 @@ treeRoutes.get('/', async (req, res) => {
       type: knowledgeTrees.type,
       description: knowledgeTrees.description,
       periodId: knowledgeTrees.periodId,
+      periodName: periods.name,
       baseId: knowledgeTrees.baseId,
       unitId: knowledgeTrees.unitId,
       metadata: knowledgeTrees.metadata,
@@ -157,7 +159,8 @@ treeRoutes.get('/', async (req, res) => {
     })
     .from(knowledgeTrees)
     .leftJoin(bases, eq(knowledgeTrees.baseId, bases.id))
-    .leftJoin(units, eq(knowledgeTrees.unitId, units.id));
+    .leftJoin(units, eq(knowledgeTrees.unitId, units.id))
+    .leftJoin(periods, eq(knowledgeTrees.periodId, periods.id));
 
     const conditions: any[] = [];
 
@@ -167,7 +170,7 @@ treeRoutes.get('/', async (req, res) => {
     if (periodId) {
       conditions.push(eq(knowledgeTrees.periodId, parseInt(periodId as string)));
     }
-    if (isActive !== undefined) {
+    if (isActive !== undefined && isActive !== 'all') {
       conditions.push(eq(knowledgeTrees.isActive, parseInt(isActive as string)));
     }
 
@@ -190,9 +193,29 @@ treeRoutes.get('/', async (req, res) => {
       query = query.where(and(...conditions)) as any;
     }
 
-    const result = await query.orderBy(knowledgeTrees.createdAt);
+    const result = await query.orderBy(desc(knowledgeTrees.createdAt));
     
-    // افزودن ساختار سازمانی کامل
+    // دریافت آمار تفکیکی گره‌ها و برگ‌ها و شاخه‌ها
+    const nodeStats = sqlite.prepare(`
+      SELECT 
+        tree_id, 
+        COUNT(*) as total_nodes,
+        SUM(CASE WHEN id NOT IN (SELECT parent_id FROM tree_nodes WHERE parent_id IS NOT NULL) THEN 1 ELSE 0 END) as leaf_nodes,
+        SUM(CASE WHEN id IN (SELECT parent_id FROM tree_nodes WHERE parent_id IS NOT NULL) THEN 1 ELSE 0 END) as branch_nodes
+      FROM tree_nodes 
+      GROUP BY tree_id
+    `).all() as any[];
+
+    const statsMap = new Map<number, { nodeCount: number; leafCount: number; branchCount: number }>();
+    nodeStats.forEach((s) => {
+      statsMap.set(s.tree_id, {
+        nodeCount: s.total_nodes || 0,
+        leafCount: s.leaf_nodes || 0,
+        branchCount: s.branch_nodes || 0,
+      });
+    });
+
+    // افزودن ساختار سازمانی کامل و آمار
     const enriched = result.map((t) => {
       let orgStructure = '';
       if (t.baseName && t.unitName) {
@@ -204,9 +227,14 @@ treeRoutes.get('/', async (req, res) => {
       } else {
         orgStructure = 'ستاد کل آجا';
       }
+      const s = statsMap.get(t.id) || { nodeCount: 0, leafCount: 0, branchCount: 0 };
       return {
         ...t,
         orgStructure,
+        periodName: t.periodName || 'نامشخص',
+        nodeCount: s.nodeCount,
+        leafCount: s.leafCount,
+        branchCount: s.branchCount,
       };
     });
 
@@ -466,11 +494,12 @@ treeRoutes.put('/:id', requireRole(['admin', 'knowledge_manager']), async (req, 
   }
 });
 
-// حذف درختواره (با حذف وابسته‌ها)
+// حذف درختواره (حذف نرم به صورت پیش‌فرض یا حذف دائم با ?permanent=true)
 treeRoutes.delete('/:id', requireRole(['admin', 'knowledge_manager']), async (req, res) => {
   try {
     const { id } = req.params;
     const treeId = parseInt(id);
+    const permanent = req.query.permanent === 'true';
     
     const existing = await db.query.knowledgeTrees.findFirst({
       where: eq(knowledgeTrees.id, treeId),
@@ -479,8 +508,24 @@ treeRoutes.delete('/:id', requireRole(['admin', 'knowledge_manager']), async (re
     if (!existing) {
       return res.status(404).json({ error: 'درختواره یافت نشد' });
     }
+
+    // اگر حذف دائمی خواسته نشده باشد، حذف نرم انجام شود
+    if (!permanent) {
+      const now = new Date().toISOString();
+      await db.update(knowledgeTrees).set({ isActive: 0, updatedAt: now }).where(eq(knowledgeTrees.id, treeId));
+      logAudit({
+        userId: (req as AuthRequest).user?.id || null,
+        action: 'SOFT_DELETE',
+        entityName: 'درختواره',
+        entityId: treeId,
+        changes: { isActive: 0 },
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      return res.json({ success: true, message: 'درختواره به سطل بازیافت انتقال یافت' });
+    }
     
-    // دریافت تمام گره‌ها
+    // دریافت تمام گره‌ها جهت حذف دائم
     const allTreeNodes = await db.query.treeNodes.findMany({ where: eq(treeNodes.treeId, treeId) });
     const nodeIds = allTreeNodes.map(n => n.id);
     
@@ -552,10 +597,39 @@ treeRoutes.delete('/:id', requireRole(['admin', 'knowledge_manager']), async (re
       userAgent: req.headers['user-agent'],
     });
     
-    res.json({ success: true });
+    res.json({ success: true, message: 'درختواره به صورت کامل و دائم حذف شد' });
   } catch (error) {
     console.error('Error deleting tree:', error);
     res.status(500).json({ error: 'خطا در حذف درختواره دانشی' });
+  }
+});
+
+// بازیابی درختواره حذف نرم شده
+treeRoutes.post('/:id/restore', requireRole(['admin', 'knowledge_manager']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const treeId = parseInt(id);
+    const existing = await db.query.knowledgeTrees.findFirst({
+      where: eq(knowledgeTrees.id, treeId),
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'درختواره یافت نشد' });
+    }
+    const now = new Date().toISOString();
+    await db.update(knowledgeTrees).set({ isActive: 1, updatedAt: now }).where(eq(knowledgeTrees.id, treeId));
+    logAudit({
+      userId: (req as AuthRequest).user?.id || null,
+      action: 'RESTORE',
+      entityName: 'درختواره',
+      entityId: treeId,
+      changes: { isActive: 1 },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    res.json({ success: true, message: 'درختواره با موفقیت بازیابی شد' });
+  } catch (error) {
+    console.error('Error restoring tree:', error);
+    res.status(500).json({ error: 'خطا در بازیابی درختواره' });
   }
 });
 

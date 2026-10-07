@@ -25,6 +25,7 @@ import { TreeGraphView } from '../Trees/components/TreeGraphView';
 import { getTreeOrgText } from '../../utils/orgHelper';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { formatNumber } from '../../utils/numberFormat';
+import { PageToolbar } from '../../components/ui/PageToolbar';
 
 // استخراج امن کامپوننت‌ها برای جلوگیری از خطای Element type is invalid در React 19 / Vite
 const resolveComponent = (comp: any) => {
@@ -168,60 +169,41 @@ export function Outputs() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl shadow-lg shadow-blue-200/50">
-              <FileSpreadsheet size={24} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">📊 خروجی‌ها</h1>
-              <div className="flex items-center gap-3 mt-0.5">
-                <p className="text-gray-500 text-sm">استخراج اکسل و نمایش گراف درختواره‌ها</p>
-                <button 
-                  onClick={() => setShowHelp(!showHelp)}
-                  className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                >
-                  <HelpCircle size={14} />
-                  راهنما
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={handlePreview}
-            disabled={!selectedTreeId || loading}
-            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              !selectedTreeId || loading
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200/50'
-            }`}
-          >
-            <Eye size={18} />
-            پیش‌نمایش
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={(!selectedTreeId && outputType !== 'issues') || isExporting}
-            className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              (!selectedTreeId && outputType !== 'issues') || isExporting
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg shadow-blue-200/50'
-            }`}
-          >
-            {isExporting ? (
-              <RefreshCw size={18} className="animate-spin" />
-            ) : (
-              <ExcelIcon color="#ffffff" size={18} />
-            )}
-            <span>{isExporting ? 'در حال ایجاد فایل...' : 'دریافت خروجی اکسل (ریال)'}</span>
-            
-          </button>
-        </div>
-      </div>
+      {/* Header & PageToolbar */}
+      <PageToolbar
+        title="📊 خروجی‌ها و گزارش‌ها"
+        subtitle="استخراج اکسل، تحلیل آماری و نمایش گراف درختواره‌ها"
+        icon={FileSpreadsheet}
+        iconColor="from-blue-500 to-cyan-600"
+        actions={[
+          {
+            id: 'export-excel',
+            label: isExporting ? 'در حال ایجاد' : 'خروجی اکسل',
+            icon: Download,
+            variant: 'success',
+            disabled: (!selectedTreeId && outputType !== 'issues') || isExporting,
+            onClick: handleExport,
+            title: 'دریافت خروجی اکسل (ریال)',
+          },
+          {
+            id: 'preview',
+            label: 'پیش‌نمایش گراف',
+            icon: Eye,
+            variant: 'indigo',
+            disabled: !selectedTreeId || loading,
+            onClick: handlePreview,
+            title: 'مشاهده پیش‌نمایش گراف درختواره',
+          },
+          {
+            id: 'help',
+            label: 'راهنما',
+            icon: HelpCircle,
+            variant: 'ghost',
+            onClick: () => setShowHelp(!showHelp),
+            title: 'راهنمای تنظیمات و گزینه‌های خروجی',
+          },
+        ]}
+      />
 
       {/* راهنما */}
       {showHelp && (

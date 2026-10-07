@@ -234,16 +234,17 @@ export function useTree() {
   }, [fetchTree, fetchTrees]);
 
   // ============================================
-  // حذف درختواره
+  // حذف درختواره (نرم یا دائم)
   // ============================================
 
-  const deleteTree = useCallback(async (treeId: number) => {
+  const deleteTree = useCallback(async (treeId: number, permanent = false) => {
     setLoading(true);
     try {
-      await apiClient(`/api/trees/${treeId}`, {
+      const url = `/api/trees/${treeId}${permanent ? '?permanent=true' : ''}`;
+      const res: any = await apiClient(url, {
         method: 'DELETE',
       });
-      toast.success('درختواره با موفقیت حذف شد');
+      toast.success(res?.message || (permanent ? 'درختواره به طور دائم حذف شد' : 'درختواره به سطل بازیافت انتقال یافت'));
       if (tree?.id === treeId) {
         setTree(null);
         setNodes([]);
@@ -259,6 +260,26 @@ export function useTree() {
       setLoading(false);
     }
   }, [tree, fetchTrees]);
+
+  // بازیابی درختواره از سطل بازیافت
+  const restoreTree = useCallback(async (treeId: number) => {
+    setLoading(true);
+    try {
+      const res: any = await apiClient(`/api/trees/${treeId}/restore`, {
+        method: 'POST',
+      });
+      toast.success(res?.message || 'درختواره با موفقیت بازیابی شد');
+      await fetchTrees();
+      return true;
+    } catch (err: any) {
+      if (!err._toastShown) {
+        toast.error(err.message || 'خطا در بازیابی درختواره');
+      }
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchTrees]);
 
   // ============================================
   // کپی درختواره
@@ -322,6 +343,7 @@ export function useTree() {
   const updateNode = useCallback(async (nodeId: number, data: {
     title?: string;
     description?: string;
+    level?: string;
     templateIds?: string;
     instanceIds?: string;
     levelId?: number | null;
@@ -472,6 +494,7 @@ export function useTree() {
     createTree,
     updateTree,
     deleteTree,
+    restoreTree,
     copyTree,
     addNode,
     updateNode,

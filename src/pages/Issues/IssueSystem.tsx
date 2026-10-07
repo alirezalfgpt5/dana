@@ -24,6 +24,7 @@ import { IssueDetailsModal } from '../../components/issues/IssueDetailsModal';
 import { formatCurrency, formatNumber } from '../../utils/numberFormat';
 import { getIssueOrgText } from '../../utils/orgHelper';
 import toast from 'react-hot-toast';
+import { PageToolbar } from '../../components/ui/PageToolbar';
 
 export function IssueSystem() {
   const location = useLocation();
@@ -320,105 +321,110 @@ export function IssueSystem() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl shadow-lg shadow-purple-200/50">
-              <FileText size={24} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">🎯 نظام مسائل</h1>
-              <div className="flex flex-wrap items-center gap-3 mt-1">
-                <p className="text-gray-500 text-sm">مدیریت، پیگیری و به‌روزرسانی مسائل دانشی و پژوهشی</p>
-                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-                  <Calendar size={13} />
-                  <span>دوره: {activePeriod ? activePeriod.name : 'همه دوره‌ها'}</span>
-                </div>
-                {activePeriod && (
-                  <button
-                    onClick={() => setFilterByPeriod(!filterByPeriod)}
-                    className={`text-xs px-2.5 py-0.5 rounded-md border transition-all ${
-                      filterByPeriod 
-                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs' 
-                        : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
-                    }`}
-                  >
-                    {filterByPeriod ? 'فقط این دوره (فیلتر فعال)' : 'نمایش همه دوره‌ها'}
-                  </button>
-                )}
-                <button 
-                  onClick={() => setShowHelp(!showHelp)}
-                  className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1"
+      {/* Header & PageToolbar */}
+      <PageToolbar
+        title="🎯 نظام مسائل"
+        subtitle="مدیریت، پیگیری و به‌روزرسانی مسائل دانشی و پژوهشی"
+        icon={FileText}
+        iconColor="from-purple-600 to-indigo-600"
+        extra={
+          <div className="flex items-center gap-2 flex-wrap">
+            {activePeriod && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                <Calendar size={14} />
+                <span>دوره: {activePeriod.name}</span>
+                <button
+                  onClick={() => setFilterByPeriod(!filterByPeriod)}
+                  className={`mr-1 px-2 py-0.5 rounded-md text-[11px] font-bold transition-all ${
+                    filterByPeriod
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'bg-white dark:bg-gray-800 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700'
+                  }`}
                 >
-                  <HelpCircle size={14} />
-                  راهنما
+                  {filterByPeriod ? 'فقط این دوره' : 'همه دوره‌ها'}
                 </button>
               </div>
+            )}
+            <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-white dark:bg-[#1e1e2f] text-gray-800 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                فهرست
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                  viewMode === 'grid'
+                    ? 'bg-white dark:bg-[#1e1e2f] text-gray-800 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                کارت‌ها
+              </button>
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                  viewMode === 'kanban'
+                    ? 'bg-white dark:bg-[#1e1e2f] text-gray-800 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                تابلو
+              </button>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* دکمه دانلود گزارش اکسل */}
-          <button
-            onClick={handleExportExcel}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-xs"
-            title="دانلود خروجی فرمت‌بندی شده اکسل از وضعیت تمامی مسائل"
-          >
-            <Download size={17} />
-            <span>گزارش اکسل</span>
-          </button>
-
-          {/* دکمه عملیات انتقال و ورود اطلاعات دوره‌ای */}
-          <button
-            onClick={() => setShowRolloverModal(true)}
-            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-xs"
-            title="انتقال مسائل بین‌دوره‌ای، فریز سوابق و ورود اطلاعات سی‌دی"
-          >
-            <ArrowLeftRight size={17} className="text-indigo-600" />
-            <span>عملیات دوره‌ای / سی‌دی</span>
-          </button>
-
-          <button
-            onClick={() => {
+        }
+        actions={[
+          {
+            id: 'add-issue',
+            label: 'ثبت مسئله',
+            icon: Plus,
+            variant: 'primary',
+            onClick: () => {
               setEditingIssue(null);
               setShowForm(true);
-            }}
-            className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-purple-200/50"
-          >
-            <Plus size={18} />
-             ثبت مسئله جدید
-          </button>
-          <button
-            onClick={handleRefresh}
-            className="p-2.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-colors"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
-          
-          <div className="flex bg-gray-100 p-1 rounded-xl">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              فهرست
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'grid' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              شبکه کارت‌ها
-            </button>
-            <button
-              onClick={() => setViewMode('kanban')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'kanban' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              تابلوی وضعیت
-            </button>
-          </div>
-
-        </div>
-      </div>
+            },
+            title: 'ثبت مسئله جدید',
+          },
+          {
+            id: 'rollover',
+            label: 'عملیات دوره‌ای',
+            icon: ArrowLeftRight,
+            variant: 'indigo',
+            onClick: () => setShowRolloverModal(true),
+            title: 'انتقال مسائل بین‌دوره‌ای و ورود اطلاعات',
+          },
+          {
+            id: 'export-excel',
+            label: 'گزارش اکسل',
+            icon: Download,
+            variant: 'success',
+            onClick: handleExportExcel,
+            title: 'دانلود خروجی فرمت‌بندی شده اکسل از وضعیت تمامی مسائل',
+          },
+          {
+            id: 'refresh',
+            label: 'بروزرسانی',
+            icon: RefreshCw,
+            variant: 'secondary',
+            onClick: handleRefresh,
+            title: 'بارگذاری مجدد اطلاعات مسائل',
+          },
+          {
+            id: 'help',
+            label: 'راهنما',
+            icon: HelpCircle,
+            variant: 'ghost',
+            onClick: () => setShowHelp(!showHelp),
+            title: 'راهنمای نظام مسائل',
+          },
+        ]}
+      />
 
       {/* راهنما */}
       {showHelp && (
