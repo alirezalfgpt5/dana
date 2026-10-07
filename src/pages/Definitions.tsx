@@ -12,6 +12,7 @@ import { useSecurityStore, useUIStore } from '../store';
 import { DynamicMetadataManager } from '../components/DynamicMetadataManager';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import toast from 'react-hot-toast';
+import { PageToolbar, PageToolbarAction } from '../components/ui/PageToolbar';
 
 type TabType = 'general' | 'security';
 
@@ -527,22 +528,70 @@ export function Definitions() {
     );
   };
 
+  const toolbarActions: PageToolbarAction[] = [
+    {
+      id: 'add-level',
+      label: 'سطح دانش',
+      icon: Layers,
+      variant: activeTab === 'levels' ? 'primary' : 'secondary',
+      onClick: () => {
+        setActiveTab('levels');
+        setEditingLevel(null);
+        setLevelForm({ name: '', description: '' });
+        setShowLevelForm(true);
+      },
+      title: 'افزودن سطح دانش جدید',
+    },
+    {
+      id: 'add-type',
+      label: 'نوع دانش',
+      icon: Tag,
+      variant: activeTab === 'knowledge-types' ? 'primary' : 'secondary',
+      onClick: () => {
+        setActiveTab('knowledge-types');
+        setEditingKnowledgeType(null);
+        setKnowledgeTypeForm({ name: '', category: '', description: '' });
+        setShowKnowledgeTypeForm(true);
+      },
+      title: 'افزودن نوع دانش جدید',
+    },
+    {
+      id: 'add-org-level',
+      label: 'سطح سازمانی',
+      icon: Building2,
+      variant: activeTab === 'org-levels' ? 'primary' : 'secondary',
+      onClick: () => {
+        setActiveTab('org-levels');
+        setEditingOrgLevel(null);
+        setOrgLevelForm({ name: '', description: '' });
+        setShowOrgLevelForm(true);
+      },
+      title: 'افزودن سطح سازمانی جدید',
+    },
+    {
+      id: 'refresh',
+      label: 'بروزرسانی',
+      icon: RefreshCw,
+      variant: 'secondary',
+      onClick: () => {
+        fetchLevels();
+        fetchKnowledgeTypes();
+        fetchOrgLevels();
+      },
+      title: 'بارگذاری مجدد تعاریف پایه',
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="-mx-4 md:-mx-6 -mt-4 md:-mt-6 px-4 md:px-6 pt-4 md:pt-6 sticky top-0 z-20 bg-gray-100 dark:bg-[#12121a] pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200 dark:border-gray-800 mb-6 transition-colors duration-200">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-slate-500 to-slate-700 rounded-xl shadow-lg shadow-slate-200/50">
-              <SettingsIcon size={24} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">تعاریف پایه</h1>
-              <p className="text-gray-500 text-sm mt-0.5">مدیریت تنظیمات عمومی، قالب‌ها، سطوح و امنیت</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-6" dir="rtl">
+      {/* نوار ابزار اختصاصی بالای صفحه */}
+      <PageToolbar
+        title="تعاریف پایه"
+        subtitle="مدیریت تنظیمات سطوح دانشی، انواع دانش و رده‌های سازمانی"
+        icon={SettingsIcon}
+        iconColor="from-slate-600 to-indigo-600"
+        actions={toolbarActions}
+      />
 
       {/* Tabs */}
       <div className="bg-white dark:bg-[#1e1e2f] rounded-xl shadow-sm border border-gray-200 dark:border-[#2d2d44]/80 overflow-hidden">

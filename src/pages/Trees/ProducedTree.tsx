@@ -110,7 +110,7 @@ export function ProducedTree() {
     'L': '#6366f1',
     'Q': '#ec4899'
   });
-  const { isFullscreen } = useSimulatedFullscreen();
+  const { isFullscreen, toggleFullscreen } = useSimulatedFullscreen();
 
   // Form data
   const [treeFormData, setTreeFormData] = useState({ 
@@ -151,9 +151,24 @@ export function ProducedTree() {
 
   useEffect(() => {
     if (selectedTreeId) {
-      fetchTree(selectedTreeId);
+      fetchTree(selectedTreeId).then((loaded: any) => {
+        if (loaded?.name) {
+          useUIStore.setState((state) => ({
+            trees: state.trees.some((t) => t.id === loaded.id)
+              ? state.trees.map((t) => (t.id === loaded.id ? loaded : t))
+              : [...state.trees, loaded],
+          }));
+        }
+      });
     }
   }, [selectedTreeId]);
+
+  // باز کردن خودکار فرم ویرایش در صورت وجود پارامتر edit در آدرس
+  useEffect(() => {
+    if (searchParams.get('edit') === 'true' && tree && !showTreeModal) {
+      handleEditTreeClick(tree);
+    }
+  }, [searchParams, tree]);
 
   // ============================================
   // Tree handlers
@@ -457,7 +472,10 @@ export function ProducedTree() {
             setEditingTreeId(null);
             setShowTreeModal(true);
           }}
-          onEditTree={(t) => handleEditTreeClick(t)}
+          onEditTree={(t) => {
+            setSearchParams({ treeId: String(t.id), edit: 'true' });
+            handleEditTreeClick(t);
+          }}
           onCloneTree={handleCloneTree}
           onSoftDeleteTree={async (id) => {
             return await deleteTree(id, false);
@@ -609,6 +627,8 @@ export function ProducedTree() {
               }
             }}
             fontSizeScale={fontSizeScale}
+            onToggleFullscreen={toggleFullscreen}
+            isFullscreen={isFullscreen}
           />
         </div>
       )}

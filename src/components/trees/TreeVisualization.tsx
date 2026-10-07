@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import NodeCard from './NodeCard';
 import TreeSettingsPanel from './TreeSettingsPanel';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { useSimulatedFullscreen } from '../../hooks/useSimulatedFullscreen';
 import { downloadSvg } from '../../utils/svgExport';
 
 interface NodeOffsets {
@@ -109,6 +110,10 @@ export function TreeVisualization({
   showHelp = false,
   showGaps = false
 }: TreeVisualizationProps) {
+  const fallbackFs = useSimulatedFullscreen();
+  const effectiveIsFullscreen = onToggleFullscreen ? isFullscreen : fallbackFs.isFullscreen;
+  const handleToggleFullscreen = onToggleFullscreen || fallbackFs.toggleFullscreen;
+
   const svgRef = useRef<SVGSVGElement>(null);
   const innerContainerRef = useRef<HTMLDivElement>(null);
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -739,19 +744,17 @@ export function TreeVisualization({
             </button>
           )}
 
-          {onToggleFullscreen && (
-            <button
-              onClick={onToggleFullscreen}
-              className={`p-2 rounded-lg transition-all hover:scale-105 shadow-sm ${
-                isFullscreen 
-                  ? 'bg-red-600 hover:bg-red-700 text-white' 
-                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-              }`}
-              title={isFullscreen ? 'خروج از حالت تمام صفحه' : 'حالت تمام صفحه'}
-            >
-              {isFullscreen ? <X size={16} /> : <Maximize2 size={16} />}
-            </button>
-          )}
+          <button
+            onClick={handleToggleFullscreen}
+            className={`p-2 rounded-lg transition-all hover:scale-105 shadow-sm ${
+              effectiveIsFullscreen 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20' 
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
+            }`}
+            title={effectiveIsFullscreen ? 'خروج از حالت تمام صفحه' : 'حالت تمام صفحه'}
+          >
+            {effectiveIsFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
 
           {onToggleHelp && (
             <button

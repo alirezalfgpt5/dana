@@ -123,6 +123,7 @@ export default function App() {
             <Route path="wizard" element={<ProcessWizard />} />
             
             {/* مدیریت دانش */}
+            <Route path="trees" element={<Navigate to="/trees/required" replace />} />
             <Route path="trees/required" element={<RequiredTree />} />
             <Route path="trees/produced" element={<ProducedTree />} />
             <Route path="gaps" element={<GapAnalysis />} />

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
+import { PageToolbar, PageToolbarAction } from '../components/ui/PageToolbar';
 
 const DEFAULT_RANKS = [
   'سرباز', 'گروهبان', 'استوار', 'ستوان', 'سروان', 'سرگرد',
@@ -357,25 +358,35 @@ export function UsersManagement() {
 
   const levelOptions = orgLevels.map(l => ({ value: l.name, label: l.name }));
 
+  const toolbarActions: PageToolbarAction[] = [
+    {
+      id: 'add-user',
+      label: 'کاربر جدید',
+      icon: UserPlus,
+      variant: 'primary',
+      onClick: handleAddNewUser,
+      title: 'افزودن کاربر جدید به سامانه',
+    },
+    {
+      id: 'refresh',
+      label: 'بروزرسانی',
+      icon: RefreshCw,
+      variant: 'secondary',
+      onClick: fetchUsers,
+      title: 'بارگذاری مجدد فهرست کاربران',
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl shadow-lg shadow-purple-200/50">
-              <UsersIcon size={24} className="text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800">مدیریت کاربران</h2>
-              <p className="text-gray-500 text-sm mt-0.5">مدیریت کاربران سیستم و تعیین دسترسی‌ها</p>
-            </div>
-          </div>
-        </div>
-        <button onClick={handleAddNewUser} className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-purple-200/50">
-          <UserPlus size={18} /> افزودن کاربر جدید
-        </button>
-      </div>
+    <div className="space-y-6" dir="rtl">
+      {/* نوار ابزار اختصاصی بالای صفحه */}
+      <PageToolbar
+        title="مدیریت کاربران"
+        subtitle="مدیریت کاربران سیستم، انتساب رده سازمانی و تعیین دسترسی‌ها"
+        icon={UsersIcon}
+        iconColor="from-purple-600 to-indigo-600"
+        actions={toolbarActions}
+      />
 
       {/* آمار */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">

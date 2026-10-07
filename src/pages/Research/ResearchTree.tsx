@@ -17,6 +17,7 @@ import { AdvancedQueryBuilder, FilterGroup, FieldDefinition } from '../../compon
 import { TreeGraphView } from '../Trees/components/TreeGraphView';
 import { getTreeOrgText } from '../../utils/orgHelper';
 import toast from 'react-hot-toast';
+import { useUIStore } from '../../store';
 import { TreeIndexPage } from '../../components/trees/TreeIndexPage';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 import { TreeModal } from '../Trees/modals/TreeModal';
@@ -130,7 +131,15 @@ export function ResearchTree() {
 
   useEffect(() => {
     if (selectedTreeId) {
-      fetchTree(selectedTreeId);
+      fetchTree(selectedTreeId).then((loaded: any) => {
+        if (loaded?.name) {
+          useUIStore.setState((state) => ({
+            trees: state.trees.some((t) => t.id === loaded.id)
+              ? state.trees.map((t) => (t.id === loaded.id ? loaded : t))
+              : [...state.trees, loaded],
+          }));
+        }
+      });
       fetchGaps({ 
          treeId: selectedTreeId,
          search: searchTerm || undefined,
@@ -139,6 +148,13 @@ export function ResearchTree() {
       });
     }
   }, [selectedTreeId, searchTerm, filterPriority, advancedFilter]);
+
+  // باز کردن خودکار فرم ویرایش در صورت وجود پارامتر edit در آدرس
+  useEffect(() => {
+    if (searchParams.get('edit') === 'true' && tree && !showTreeModal) {
+      handleEditTreeClick(tree);
+    }
+  }, [searchParams, tree]);
 
   const handleCreateResearchTree = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -292,7 +308,10 @@ export function ResearchTree() {
             setEditingTreeId(null);
             setShowTreeModal(true);
           }}
-          onEditTree={(t) => handleEditTreeClick(t)}
+          onEditTree={(t) => {
+            setSearchParams({ treeId: String(t.id), edit: 'true' });
+            handleEditTreeClick(t);
+          }}
           onSoftDeleteTree={async (id) => {
             return await deleteTree(id, false);
           }}

@@ -27,6 +27,7 @@ import rawPersianFa from 'react-date-object/locales/persian_fa';
 // @ts-ignore
 import rawTransition from 'react-element-popper/animations/transition';
 import toast from 'react-hot-toast';
+import { PageToolbar, PageToolbarAction } from '../components/ui/PageToolbar';
 
 const resolveComponent = (comp: any) => {
   if (!comp) return null;
@@ -219,33 +220,47 @@ export function Periods() {
   const completedCount = periods.filter(p => p.isComplete).length;
   const totalCount = periods.length;
 
+  const toolbarActions: PageToolbarAction[] = [
+    {
+      id: 'add-period',
+      label: 'دوره جدید',
+      icon: Plus,
+      variant: 'primary',
+      onClick: () => {
+        setEditingPeriod(null);
+        setFormData({ name: '', startDate: '', endDate: '', description: '' });
+        setShowModal(true);
+      },
+      title: 'تعریف دوره زمانی جدید',
+    },
+    {
+      id: 'toggle-view',
+      label: viewMode === 'table' ? 'نمای کارتی' : 'نمای جدولی',
+      icon: viewMode === 'table' ? LayoutGrid : List,
+      variant: 'indigo',
+      onClick: () => setViewMode(viewMode === 'table' ? 'grid' : 'table'),
+      title: 'تغییر نحوه نمایش دوره‌ها',
+    },
+    {
+      id: 'refresh',
+      label: 'بروزرسانی',
+      icon: RefreshCw,
+      variant: 'secondary',
+      onClick: fetchPeriods,
+      title: 'بارگذاری مجدد دوره‌ها',
+    },
+  ];
+
   return (
     <div className="space-y-6" dir="rtl">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-blue-200/50">
-              <CalendarDays size={24} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">مدیریت دوره‌های زمانی</h1>
-              <p className="text-gray-500 text-sm mt-0.5">تعریف و مدیریت بازه‌های زمانی برای گزارش‌گیری و ثبت اطلاعات</p>
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={() => {
-            setEditingPeriod(null);
-            setFormData({ name: '', startDate: '', endDate: '', description: '' });
-            setShowModal(true);
-          }}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-blue-200/50"
-        >
-          <Plus size={18} />
-          دوره جدید
-        </button>
-      </div>
+      {/* نوار ابزار اختصاصی بالای صفحه */}
+      <PageToolbar
+        title="مدیریت دوره‌های زمانی"
+        subtitle="تعریف و مدیریت بازه‌های زمانی برای گزارش‌گیری و ثبت اطلاعات"
+        icon={CalendarDays}
+        iconColor="from-blue-600 to-indigo-600"
+        actions={toolbarActions}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

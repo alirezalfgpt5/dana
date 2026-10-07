@@ -33,6 +33,7 @@ import { useAuthStore, useUIStore } from "../store";
 import { ConfirmModal } from "../components/ui/ConfirmModal";
 import toast from "react-hot-toast";
 import { SearchableSelect } from "../components/ui/SearchableSelect";
+import { PageToolbar, PageToolbarAction } from "../components/ui/PageToolbar";
 
 interface Base {
   id: number;
@@ -562,31 +563,49 @@ export function OrgStructure() {
   // رندر
   // ============================================
 
+  const toolbarActions: PageToolbarAction[] = [
+    {
+      id: 'add-base',
+      label: 'یگان اصلی جدید',
+      icon: Building2,
+      variant: 'primary',
+      onClick: () => {
+        setIsAddingBase(true);
+        setNewBaseLevel("");
+        setNewBaseParentId("");
+      },
+      title: 'افزودن یگان اصلی سازمانی',
+    },
+    {
+      id: 'add-unit',
+      label: 'یگان جزء جدید',
+      icon: Users,
+      variant: 'indigo',
+      onClick: () => {
+        setIsAddingUnit(true);
+      },
+      title: 'افزودن یگان جزء / زیرمجموعه',
+    },
+    {
+      id: 'refresh',
+      label: 'بروزرسانی',
+      icon: RefreshCw,
+      variant: 'secondary',
+      onClick: () => fetchData(),
+      title: 'بارگذاری مجدد ساختار سازمانی',
+    },
+  ];
+
   return (
     <div className="space-y-6" dir="rtl">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-blue-200/50">
-              <Network size={24} className="text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800">ساختار سازمانی</h2>
-              <p className="text-gray-500 text-sm mt-0.5">
-                مدیریت سطوح سازمانی (لایه اول ← لایه دوم ← لایه سوم)
-              </p>
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={() => fetchData()}
-          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-          title="بروزرسانی داده‌ها"
-        >
-          <RefreshCw size={18} className={loading ? "animate-spin text-blue-600" : ""} />
-        </button>
-      </div>
+      {/* نوار ابزار اختصاصی بالای صفحه */}
+      <PageToolbar
+        title="ساختار سازمانی"
+        subtitle="مدیریت سطوح سازمانی (لایه اول ← لایه دوم ← لایه سوم)"
+        icon={Network}
+        iconColor="from-blue-600 to-indigo-600"
+        actions={toolbarActions}
+      />
 
       {/* هشدار خطای لود و دکمه تلاش مجدد در صورت بروز مشکل شبکه */}
       {loadError && bases.length === 0 && (

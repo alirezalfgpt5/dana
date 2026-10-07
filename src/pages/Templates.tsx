@@ -6,6 +6,7 @@ import { FileText, Plus, Edit, Trash2, Search, X, FolderTree, Tag, Info, Refresh
 import { useAuthStore } from '../store';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import { PageToolbar, PageToolbarAction } from '../components/ui/PageToolbar';
 
 interface Template {
   id: number;
@@ -768,44 +769,43 @@ export function TemplatesManagement() {
     );
   }
 
+  const toolbarActions: PageToolbarAction[] = [
+    {
+      id: 'add-template',
+      label: 'قالب جدید',
+      icon: Plus,
+      variant: 'primary',
+      onClick: () => handleAddTemplate(),
+      title: 'ایجاد قالب جدید',
+    },
+    {
+      id: 'add-type',
+      label: 'نوع قالب جدید',
+      icon: Tag,
+      variant: 'indigo',
+      onClick: handleAddType,
+      title: 'ایجاد دسته‌بندی جدید برای قالب‌ها',
+    },
+    {
+      id: 'refresh',
+      label: 'بروزرسانی',
+      icon: RefreshCw,
+      variant: 'secondary',
+      onClick: () => fetchData(),
+      title: 'بارگذاری مجدد قالب‌ها',
+    },
+  ];
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <FileText className="text-blue-600" />
-            مدیریت قالب‌ها
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">
-            تعریف انواع قالب و قالب‌های زیرمجموعه
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => fetchData()}
-            className="p-2 text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50"
-            title="به‌روزرسانی"
-          >
-            <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
-          </button>
-          <button
-            onClick={() => handleAddTemplate()}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-medium"
-          >
-            <Plus size={20} />
-            قالب جدید
-          </button>
-          <button
-            onClick={handleAddType}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium"
-          >
-            <Plus size={20} />
-            نوع قالب جدید
-          </button>
-        </div>
-      </div>
+    <div className="p-6 max-w-7xl mx-auto space-y-6" dir="rtl">
+      {/* نوار ابزار اختصاصی بالای صفحه */}
+      <PageToolbar
+        title="مدیریت قالب‌ها"
+        subtitle="تعریف انواع قالب و قالب‌های زیرمجموعه اسناد دانشی"
+        icon={FileText}
+        iconColor="from-indigo-600 to-purple-600"
+        actions={toolbarActions}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {/* سمت راست - گروه‌بندی */}
