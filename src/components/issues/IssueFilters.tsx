@@ -8,6 +8,7 @@ import RawDatePicker from 'react-multi-date-picker';
 import rawPersian from 'react-date-object/calendars/persian';
 import rawPersianFa from 'react-date-object/locales/persian_fa';
 import rawTransition from 'react-element-popper/animations/transition';
+import { getDatePickerDigits } from '../../utils/numberFormat';
 
 const resolveComponent = (comp: any) => {
   if (!comp) return null;
@@ -272,6 +273,9 @@ export function IssueFilters({
                   }}
                   calendar={persian}
                   locale={persian_fa}
+                  digits={getDatePickerDigits()}
+                  portal
+                  zIndex={10000}
                   animations={[transition()]}
                   format="YYYY/MM/DD"
                   inputClass="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-right font-sans text-sm pr-8"
@@ -306,6 +310,9 @@ export function IssueFilters({
                   }}
                   calendar={persian}
                   locale={persian_fa}
+                  digits={getDatePickerDigits()}
+                  portal
+                  zIndex={10000}
                   animations={[transition()]}
                   format="YYYY/MM/DD"
                   inputClass="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-right font-sans text-sm pr-8"

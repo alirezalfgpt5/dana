@@ -184,7 +184,8 @@ export function NodeForm({
   };
 
   // پیدا کردن توضیحات سطح انتخاب‌شده
-  const selectedLevelInfo = levels.find(l => l.value === formData.level);
+  const selectedLevelInfo = (availableLevels.length > 0 ? availableLevels : DEFAULT_LEVELS)
+    .find(l => l.value === formData.level);
 
   // گزینه‌های قالب‌ها
   // Separate root templates and concrete templates
@@ -212,10 +213,11 @@ export function NodeForm({
   const canHaveChildren = formData.level !== 'Q' && formData.level !== 'L';
 
   // سطح بعدی برای نمایش راهنما
+  const treeLevelOptions = availableLevels.length > 0 ? availableLevels : DEFAULT_LEVELS;
   const getNextLevelHint = () => {
     if (formData.level === 'Q') return 'سطح کیفیت آخرین سطح است و فرزند ندارد';
     if (formData.level === 'L') return 'برگ آخرین سطح دانش است و فرزند ندارد';
-    const nextLevel = levels.find(l => l.parentLevel === formData.level);
+    const nextLevel = treeLevelOptions.find(l => l.parentLevel === formData.level);
     return nextLevel ? `بعد از این، می‌توانید ${nextLevel.label} ایجاد کنید` : 'این سطح فرزند ندارد';
   };
 
@@ -249,33 +251,38 @@ export function NodeForm({
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* سطح با توضیحات */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              سطح گره <span className="text-red-500">*</span>
+            <div className="flex items-center gap-2 mb-1.5">
+              <label className="text-sm font-medium text-gray-700">
+                سطح گره <span className="text-red-500">*</span>
+              </label>
               <button
                 type="button"
-                onClick={() => setShowLevelHelp(!showLevelHelp)}
-                className="mr-2 text-blue-500 hover:text-blue-700"
+                onClick={() => setShowLevelHelp(value => !value)}
+                className="inline-flex items-center justify-center text-blue-500 hover:text-blue-700"
+                title="نمایش راهنمای سطوح"
+                aria-label="نمایش راهنمای سطوح"
+                aria-expanded={showLevelHelp}
               >
                 <HelpCircle size={16} />
               </button>
-            </label>
+            </div>
             
             <select
               value={formData.level}
               onChange={e => handleChange('level', e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white text-sm"
             >
-              {(availableLevels.length > 0 ? availableLevels : DEFAULT_LEVELS).map(level => (
+              {treeLevelOptions.map(level => (
                 <option key={level.value} value={level.value}>
                   {level.label} - {level.description}
                 </option>
               ))}
             </select>
 
-            {showLevelHelp && selectedLevelInfo && (
+            {showLevelHelp && (
               <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 space-y-2">
-                <p className="font-bold">{selectedLevelInfo.label}</p>
-                <p>{selectedLevelInfo.description}</p>
+                <p className="font-bold">{selectedLevelInfo?.label || `سطح ${formData.level}`}</p>
+                {selectedLevelInfo?.description && <p>{selectedLevelInfo.description}</p>}
                 <div className="mt-2 p-2 bg-white/50 rounded-lg">
                   <p className="font-bold text-blue-800">📌 راهنمای سطوح:</p>
                   <p className="mt-1 text-blue-600">

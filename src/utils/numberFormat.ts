@@ -1,5 +1,6 @@
 // src/utils/numberFormat.ts
 // ماژول بومی‌سازی قالب‌بندی اعداد و مبالغ ریالی با جداکننده هزارگان
+import { getUserPreference, setUserPreference } from './userPreferences';
 
 const PERSIAN_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
 const ARABIC_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
@@ -38,16 +39,19 @@ export interface NumberFormatOptions {
  * دریافت تنظیمات جاری فرمت اعداد از حافظه محلی
  */
 export function getStoredNumberSettings(): { usePersianDigits: boolean; useGrouping: boolean } {
-  try {
-    const rawFormat = localStorage.getItem('dana_number_format');
-    const rawGrouping = localStorage.getItem('dana_show_thousand_separator');
-    return {
-      usePersianDigits: rawFormat !== 'latin', // پیش‌فرض فارسی است
-      useGrouping: rawGrouping !== 'false',    // پیش‌فرض فعال است
-    };
-  } catch {
-    return { usePersianDigits: true, useGrouping: true };
-  }
+  return {
+    usePersianDigits: getUserPreference('numberFormat', true),
+    useGrouping: getUserPreference('showThousandSeparator', true),
+  };
+}
+
+export function getDatePickerDigits(): string[] {
+  return (getStoredNumberSettings().usePersianDigits ? '۰۱۲۳۴۵۶۷۸۹' : '0123456789').split('');
+}
+
+export function setUserNumberSettings(usePersianDigits: boolean, useGrouping: boolean) {
+  setUserPreference('numberFormat', usePersianDigits);
+  setUserPreference('showThousandSeparator', useGrouping);
 }
 
 /**

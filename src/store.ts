@@ -69,6 +69,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           sessionStorage.removeItem('gap_selected_required_tree');
           sessionStorage.removeItem('gap_selected_produced_tree');
+          sessionStorage.removeItem('gap_analysis_current_result');
           useSecurityStore.getState().setLocked(false);
           (window as any)._sessionExpiredHandled = false;
         } catch { /* noop */ }
@@ -254,23 +255,43 @@ export const useUIStore = create<UIState>()(
       activePeriod: null,
       setActivePeriod: (period) => {
         set({ activePeriod: period });
+        try {
+          if (typeof localStorage !== 'undefined') {
+            const auth = JSON.parse(localStorage.getItem('dana_auth_state') || '{}');
+            const userId = auth?.state?.user?.id ?? 'guest';
+            const key = `dana_user_preferences_${userId}`;
+            const preferences = JSON.parse(localStorage.getItem(key) || '{}');
+            localStorage.setItem(key, JSON.stringify({ ...preferences, activePeriodId: period?.id ?? null }));
+          }
+        } catch (error) {
+          console.error('ذخیرهٔ دورهٔ انتخاب‌شده انجام نشد:', error);
+        }
         get().fetchTrees();
       },
       fetchPeriods: async () => {
         try {
           const data = await safeFetchJson('/api/periods', { cache: 'no-store' });
           if (!data) return;
-          set({ periods: data });
+          const periodsList = Array.isArray(data) ? data : [];
+          set({ periods: periodsList });
           get().fetchOrgData();
-          
-          if (data && data.length > 0) {
-            set((state) => {
-              if (!state.activePeriod) {
-                const active = data.find((p: any) => p.isActive === 1) || data[0];
-                return { activePeriod: active };
-              }
-              return {};
-            });
+          const auth = JSON.parse(localStorage.getItem('dana_auth_state') || '{}');
+          const userId = auth?.state?.user?.id ?? 'guest';
+          const preferences = JSON.parse(localStorage.getItem(`dana_user_preferences_${userId}`) || '{}');
+          const storedPeriodId = preferences.activePeriodId;
+          const selectedPeriod = storedPeriodId === null
+            ? null
+            : periodsList.find((period: any) => String(period.id) === String(storedPeriodId));
+          const defaultPeriod = periodsList.find((period: any) =>
+            Number(period.isActive) === 1 && Number(period.isComplete) !== 1
+          ) || null;
+          const activePeriod = selectedPeriod || defaultPeriod;
+          set({ activePeriod });
+          if (!Object.prototype.hasOwnProperty.call(preferences, 'activePeriodId') && defaultPeriod) {
+            localStorage.setItem(
+              `dana_user_preferences_${userId}`,
+              JSON.stringify({ ...preferences, activePeriodId: defaultPeriod.id })
+            );
           }
         } catch (e) {
           console.error('Error fetching periods:', e);
@@ -433,7 +454,6 @@ export const useUIStore = create<UIState>()(
       partialize: (state) => ({
         sidebarOpen: state.sidebarOpen,
         selectedTreeId: state.selectedTreeId,
-        activePeriod: state.activePeriod,
         siteLogo: state.siteLogo,
         darkMode: state.darkMode,
         themeId: state.themeId,

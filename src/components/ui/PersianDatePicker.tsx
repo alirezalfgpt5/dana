@@ -7,6 +7,7 @@ import rawPersian from 'react-date-object/calendars/persian';
 import rawPersianFa from 'react-date-object/locales/persian_fa';
 import rawTransition from 'react-element-popper/animations/transition';
 import { Calendar as CalendarIcon, X } from 'lucide-react';
+import { getDatePickerDigits } from '../../utils/numberFormat';
 
 // استخراج امن کامپوننت و افزونه‌ها از حالت CJS/ESM
 const resolveComponent = (comp: any) => {
@@ -111,6 +112,9 @@ export const PersianDatePicker: React.FC<PersianDatePickerProps> = ({
         }}
         calendar={persian}
         locale={persian_fa}
+        digits={getDatePickerDigits()}
+        portal
+        zIndex={10000}
         animations={typeof transition === 'function' ? [transition()] : []}
         format={format}
         inputClass={defaultInputClass}

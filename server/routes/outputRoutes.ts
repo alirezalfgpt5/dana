@@ -33,6 +33,9 @@ outputRoutes.get('/tree/:treeId/graph', async (req, res) => {
   try {
     const { treeId } = req.params;
     const treeIdNum = parseInt(treeId);
+    if (!Number.isInteger(treeIdNum) || treeIdNum <= 0) {
+      return res.status(400).json({ error: 'شناسهٔ درختواره نامعتبر است' });
+    }
 
     const tree = await db.query.knowledgeTrees.findFirst({
       where: eq(knowledgeTrees.id, treeIdNum),
@@ -47,22 +50,36 @@ outputRoutes.get('/tree/:treeId/graph', async (req, res) => {
       .where(eq(treeNodes.treeId, treeIdNum))
       .orderBy(treeNodes.sortOrder);
 
-    // دریافت اطلاعات گپ‌ها و پژوهش برای هایلایت
+    // دریافت ارتباط‌ها بر اساس گره‌های خود درخت؛ گره‌های پژوهشی با requiredNodeId وصل نیستند.
     let gapsData: any[] = [];
     let researchData: any[] = [];
 
     const nodeIds = nodes.map(n => n.id);
 
-    if (tree.type === 'research' && nodeIds.length > 0) {
-      gapsData = await db.select()
-        .from(gaps)
-        // Note: checking requiredNodeId against research tree nodes might not yield results if gaps point to required tree.
-        // Assuming the original intent was to find gaps for the nodes.
-        .where(inArray(gaps.requiredNodeId, nodeIds));
-      
-      researchData = await db.select()
-        .from(researchItems)
-        .where(inArray(researchItems.nodeId, nodeIds));
+    if (nodeIds.length > 0 && tree.type === 'research') {
+      for (let i = 0; i < nodeIds.length; i += 500) {
+        researchData.push(...await db.select()
+          .from(researchItems)
+          .where(inArray(researchItems.nodeId, nodeIds.slice(i, i + 500))));
+      }
+      const gapIds = [...new Set(researchData.map(item => item.gapId).filter((id): id is number => Number.isInteger(id)))];
+      for (let i = 0; i < gapIds.length; i += 500) {
+        gapsData.push(...await db.select()
+          .from(gaps)
+          .where(inArray(gaps.id, gapIds.slice(i, i + 500))));
+      }
+    } else if (nodeIds.length > 0 && tree.type === 'required') {
+      for (let i = 0; i < nodeIds.length; i += 500) {
+        gapsData.push(...await db.select()
+          .from(gaps)
+          .where(inArray(gaps.requiredNodeId, nodeIds.slice(i, i + 500))));
+      }
+    } else if (nodeIds.length > 0 && tree.type === 'produced') {
+      for (let i = 0; i < nodeIds.length; i += 500) {
+        gapsData.push(...await db.select()
+          .from(gaps)
+          .where(inArray(gaps.producedNodeId, nodeIds.slice(i, i + 500))));
+      }
     }
 
     // ساخت داده‌های گراف با رنگ‌بندی سطوح
@@ -100,7 +117,9 @@ outputRoutes.get('/tree/:treeId/graph', async (req, res) => {
         totalNodes: nodes.length,
         leaves: nodes.filter(n => n.level === 'L').length,
         quality: nodes.filter(n => n.level === 'Q').length,
-        gaps: nodes.filter(n => n.isGap === 1).length,
+        gaps: tree.type === 'research'
+          ? gapsData.length
+          : gapsData.length || nodes.filter(n => n.isGap === 1).length,
         researchItems: researchData.length,
         byLevel: nodes.reduce((acc: any, n) => {
           acc[n.level] = (acc[n.level] || 0) + 1;

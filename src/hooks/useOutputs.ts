@@ -47,6 +47,7 @@ interface ExportOptions {
 
 export function useOutputs() {
   const [loading, setLoading] = useState(false);
+  const [graphLoading, setGraphLoading] = useState(false);
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const latestTreeIdRef = useRef<number | null>(null);
@@ -59,13 +60,17 @@ export function useOutputs() {
   const getGraphData = useCallback(async (treeId: number) => {
     const currentReqId = ++latestReqIdRef.current;
     latestTreeIdRef.current = treeId;
-    setLoading(true);
+    setGraphLoading(true);
     setError(null);
+    setGraphData(null);
 
     try {
-      const data = await apiClient(`/api/outputs/tree/${treeId}/graph`);
+      const data = await apiClient(`/api/outputs/tree/${treeId}/graph`, { showErrorToast: false });
       if (currentReqId !== latestReqIdRef.current || latestTreeIdRef.current !== treeId) {
         return null;
+      }
+      if (!data || !Array.isArray(data.nodes) || !data.tree) {
+        throw new Error('ساختار دادهٔ گراف در پاسخ سرور معتبر نیست');
       }
       setGraphData(data);
       return data;
@@ -73,12 +78,16 @@ export function useOutputs() {
       if (currentReqId !== latestReqIdRef.current || latestTreeIdRef.current !== treeId) {
         return null;
       }
-      setError(err.message || 'خطا در دریافت داده‌های گراف');
-      toast.error(err.message || 'خطا در دریافت داده‌های گراف');
+      setGraphData(null);
+      const message = err.message === 'Failed to fetch'
+        ? 'ارتباط با سرور برنامه برقرار نشد؛ اتصال محلی را بررسی و دوباره تلاش کنید.'
+        : err.message || 'خطا در دریافت داده‌های گراف';
+      setError(message);
+      toast.error(message);
       return null;
     } finally {
       if (currentReqId === latestReqIdRef.current && latestTreeIdRef.current === treeId) {
-        setLoading(false);
+        setGraphLoading(false);
       }
     }
   }, []);
@@ -331,6 +340,7 @@ export function useOutputs() {
 
   return {
     loading,
+    graphLoading,
     graphData,
     error,
     getGraphData,

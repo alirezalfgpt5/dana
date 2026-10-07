@@ -1,10 +1,12 @@
 // src/components/issues/tabs/types.ts
 // تعاریف مشترک و کمکی برای تب‌های فرم نظام مسائل
 
+import React from 'react';
 import RawDatePicker from 'react-multi-date-picker';
 import rawPersian from 'react-date-object/calendars/persian';
 import rawPersianFa from 'react-date-object/locales/persian_fa';
 import rawTransition from 'react-element-popper/animations/transition';
+import { getDatePickerDigits } from '../../../utils/numberFormat';
 
 // استخراج امن کامپوننت تقویم
 export const resolveComponent = (comp: any) => {
@@ -15,7 +17,9 @@ export const resolveComponent = (comp: any) => {
   return comp.default || comp;
 };
 
-export const DatePicker: any = resolveComponent(RawDatePicker);
+const ResolvedDatePicker: any = resolveComponent(RawDatePicker);
+export const DatePicker: any = (props: any) =>
+  React.createElement(ResolvedDatePicker, { digits: getDatePickerDigits(), ...props });
 export const persian: any = (rawPersian as any)?.default || rawPersian;
 export const persian_fa: any = (rawPersianFa as any)?.default || rawPersianFa;
 export const transition: any = () => {

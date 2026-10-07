@@ -40,11 +40,6 @@ export function Breadcrumbs() {
   
   const pathnames = location.pathname.split('/').filter((x) => x);
 
-  // در صفحه اصلی داشبورد برادکرامپ نیازی نیست
-  if (location.pathname === '/') {
-    return null;
-  }
-
   // بارگذاری نام درختواره در صورت نبود در استور
   useEffect(() => {
     if (!treeIdParam) return;
@@ -85,6 +80,11 @@ export function Breadcrumbs() {
   if (treeIdParam) {
     const foundTree = trees.find((t) => String(t.id) === String(treeIdParam));
     activeTreeName = foundTree?.name || treeNameCache[treeIdParam] || `درختواره #${treeIdParam}`;
+  }
+
+  // در صفحه اصلی داشبورد برادکرامپ نیازی نیست
+  if (location.pathname === '/') {
+    return null;
   }
 
   let currentPath = '';

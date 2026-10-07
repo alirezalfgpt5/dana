@@ -2,10 +2,10 @@
 // نوار بالایی برنامه — با پشتیبانی از سیستم تم
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore, useUIStore, THEMES } from '../../store';
-import { Search, LogOut, Info, Mail, Phone, LayoutDashboard, Maximize2, Minimize2, Menu, Moon, Sun, Calendar, Network, Palette, Check } from 'lucide-react';
-import { format } from 'date-fns-jalali';
+import { Search, X, LogOut, Info, Mail, Phone, LayoutDashboard, Maximize2, Minimize2, Menu, Moon, Sun, Calendar, Network, Palette, Check } from 'lucide-react';
+import { formatPersianDate, formatPersianDateTime } from '../../utils/persianDate';
 import { SearchableSelect } from '../ui/SearchableSelect';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export function Topbar() {
   const { user, logout } = useAuthStore();
@@ -17,6 +17,7 @@ export function Topbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -43,6 +44,11 @@ export function Topbar() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  useEffect(() => {
+    const query = new URLSearchParams(location.search).get('q');
+    setSearchQuery(location.pathname === '/issues' ? query || '' : '');
+  }, [location.pathname, location.search]);
+
   const toggleFullscreen = () => {
   if (document.fullscreenElement) {
     document.exitFullscreen().catch((err: any) => {
@@ -61,14 +67,20 @@ export function Topbar() {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/issues?q=${encodeURIComponent(searchQuery)}`);
-      setSearchQuery('');
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    if (location.pathname === '/issues' && new URLSearchParams(location.search).has('q')) {
+      navigate('/issues');
     }
   };
 
   return (
-    <header className="topbar-shell shadow-sm h-16 flex items-center justify-between px-4 sticky top-0 z-50 transition-colors duration-200">
+    <header className="topbar-shell shadow-sm h-16 flex items-center justify-between px-2 sm:px-4 sticky top-0 z-50 transition-colors duration-200">
       {/* بخش چپ */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         <button
           onClick={toggleSidebar}
           className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-white/10 text-gray-600 dark:text-gray-300 transition-colors"
@@ -77,11 +89,11 @@ export function Topbar() {
         </button>
         
         {/* عنوان */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl brand-gradient flex items-center justify-center shadow-md">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="hidden sm:flex w-8 h-8 rounded-xl brand-gradient items-center justify-center shadow-md">
             <Network size={17} className="text-white" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-strong">
+          <h1 className="hidden sm:block text-xl font-bold tracking-tight text-strong">
             <span className="brand-gradient-text">DANA</span>
           </h1>
           <div className="hidden md:flex items-center before:content-[''] before:w-px before:h-5 before:bg-gray-200 dark:before:bg-[#2d2d44] before:mx-2">
@@ -101,8 +113,13 @@ export function Topbar() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="جستجو مسائل، اسناد..."
-              className="w-64 h-9 pl-10 pr-4 rounded-full bg-gray-100 dark:bg-white/5 border border-transparent focus:border-blue-400/50 focus:bg-white dark:focus:bg-[#1a1a2e] text-sm text-gray-800 dark:text-gray-200 transition-all duration-200 outline-none"
+              className="w-64 h-9 pl-10 pr-9 rounded-full bg-gray-100 dark:bg-white/5 border border-transparent focus:border-blue-400/50 focus:bg-white dark:focus:bg-[#1a1a2e] text-sm text-gray-800 dark:text-gray-200 transition-all duration-200 outline-none"
             />
+            {searchQuery && (
+              <button type="button" onClick={clearSearch} className="absolute left-9 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" title="پاک کردن جستجو" aria-label="پاک کردن جستجو">
+                <X size={15} />
+              </button>
+            )}
             <button type="submit" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-400">
               <Search size={16} />
             </button>
@@ -111,13 +128,14 @@ export function Topbar() {
 
         {/* انتخاب دوره زمانی */}
         {periods && periods.length > 0 && (
-          <div className="hidden lg:flex items-center gap-2 mr-4">
-            <Calendar size={18} className="text-gray-400" />
-            <div className="w-56">
+          <div className="flex items-center gap-1 sm:gap-2 mr-1 sm:mr-3 min-w-0 flex-1 sm:flex-none">
+            <Calendar size={16} className="hidden sm:block text-gray-400 shrink-0" />
+            {activePeriod && <Check size={15} className="text-emerald-500 shrink-0" aria-label="دوره انتخاب‌شده" />}
+            <div className="w-[clamp(4.5rem,24vw,9rem)] sm:w-36 lg:w-56 min-w-0">
               <SearchableSelect
                 options={periods.map((p: any) => ({ 
                   value: p.id, 
-                  label: `${p.name} ${p.isActive === 1 ? "(جاری)" : ""}` 
+                  label: `${p.name} ${Number(p.isComplete) === 1 ? '(تکمیل‌شده)' : Number(p.isActive) === 1 ? '(فعال)' : '(غیرفعال)'}`
                 }))}
                 value={activePeriod?.id || ""}
                 onChange={(val) => {
@@ -125,6 +143,7 @@ export function Topbar() {
                   if (p) setActivePeriod(p);
                 }}
                 theme="dark"
+                className="min-w-0"
               />
             </div>
           </div>
@@ -133,7 +152,7 @@ export function Topbar() {
         {/* دکمه داشبورد */}
         <button
           onClick={() => navigate('/')}
-          className="p-2 rounded-lg transition-all duration-200"
+          className="hidden sm:flex p-2 rounded-lg transition-all duration-200"
           style={{ color: 'var(--text-faint)' }}
           title="داشبورد"
         >
@@ -204,7 +223,7 @@ export function Topbar() {
         {/* دکمه فول‌اسکرین */}
         <button
           onClick={toggleFullscreen}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-all duration-200"
+          className="hidden md:flex p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-all duration-200"
           style={{ color: 'var(--text-muted)' }}
           title={isFullscreen ? 'خروج از حالت تمام‌صفحه' : 'حالت تمام‌صفحه'}
         >
@@ -213,11 +232,11 @@ export function Topbar() {
       </div>
 
       {/* بخش راست */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-2 sm:gap-6 shrink-0">
         {/* تاریخ و ساعت */}
         <div className="hidden md:flex flex-col items-center justify-center text-xs font-medium font-mono leading-tight min-w-[70px]" style={{ color: 'var(--text-muted)' }}>
-          <span>{format(time, 'yyyy/MM/dd')}</span>
-          <span>{format(time, 'HH:mm:ss')}</span>
+          <span>{formatPersianDate(time)}</span>
+          <span>{formatPersianDateTime(time, 'HH:mm:ss')}</span>
         </div>
 
         {/* اطلاعات توسعه‌دهنده */}
@@ -254,7 +273,7 @@ export function Topbar() {
         </div>
 
         {/* خروج */}
-        <div className="flex items-center border-r divider-main pr-4">
+        <div className="flex items-center border-r divider-main pr-2 sm:pr-4">
           <button
             onClick={logout}
             className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all duration-200"

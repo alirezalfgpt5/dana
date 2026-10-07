@@ -12,8 +12,9 @@ import {
   FileCheck, ShieldAlert, Sparkles, HelpCircle, History, GitMerge, FileDiff, ShieldCheck, Undo2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns-jalali';
 import { useAuthStore } from '../store';
+import { useUserPreference } from '../utils/userPreferences';
+import { formatPersianDateTime } from '../utils/persianDate';
 
 interface FileItem {
   id: number;
@@ -68,7 +69,7 @@ export function FilesManagement() {
   const [selectedBaseId, setSelectedBaseId] = useState<string>('');
   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
-  const [viewModeScope, setViewModeScope] = useState<'individual' | 'aggregate'>('individual');
+  const [viewModeScope, setViewModeScope] = useUserPreference<'individual' | 'aggregate'>('files:viewModeScope', 'individual');
   const [unitStats, setUnitStats] = useState<UnitStat[]>([]);
   const [statsAggregated, setStatsAggregated] = useState({ totalUnits: 0, totalTrees: 0, totalNodes: 0, totalIssues: 0 });
 
@@ -88,6 +89,7 @@ export function FilesManagement() {
   // استراتژی حل تعارض و تایید دستی
   const [syncStrategy, setSyncStrategy] = useState<'smart_merge' | 'apply_incoming' | 'keep_existing'>('smart_merge');
   const [conflictResolutions, setConflictResolutions] = useState<Record<string, 'incoming' | 'existing'>>({});
+  const [clearFields, setClearFields] = useState<Record<string, string[]>>({});
   const [manualConfirmChecked, setManualConfirmChecked] = useState(false);
   const [showConflictTable, setShowConflictTable] = useState(true);
 
@@ -108,7 +110,7 @@ export function FilesManagement() {
   const [filterType, setFilterType] = useState<string>('all');
   const [filterModule, setFilterModule] = useState<string>('all');
   const [totalSize, setTotalSize] = useState(0);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [viewMode, setViewMode] = useUserPreference<'list' | 'grid'>('files:viewMode', 'list');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(12);
   const [sortBy, setSortBy] = useState<'name' | 'size' | 'date'>('date');
@@ -344,6 +346,7 @@ export function FilesManagement() {
     setIsPreviewLoading(true);
     setManualConfirmChecked(false);
     setConflictResolutions({});
+    setClearFields({});
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -404,6 +407,7 @@ export function FilesManagement() {
       formData.append('confirmSync', 'true');
       formData.append('strategy', syncStrategy);
       formData.append('resolutions', JSON.stringify(conflictResolutions));
+      formData.append('clearFields', JSON.stringify(clearFields));
 
       const res = await (window.customFetch || window.fetch)('/api/data-exchange/template/upload-sync', {
         method: 'POST',
@@ -420,6 +424,7 @@ export function FilesManagement() {
       setSelectedFile(null);
       setManualConfirmChecked(false);
       setConflictResolutions({});
+      setClearFields({});
       if (fileInputRef.current) fileInputRef.current.value = '';
 
       toast.success(data.message || 'اطلاعات با موفقیت و ورژنبندی دقیق در پایگاه داده لوکال ثبت شد.');
@@ -912,8 +917,8 @@ export function FilesManagement() {
                                   onChange={() => setSyncStrategy('smart_merge')}
                                 />
                                 <div>
-                                  <span className="font-bold block text-[11px]">ادغام هوشمند و ثبت نسخه (پیش‌فرض)</span>
-                                  <span className="text-[10px] text-slate-400">تغییرات با ثبت نسخه جدید در تاریخچه اعمال می‌شود</span>
+                                  <span className="font-bold block text-[11px]">اعمال مقادیر پرشده و ثبت نسخه (پیش‌فرض)</span>
+                                  <span className="text-[10px] text-slate-400">خانه خالی بدون تغییر می‌ماند؛ برای پاک‌کردن، فیلد را صریحاً انتخاب کنید</span>
                                 </div>
                               </label>
                               <label className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
@@ -964,17 +969,33 @@ export function FilesManagement() {
                                     conflict.diffs.map((d: any, idx: number) => (
                                       <tr key={`${conflict.key}_${idx}`} className="hover:bg-amber-50/40">
                                         <td className="p-2 text-slate-500 font-medium">
-                                          {conflict.type === 'node' ? 'گره دانشی' : 'نظام مسائل'}
+                                          {conflict.type === 'node' ? 'گره دانشی' : conflict.type === 'research' ? 'آیتم پژوهشی' : 'نظام مسائل'}
                                         </td>
                                         <td className="p-2 font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px]">
                                           {conflict.title}
                                         </td>
                                         <td className="p-2 text-amber-800 font-medium">{d.label || d.field}</td>
                                         <td className="p-2 text-rose-600 bg-rose-50/50 rounded font-mono text-[11px]">
-                                          {String(d.currentDb)}
+                                          {d.currentDb === null || d.currentDb === undefined ? '—' : String(d.currentDb)}
                                         </td>
                                         <td className="p-2 text-emerald-600 bg-emerald-50/50 rounded font-mono text-[11px]">
                                           {String(d.incomingFile)}
+                                          {d.incomingEmpty && (
+                                            <label className="mt-1 flex items-center justify-center gap-1 text-[10px] text-rose-700 font-sans">
+                                              <input
+                                                type="checkbox"
+                                                checked={clearFields[conflict.key]?.includes(d.field) || false}
+                                                disabled={conflictResolutions[conflict.key] === 'existing'}
+                                                onChange={(event) => setClearFields(previous => {
+                                                  const selected = new Set(previous[conflict.key] || []);
+                                                  if (event.target.checked) selected.add(d.field);
+                                                  else selected.delete(d.field);
+                                                  return { ...previous, [conflict.key]: Array.from(selected) };
+                                                })}
+                                              />
+                                              پاک‌کردن فیلد
+                                            </label>
+                                          )}
                                         </td>
                                         <td className="p-2 text-center">
                                           <select
@@ -1117,7 +1138,7 @@ export function FilesManagement() {
                             {ver.user_name || 'کاربر سیستم'}
                           </td>
                           <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
-                            {ver.created_at ? format(new Date(ver.created_at), 'yyyy/MM/dd - HH:mm') : '-'}
+                            {ver.created_at ? formatPersianDateTime(ver.created_at, 'yyyy/MM/dd - HH:mm') : '-'}
                           </td>
                           <td className="py-3 px-4 text-center">
                             <div className="inline-flex items-center gap-1.5 text-[11px]">
@@ -1356,7 +1377,7 @@ export function FilesManagement() {
                           {(file.size / 1024).toFixed(1)} KB
                         </td>
                         <td className="py-3 px-4 text-slate-400">
-                          {file.createdAt ? format(new Date(file.createdAt), 'yyyy/MM/dd HH:mm') : '-'}
+                          {file.createdAt ? formatPersianDateTime(file.createdAt) : '-'}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <div className="flex items-center justify-center gap-1.5">

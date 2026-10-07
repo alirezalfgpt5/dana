@@ -69,6 +69,44 @@ export function runComprehensiveSeed(sqlite: BetterSqlite3Compat) {
     }
   }
 
+  const samplePeriods = [
+    { id: 1, name: 'برنامه ششم توسعه', startDate: '1396/01/01', endDate: '1400/12/29' },
+    { id: 2, name: 'برنامه هفتم توسعه', startDate: '1403/01/01', endDate: '1407/12/29' },
+  ];
+  for (const period of samplePeriods) {
+    const exists = sqlite.prepare('SELECT id FROM periods WHERE id = ?').get(period.id);
+    if (!exists) {
+      sqlite.prepare(`
+        INSERT INTO periods (id, name, start_date, end_date, is_active, is_complete, description, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)
+      `).run(
+        period.id,
+        period.name,
+        period.startDate,
+        period.endDate,
+        period.id === 2 ? 1 : 0,
+        'دورهٔ نمونه برای داده‌های آزمایشی سیدر',
+        now,
+        now,
+      );
+    }
+  }
+
+  const sampleKnowledgeLevels = [
+    { id: 1, name: 'راهبردی', description: 'سطح سیاست‌گذاری و جهت‌گیری کلان' },
+    { id: 2, name: 'عملیاتی', description: 'سطح برنامه‌ریزی و اجرای سازمانی' },
+    { id: 3, name: 'اجرایی', description: 'سطح اقدام تخصصی و میدانی' },
+  ];
+  for (const level of sampleKnowledgeLevels) {
+    const exists = sqlite.prepare('SELECT id FROM knowledge_levels WHERE id = ?').get(level.id);
+    if (!exists) {
+      sqlite.prepare(`
+        INSERT INTO knowledge_levels (id, name, description, parent_id, sort_order, is_active, metadata, created_at, updated_at)
+        VALUES (?, ?, ?, NULL, ?, 1, NULL, ?, ?)
+      `).run(level.id, level.name, level.description, level.id, now, now);
+    }
+  }
+
   // ====================================================================
   // ۲. کاربران سازمانی با نقش‌های متفاوت (Users & Credentials)
   // Password for all: admin123 ($2b$10$xTmwp6HbtEEU3Yuz7xgA4ujFIpzU4kC/FDGMAA4HFK3hVnbfCfGpu)
@@ -122,6 +160,31 @@ export function runComprehensiveSeed(sqlite: BetterSqlite3Compat) {
     { templateId: 19, title: 'دستنامه کاربری سامانه نظام مسائل و درخت دانش (دانا)', code: 'EDU-HAN-DANA-V3', desc: 'راهنمای مرحله به مرحله ثبت شکاف، مسائل و فرآیند Rollover' },
     { templateId: 21, title: 'گزارش نظارتی بازرسی میدانی مراکز داده نهاجا', code: 'SUP-REP-DAT-102', desc: 'ممیزی زیرساخت سرورها، ذخیره‌سازها و خطوط امن' },
   ];
+
+  const sampleTemplates = new Map<number, { type: string; title: string }>([
+    [2, { type: 'سیاستی', title: 'سند چشم‌انداز' }],
+    [3, { type: 'سیاستی', title: 'بیانیه مأموریت' }],
+    [4, { type: 'سیاستی', title: 'سیاست‌نامه' }],
+    [6, { type: 'راهبردی', title: 'طرح جامع راهبردی' }],
+    [8, { type: 'عملیاتی', title: 'دستورالعمل جامع' }],
+    [9, { type: 'عملیاتی', title: 'آیین‌نامه' }],
+    [11, { type: 'اجرایی', title: 'طرح تاکتیکی' }],
+    [12, { type: 'اجرایی', title: 'برنامه عملیاتی' }],
+    [14, { type: 'پژوهشی', title: 'گزارش پژوهشی' }],
+    [15, { type: 'پژوهشی', title: 'مقاله علمی' }],
+    [16, { type: 'پژوهشی', title: 'کتاب مرجع' }],
+    [19, { type: 'آموزشی', title: 'دستنامه' }],
+    [21, { type: 'نظارتی', title: 'گزارش نظارتی' }],
+  ]);
+  for (const [id, template] of sampleTemplates) {
+    const exists = sqlite.prepare('SELECT id FROM templates WHERE id = ?').get(id);
+    if (!exists) {
+      sqlite.prepare(`
+        INSERT INTO templates (id, type, title, description, sort_order, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+      `).run(id, template.type, template.title, 'قالب نمونهٔ داده‌های سیدر', id, now, now);
+    }
+  }
 
   for (const inst of sampleInstances) {
     const exists = sqlite.prepare("SELECT id FROM template_instances WHERE reference_code = ?").get(inst.code);
@@ -225,6 +288,73 @@ export function runComprehensiveSeed(sqlite: BetterSqlite3Compat) {
         INSERT INTO knowledge_trees (id, name, type, description, period_id, base_id, unit_id, is_active, metadata, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, 1, NULL, ?, ?)
       `).run(t.id, t.name, t.type, t.description, t.periodId, t.baseId, t.unitId, now, now);
+    }
+  }
+
+  const foundationalTrees = [
+    {
+      id: 1,
+      name: 'درختواره دانشی هوش مصنوعی - مورد نیاز',
+      type: 'required',
+      description: 'نیازهای دانشی حوزهٔ هوش مصنوعی و پردازش هوشمند',
+    },
+    {
+      id: 2,
+      name: 'درختواره دانشی هوش مصنوعی - تولید شده',
+      type: 'produced',
+      description: 'دستاوردها و توانمندی‌های ثبت‌شده در حوزهٔ هوش مصنوعی',
+    },
+  ];
+  for (const tree of foundationalTrees) {
+    const exists = sqlite.prepare('SELECT id FROM knowledge_trees WHERE id = ?').get(tree.id);
+    if (!exists) {
+      sqlite.prepare(`
+        INSERT INTO knowledge_trees (id, name, type, description, period_id, base_id, unit_id, is_active, metadata, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 1, 1, 2, 1, NULL, ?, ?)
+      `).run(tree.id, tree.name, tree.type, tree.description, now, now);
+    }
+  }
+
+  const foundationalNodes = [
+    { id: 1, treeId: 1, parentId: null, level: 'R', title: 'هوش مصنوعی و سامانه‌های هوشمند' },
+    { id: 2, treeId: 1, parentId: 1, level: 'T', title: 'زیرساخت و الگوریتم‌های هوشمند' },
+    { id: 3, treeId: 1, parentId: 1, level: 'T', title: 'کاربرد هوش مصنوعی در مدیریت دانش' },
+    { id: 4, treeId: 1, parentId: 2, level: 'B', title: 'پردازش توزیع‌شده و ابری' },
+    { id: 5, treeId: 1, parentId: 3, level: 'B', title: 'تحلیل و بازیابی متون فارسی' },
+    { id: 6, treeId: 1, parentId: 4, level: 'SB', title: 'بهینه‌سازی توزیع بار' },
+    { id: 7, treeId: 1, parentId: 5, level: 'SB', title: 'استخراج دانش از اسناد' },
+    { id: 8, treeId: 1, parentId: 6, level: 'L', title: 'الگوریتم‌های توزیع هوشمند' },
+    { id: 9, treeId: 1, parentId: 7, level: 'L', title: 'موتور تحلیل متن فارسی' },
+    { id: 10, treeId: 1, parentId: 3, level: 'B', title: 'سامانه‌های پرسش و پاسخ' },
+    { id: 11, treeId: 1, parentId: 10, level: 'L', title: 'بازیابی معنایی اطلاعات سازمانی' },
+    { id: 12, treeId: 1, parentId: 2, level: 'B', title: 'یادگیری ماشین و تحلیل داده' },
+    { id: 13, treeId: 1, parentId: 12, level: 'L', title: 'پیش‌بینی و تحلیل هوشمند' },
+    { id: 14, treeId: 1, parentId: 8, level: 'L', title: 'الگوریتم‌های توزیع هوشمند' },
+    { id: 15, treeId: 1, parentId: 9, level: 'L', title: 'موتور تحلیل متن فارسی' },
+    { id: 16, treeId: 1, parentId: 11, level: 'L', title: 'سامانه پرسش و پاسخ سازمانی' },
+    { id: 17, treeId: 1, parentId: 10, level: 'L', title: 'پاسخ‌گویی هوشمند بر پایه دانش' },
+    { id: 18, treeId: 1, parentId: 12, level: 'L', title: 'طبقه‌بندی هوشمند اسناد' },
+    { id: 19, treeId: 1, parentId: 4, level: 'L', title: 'پردازش ابری بومی' },
+    { id: 20, treeId: 1, parentId: 5, level: 'L', title: 'واژه‌نامه تخصصی فارسی' },
+    { id: 36, treeId: 2, parentId: null, level: 'R', title: 'هوش مصنوعی و سامانه‌های هوشمند' },
+    { id: 37, treeId: 2, parentId: 36, level: 'T', title: 'زیرساخت و الگوریتم‌های هوشمند' },
+    { id: 38, treeId: 2, parentId: 36, level: 'T', title: 'کاربرد هوش مصنوعی در مدیریت دانش' },
+    { id: 39, treeId: 2, parentId: 37, level: 'B', title: 'پردازش توزیع‌شده و ابری' },
+    { id: 40, treeId: 2, parentId: 38, level: 'B', title: 'تحلیل و بازیابی متون فارسی' },
+    { id: 41, treeId: 2, parentId: 39, level: 'L', title: 'الگوریتم‌های توزیع هوشمند' },
+    { id: 42, treeId: 2, parentId: 40, level: 'L', title: 'موتور تحلیل متن فارسی' },
+    { id: 43, treeId: 2, parentId: 38, level: 'B', title: 'سامانه‌های پرسش و پاسخ' },
+    { id: 44, treeId: 2, parentId: 43, level: 'L', title: 'بازیابی معنایی اطلاعات سازمانی' },
+    { id: 45, treeId: 2, parentId: 37, level: 'B', title: 'یادگیری ماشین و تحلیل داده' },
+    { id: 46, treeId: 2, parentId: 45, level: 'L', title: 'پیش‌بینی و تحلیل هوشمند' },
+  ];
+  for (const node of foundationalNodes) {
+    const exists = sqlite.prepare('SELECT id FROM tree_nodes WHERE id = ?').get(node.id);
+    if (!exists) {
+      sqlite.prepare(`
+        INSERT INTO tree_nodes (id, tree_id, parent_id, level, title, description, sort_order, is_gap, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+      `).run(node.id, node.treeId, node.parentId, node.level, node.title, 'گره نمونهٔ داده‌های سیدر', node.id, now, now);
     }
   }
 
@@ -339,6 +469,28 @@ export function runComprehensiveSeed(sqlite: BetterSqlite3Compat) {
   // ۸. شکاف‌های دانشی جدید و تکمیل وضعیت‌ها (Gaps)
   // ====================================================================
   const newGaps = [
+    {
+      id: 1,
+      periodId: 1,
+      requiredNodeId: 11,
+      producedNodeId: 44,
+      status: 'partially_filled',
+      gapType: 'partial',
+      priority: 'زیاد',
+      matchScore: 0.68,
+      desc: 'بخشی از نیاز بازیابی معنایی اطلاعات سازمانی پوشش داده شده و تکمیل آن نیازمند پژوهش است'
+    },
+    {
+      id: 2,
+      periodId: 1,
+      requiredNodeId: 17,
+      producedNodeId: null,
+      status: 'open',
+      gapType: 'missing',
+      priority: 'متوسط',
+      matchScore: 0,
+      desc: 'برای پاسخ‌گویی هوشمند بر پایه دانش، راهکار عملیاتی کامل ثبت نشده است'
+    },
     {
       id: 3,
       periodId: 1,
@@ -534,6 +686,21 @@ export function runComprehensiveSeed(sqlite: BetterSqlite3Compat) {
   // ====================================================================
   // ۱۲. تکمیل جامع اطلاعات مسائل موجود و افزودن مسائل جدید (Issues - 40+ فیلد کامل)
   // ====================================================================
+  const foundationalIssues = [
+    { id: 1, domainNodeId: 14, title: 'طراحی الگوریتم توزیع هوشمند پردازش', status: 'in_progress' },
+    { id: 2, domainNodeId: 15, title: 'توسعه موتور تحلیل متن فارسی', status: 'in_progress' },
+    { id: 3, domainNodeId: 16, title: 'طراحی سامانه پرسش و پاسخ سازمانی', status: 'in_progress' },
+  ];
+  for (const issue of foundationalIssues) {
+    const exists = sqlite.prepare('SELECT id FROM issues WHERE id = ?').get(issue.id);
+    if (!exists) {
+      sqlite.prepare(`
+        INSERT INTO issues (id, period_id, domain_node_id, title, status, required_budget, approved_budget, assigned_budget, completion_percent, created_at, updated_at)
+        VALUES (?, 1, ?, ?, ?, 0, 0, 0, 0, ?, ?)
+      `).run(issue.id, issue.domainNodeId, issue.title, issue.status, now, now);
+    }
+  }
+
   // آپدیت مسئله ۱ با جزئیات کامل و مقاطع پرداختی
   try {
     sqlite.prepare(`

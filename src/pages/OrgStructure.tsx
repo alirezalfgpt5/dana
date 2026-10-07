@@ -542,6 +542,40 @@ export function OrgStructure() {
   });
 
   const rootBases = bases.filter((b) => b.parentId === null);
+  const baseIds = new Set(bases.map(base => base.id));
+  const exportRootBases = bases.filter(base => base.parentId === null || !baseIds.has(base.parentId));
+  const renderedPdfBaseIds = new Set<number>();
+  const renderExpandedPdfBase = (base: Base, ancestors = new Set<number>()): React.ReactNode => {
+    if (ancestors.has(base.id)) {
+      return <li key={`cycle-${base.id}`}>{base.name} (پیوند والد نامعتبر)</li>;
+    }
+    if (renderedPdfBaseIds.has(base.id)) return null;
+    renderedPdfBaseIds.add(base.id);
+    const nextAncestors = new Set(ancestors);
+    nextAncestors.add(base.id);
+    const childBases = bases.filter(candidate => candidate.parentId === base.id);
+    const childUnits = units.filter(unit => unit.baseId === base.id);
+
+    return (
+      <li key={`base-${base.id}`} className="my-1">
+        <div className="font-semibold text-slate-800">
+          {base.name}
+          <span className="mr-2 text-xs font-normal text-slate-500">{getLevelLabel(base.level)}</span>
+        </div>
+        {(childBases.length > 0 || childUnits.length > 0) && (
+          <ul className="mr-5 mt-1 border-r border-slate-200 pr-4">
+            {childBases.map(child => renderExpandedPdfBase(child, nextAncestors))}
+            {childUnits.map(unit => (
+              <li key={`unit-${unit.id}`} className="my-1 text-slate-700">
+                {unit.name}
+                <span className="mr-2 text-xs text-slate-500">{getLevelLabel(unit.level)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </li>
+    );
+  };
 
   // ============================================
   // بررسی دسترسی
@@ -605,6 +639,7 @@ export function OrgStructure() {
         icon={Network}
         iconColor="from-blue-600 to-indigo-600"
         actions={toolbarActions}
+        pdfEnabled={!loading && bases.length + units.length > 0}
       />
 
       {/* هشدار خطای لود و دکمه تلاش مجدد در صورت بروز مشکل شبکه */}
@@ -622,7 +657,7 @@ export function OrgStructure() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div data-pdf-content data-pdf-has-data={bases.length + units.length + orgLevels.length > 0} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 flex items-center gap-4">
           <div className="p-3 bg-blue-50 rounded-lg"><Building2 size={20} className="text-blue-600" /></div>
           <div><p className="text-xs text-gray-400">یگان‌های اصلی</p><p className="text-2xl font-bold text-gray-800">{bases.length}</p></div>
@@ -660,7 +695,7 @@ export function OrgStructure() {
       </div>
 
       {/* Main Content - Two Columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div data-pdf-content data-pdf-has-data={bases.length + units.length + orgLevels.length > 0} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* RIGHT: یگان‌های اصلی */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
           <div className="p-4 border-b bg-gradient-to-r from-gray-50 to-white flex items-center justify-between">
@@ -1058,6 +1093,23 @@ export function OrgStructure() {
             </div>
           )}
         </div>
+      </div>
+      <div
+        data-pdf-content
+        data-pdf-has-data={bases.length + units.length > 0}
+        data-pdf-export-only
+        className="hidden"
+      >
+        <section className="rounded-xl border border-slate-200 bg-white p-5 text-sm leading-7">
+          <h3 className="mb-3 text-lg font-bold text-slate-900">نمای درختی سازمان (ساختار کامل و باز)</h3>
+          {exportRootBases.length > 0 ? (
+            <ul className="space-y-1">{[...exportRootBases, ...bases].map(base => renderExpandedPdfBase(base))}</ul>
+          ) : bases.length > 0 ? (
+            <ul className="space-y-1">{bases.map(base => renderExpandedPdfBase(base))}</ul>
+          ) : (
+            <p>ساختار سازمانی ثبت نشده است.</p>
+          )}
+        </section>
       </div>
       <ConfirmModal
         isOpen={confirmModal.isOpen}

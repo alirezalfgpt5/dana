@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Trash2, File as FileIcon, Download, Save, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../../../services/api';
+import { formatPersianDate } from '../../../utils/persianDate';
 
 import { ConfirmModal } from '../../../components/ui/ConfirmModal';
 
@@ -241,7 +242,7 @@ export function AssetModal({ isOpen, onClose, node, templates, knowledgeLevels =
                             {asset.template.type}
                           </span>
                         )}
-                        <span>{new Date(asset.createdAt).toLocaleDateString('fa-IR')}</span>
+                        <span>{formatPersianDate(asset.createdAt)}</span>
                         {asset.fileSize && <span>{(asset.fileSize / 1024).toFixed(0)} KB</span>}
                       </div>
                       {asset.description && (

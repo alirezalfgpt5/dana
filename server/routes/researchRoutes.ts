@@ -10,6 +10,7 @@ import {
   treeNodes,
   knowledgeTrees,
   issues,
+  periods,
 } from '../../src/db/schema.js';
 import { eq, and, isNull, inArray, or, like, not, sql } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
@@ -17,6 +18,23 @@ import { format } from 'date-fns-jalali';
 import ExcelJS from 'exceljs';
 
 export const researchRoutes = Router();
+
+async function isPeriodComplete(periodId: number | null | undefined): Promise<boolean> {
+  if (!periodId) return false;
+  const period = await db.query.periods.findFirst({
+    columns: { isComplete: true },
+    where: eq(periods.id, periodId),
+  });
+  return Number(period?.isComplete) === 1;
+}
+
+async function isResearchItemPeriodComplete(gapId: number): Promise<boolean> {
+  const gap = await db.query.gaps.findFirst({
+    columns: { periodId: true },
+    where: eq(gaps.id, gapId),
+  });
+  return isPeriodComplete(gap?.periodId);
+}
 
 // ============================================
 // ۱. دریافت آیتم‌های پژوهشی با فیلتر
@@ -246,10 +264,13 @@ researchRoutes.get('/tree/:treeId', async (req, res) => {
       .where(eq(treeNodes.treeId, treeIdNum))
       .orderBy(treeNodes.sortOrder);
 
-    // دریافت آیتم‌های پژوهشی برای هر گره
-    const researchItemsList = await db.select()
-      .from(researchItems)
-      .where(eq(researchItems.nodeId, treeIdNum));
+    // دریافت آیتم‌های پژوهشی بر اساس شناسهٔ گره‌های همین درخت، نه شناسهٔ خود درخت
+    const nodeIds = nodes.map(node => node.id);
+    const researchItemsList = nodeIds.length > 0
+      ? await db.select()
+        .from(researchItems)
+        .where(inArray(researchItems.nodeId, nodeIds))
+      : [];
 
     // ساخت ساختار درختی با اطلاعات پژوهشی
     const nodeMap = new Map();
@@ -297,7 +318,7 @@ researchRoutes.get('/tree/:treeId', async (req, res) => {
 
     res.json({
       tree,
-      nodes: rootNodes.length > 0 ? rootNodes[0] : null,
+      nodes: rootNodes,
       allNodes: nodes,
       researchItems: researchItemsList,
       stats: {
@@ -352,6 +373,9 @@ researchRoutes.post('/', async (req, res) => {
 
     if (!gap) {
       return res.status(404).json({ error: 'گپ یافت نشد' });
+    }
+    if (await isPeriodComplete(gap.periodId)) {
+      return res.status(409).json({ error: 'دورهٔ این آیتم پژوهشی تکمیل شده و فقط‌خواندنی است' });
     }
 
     // بررسی وجود گره
@@ -442,6 +466,9 @@ researchRoutes.put('/:id', async (req, res) => {
     if (!oldData) {
       return res.status(404).json({ error: 'آیتم پژوهشی یافت نشد' });
     }
+    if (await isResearchItemPeriodComplete(oldData.gapId)) {
+      return res.status(409).json({ error: 'دورهٔ این آیتم پژوهشی تکمیل شده و فقط‌خواندنی است' });
+    }
 
     const result = await db.update(researchItems)
       .set({
@@ -510,6 +537,9 @@ researchRoutes.post('/:id/convert-to-issue', async (req, res) => {
 
     if (!researchItem) {
       return res.status(404).json({ error: 'آیتم پژوهشی یافت نشد' });
+    }
+    if (await isResearchItemPeriodComplete(researchItem.gapId)) {
+      return res.status(409).json({ error: 'دورهٔ این آیتم پژوهشی تکمیل شده و فقط‌خواندنی است' });
     }
 
     // دریافت گره مرتبط
@@ -632,6 +662,9 @@ researchRoutes.delete('/:id', async (req, res) => {
 
     if (!existing) {
       return res.status(404).json({ error: 'آیتم پژوهشی یافت نشد' });
+    }
+    if (await isResearchItemPeriodComplete(existing.gapId)) {
+      return res.status(409).json({ error: 'دورهٔ این آیتم پژوهشی تکمیل شده و فقط‌خواندنی است' });
     }
 
     // بررسی وجود مسئله مرتبط

@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTree } from '../../hooks/useTree';
 import { useAuthStore, useUIStore } from '../../store';
-import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { useUserPreference } from '../../utils/userPreferences';
 import { 
   Plus, Copy, Download, Trash2, Edit2, 
   GitBranch, HelpCircle, ChevronRight 
@@ -95,18 +95,18 @@ export function RequiredTree() {
   const [editingNodeId, setEditingNodeId] = useState<number | null>(null);
 
   // State برای تنظیمات نمایش
-  const [viewMode, setViewMode] = useLocalStorage<'rich' | 'simple' | 'vertical'>('req_viewMode', 'rich');
-  const [fontSizeScale, setFontSizeScale] = useLocalStorage<number>('req_fontSize', 1);
-  const [layoutDirection, setLayoutDirection] = useLocalStorage<'LR' | 'RL' | 'TB' | 'BT'>('req_layoutDirection', 'RL');
-  const [showLabels, setShowLabels] = useLocalStorage<boolean>('req_showLabels', true);
-  const [levelColors, setLevelColors] = useLocalStorage<Record<string, string>>('req_levelColors', {
+  const [viewMode, setViewMode] = useUserPreference<'rich' | 'simple' | 'vertical'>('requiredTree:viewMode', 'rich', 'req_viewMode');
+  const [fontSizeScale, setFontSizeScale] = useUserPreference<number>('requiredTree:fontSize', 1, 'req_fontSize');
+  const [layoutDirection, setLayoutDirection] = useUserPreference<'LR' | 'RL' | 'TB' | 'BT'>('requiredTree:layoutDirection', 'RL', 'req_layoutDirection');
+  const [showLabels, setShowLabels] = useUserPreference<boolean>('requiredTree:showLabels', true, 'req_showLabels');
+  const [levelColors, setLevelColors] = useUserPreference<Record<string, string>>('requiredTree:levelColors', {
     'R': '#3b82f6',
     'T': '#8b5cf6',
     'B': '#10b981',
     'SB': '#f59e0b',
     'L': '#6366f1',
     'Q': '#ec4899'
-  });
+  }, 'req_levelColors');
   const { isFullscreen, toggleFullscreen } = useSimulatedFullscreen();
 
   // Form data
@@ -458,7 +458,6 @@ export function RequiredTree() {
           onPermanentDeleteTree={async (id) => {
             return await deleteTree(id, true);
           }}
-          onShowHelp={() => setShowHelp(true)}
         />
 
         {/* مدال ایجاد / ویرایش درختواره */}
@@ -479,7 +478,6 @@ export function RequiredTree() {
           orgLevels={orgLevels} 
         />
 
-        {showHelp && <TreeLevelsHelp />}
       </div>
     );
   }
@@ -542,7 +540,7 @@ export function RequiredTree() {
       label: 'راهنمای سطوح',
       icon: HelpCircle,
       variant: 'ghost' as const,
-      onClick: () => setShowHelp(true),
+      onClick: () => setShowHelp(value => !value),
       title: 'راهنمای سطوح دانشی (R, T, B, SB, L)',
     },
   ];
@@ -556,14 +554,21 @@ export function RequiredTree() {
         icon={GitBranch}
         iconColor="from-blue-600 to-indigo-600"
         actions={viewToolbarActions}
+        actionsClassName="flex-nowrap overflow-x-auto pb-1"
+        pdfEnabled={!loading && !!tree && nodes.length > 0}
       />
+      {showHelp && <TreeLevelsHelp />}
 
       {/* آمار درختواره */}
-      {tree && <TreeStats stats={stats} />}
+      {tree && (
+        <div data-pdf-content data-pdf-has-data={nodes.length > 0}>
+          <TreeStats stats={stats} />
+        </div>
+      )}
 
       {/* بخش نمایش گراف و بوم درختواره — دکمه‌های مربوط به کنترل بوم دقیقاً در جای قبلی خود حفظ شده‌اند */}
       {tree && (
-        <div ref={treeContainerRef} className={`bg-white dark:bg-[#1e1e2f] rounded-xl shadow-sm border border-gray-200/80 dark:border-gray-800 overflow-hidden transition-all ${isFullscreen ? 'simulated-fullscreen flex flex-col' : 'h-[calc(100vh-220px)] min-h-[600px] flex flex-col'}`}>
+        <div data-pdf-content data-pdf-chart data-pdf-has-data={nodes.length > 0} ref={treeContainerRef} className={`bg-white dark:bg-[#1e1e2f] rounded-xl shadow-sm border border-gray-200/80 dark:border-gray-800 overflow-hidden transition-all ${isFullscreen ? 'simulated-fullscreen flex flex-col' : 'h-[calc(100vh-220px)] min-h-[600px] flex flex-col'}`}>
           <TreeVisualization
             data={{ nodes: nodes, tree }}
             onNodeClick={handleSelectNode}
@@ -657,7 +662,6 @@ export function RequiredTree() {
         message={confirmModal.message} 
       />
 
-      {showHelp && <TreeLevelsHelp />}
     </div>
   );
 }

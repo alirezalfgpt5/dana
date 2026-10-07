@@ -230,7 +230,7 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
       ans = n1 * n2;
     }
 
-    const qText = `${toPersianDigits(n1)} ${op} ${toPersianDigits(n2)} = ؟`;
+    const qText = `${toPersianDigits(n1)} ${op} ${toPersianDigits(n2)} = ?`;
     setMathProblem({ text: qText, answer: ans });
 
     setTimeout(() => {
@@ -300,6 +300,7 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
       ctx.fillStyle = '#1e1b4b';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.direction = 'ltr';
       ctx.fillText(qText, w / 2, h / 2);
 
       // ۵. خط موج‌دار رو گذر

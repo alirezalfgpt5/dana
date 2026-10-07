@@ -42,7 +42,7 @@ class SystemLogger {
 
   constructor() {
     this.isProduction = process.env.NODE_ENV === 'production';
-    this.minLevel = this.isProduction ? LogLevel.INFO : LogLevel.DEBUG;
+    this.minLevel = LogLevel.ERROR;
     this.dedupWindowMs = parseInt(process.env.LOG_DEDUP_WINDOW_MS || '5000', 10);
 
     // Periodically reset error rate limiter window
@@ -252,10 +252,14 @@ class SystemLogger {
     console.error = (...args: any[]) => this.error(...args);
     console.warn = (...args: any[]) => this.warn(...args);
     console.info = (...args: any[]) => this.info(...args);
-    // Keep console.log for general info, but route through deduplicator if in production
-    if (this.isProduction) {
-      console.log = (...args: any[]) => this.info(...args);
-    }
+    console.log = (...args: any[]) => {
+      const message = args.map(arg => String(arg)).join(' ');
+      const isStartupMessage = message === '🚀 Database initialization started...'
+        || message === '💡 [DANA Database] Auto-seed is disabled. To run the seed manually, use the "npm run seed" command in the console.'
+        || message === '👤 Admin: admin / admin123'
+        || /^🚀 Server running on http:\/\/[^ ]+$/.test(message);
+      if (isStartupMessage) this.raw.log(...args);
+    };
   }
 
   // Restore raw console if needed
@@ -308,6 +312,6 @@ export function setupProcessExceptionHandlers() {
   });
 
   process.on('unhandledRejection', (reason: any) => {
-    logger.warn('Unhandled Promise Rejection caught safely:', reason);
+    logger.error('Unhandled Promise Rejection caught safely:', reason);
   });
 }

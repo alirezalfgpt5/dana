@@ -167,11 +167,36 @@ function fuzzyTokenOverlap(a: string, b: string): number {
  * ترکیب وزن‌دارِ شباهت زیررشته‌ای، لوانشتاین، بای‌گرام و اشتراک توکن‌ها.
  * همان منطق قدیمی (includes + اشتراک کلمات) حفظ شده اما دقیق‌تر شده است.
  */
-export function combinedSimilarity(titleA: string, titleB: string): number {
+export interface SimilarityMetrics {
+  inclusion: number;
+  tokenOverlap: number;
+  fuzzyToken: number;
+  levenshtein: number;
+  bigram: number;
+  legacyWord: number;
+  combined: number;
+}
+
+export function combinedSimilarity(
+  titleA: string,
+  titleB: string,
+  onMetrics?: (metrics: SimilarityMetrics) => void,
+): number {
   const a = normalizePersianText(titleA);
   const b = normalizePersianText(titleB);
   if (!a || !b) return 0;
-  if (a === b) return 1;
+  if (a === b) {
+    onMetrics?.({
+      inclusion: 1,
+      tokenOverlap: 1,
+      fuzzyToken: 1,
+      levenshtein: 1,
+      bigram: 1,
+      legacyWord: 1,
+      combined: 1,
+    });
+    return 1;
+  }
 
   // ۱. شامل بودن یکی در دیگری (منطق قدیمی: 0.85) — تقویت با نسبت طول
   let inclusionScore = 0;
@@ -200,7 +225,17 @@ export function combinedSimilarity(titleA: string, titleB: string): number {
     0.15 * bigramScore +
     0.10 * levScore;
 
-  return Math.min(1, Math.max(combined, legacyScore > 0 ? legacyScore * 0.95 : 0));
+  const finalScore = Math.min(1, Math.max(combined, legacyScore > 0 ? legacyScore * 0.95 : 0));
+  onMetrics?.({
+    inclusion: inclusionScore,
+    tokenOverlap: tokenScore,
+    fuzzyToken: fuzzyTokenScore,
+    levenshtein: levScore,
+    bigram: bigramScore,
+    legacyWord: legacyScore,
+    combined: finalScore,
+  });
+  return finalScore;
 }
 
 // ============================================
@@ -297,6 +332,7 @@ export interface CompareContext {
   instances: Map<number, EngineInstance>; // نمونه‌ها بر اساس شناسه
   assets: Map<number, EngineAsset[]>;      // دارایی‌ها بر اساس nodeId
   options: Required<GapAnalysisEngineOptions>;
+  onSimilarityMetrics?: (metrics: SimilarityMetrics) => void;
 }
 
 /** استخراج شناسه‌های قالب از گره (پشتیبانی از آرایه یا رشته جداشده با کاما) */
@@ -330,7 +366,7 @@ export function buildAncestorPath(node: EngineNode, allNodes: Map<number, Engine
  * خروجی: بهترین تطابق به همراه امتیاز تفصیلی و شرح فارسی.
  */
 export function compareRequiredLeaf(ctx: CompareContext): MatchResult {
-  const { requiredNode, requiredAncestors, producedLeaves, producedAncestors, instances, assets, options } = ctx;
+  const { requiredNode, requiredAncestors, producedLeaves, producedAncestors, instances, assets, options, onSimilarityMetrics } = ctx;
   const requiredTemplateIds = extractTemplateIds(requiredNode);
 
   let best: MatchResult | null = null;
@@ -427,7 +463,7 @@ export function compareRequiredLeaf(ctx: CompareContext): MatchResult {
     }
 
     // ---------- مرحله ۵: شباهت فازی ترکیبی (عنوان + ساختار) ----------
-    const titleSim = combinedSimilarity(requiredNode.title, producedLeaf.title);
+    const titleSim = combinedSimilarity(requiredNode.title, producedLeaf.title, onSimilarityMetrics);
     const requiredPath: StructurePath = { pathTitles: requiredAncestors.map(a => a.title), level: requiredNode.level };
     const producedPath: StructurePath = {
       pathTitles: (producedAncestors.get(producedLeaf.id) || []).map(a => a.title),
@@ -515,6 +551,7 @@ export function compareRequiredLeaf(ctx: CompareContext): MatchResult {
 export interface EngineReportInput {
   requiredTreeName: string;
   producedTreeName: string | null;
+  options?: Pick<Required<GapAnalysisEngineOptions>, 'fuzzyThreshold' | 'partialMatchThreshold' | 'titleWeight' | 'structureWeight' | 'templateWeight'>;
   results: Array<{
     requiredNodeId: number;
     requiredNodeTitle: string;
@@ -557,7 +594,9 @@ export function buildAnalysisReport(input: EngineReportInput): EngineReport {
 
   const coveragePercent = totalLeaves > 0 ? Math.round((filledGaps / totalLeaves) * 100) : 0;
   const weightedCoveragePercent = totalLeaves > 0
-    ? Math.round((results.reduce((sum, r) => sum + Math.min(1, r.matchScore), 0) / totalLeaves) * 100)
+    ? Math.round((results.reduce((sum, result) => (
+      sum + (result.status === 'filled' ? 1 : result.status === 'partially_filled' ? 0.5 : 0)
+    ), 0) / totalLeaves) * 100)
     : 0;
 
   // گروه‌بندی بر اساس سطح
@@ -590,21 +629,32 @@ export function buildAnalysisReport(input: EngineReportInput): EngineReport {
     .map(r => ({ title: r.requiredNodeTitle, level: r.level, status: r.status, matchScore: r.matchScore }));
 
   // ---- شرح روش تحلیل ----
+  const options = {
+    fuzzyThreshold: input.options?.fuzzyThreshold ?? DEFAULT_ENGINE_OPTIONS.fuzzyThreshold,
+    partialMatchThreshold: input.options?.partialMatchThreshold ?? DEFAULT_ENGINE_OPTIONS.partialMatchThreshold,
+    titleWeight: input.options?.titleWeight ?? DEFAULT_ENGINE_OPTIONS.titleWeight,
+    structureWeight: input.options?.structureWeight ?? DEFAULT_ENGINE_OPTIONS.structureWeight,
+    templateWeight: input.options?.templateWeight ?? DEFAULT_ENGINE_OPTIONS.templateWeight,
+  };
   const methodologyFa = [
-    `۱. گره‌های برگ و پرسش‌های سطح پایین (L و Q) از درختواره «${input.requiredTreeName}» به عنوان نیازهای دانشی استخراج شدند (${totalLeaves} گره).`,
+    `نیازهای قابل تحلیل (گره‌های برگ و پرسش، سطح L و Q) از درختوارهٔ «${input.requiredTreeName}» استخراج شدند؛ تعداد: ${totalLeaves}.`,
     input.producedTreeName
-      ? `۲. برگ‌های درختواره تولیدشده «${input.producedTreeName}» به عنوان دارایی‌های موجود بررسی شدند و قالب‌ها، نمونه‌ها و دارایی‌های دانشی هر گره جمع‌آوری شد.`
-      : '۲. چون درختواره تولیدشده‌ای انتخاب نشد، همه نیازها به عنوان «گپ باز» ثبت شدند.',
-    '۳. برای هر نیاز، سه نوع تطابق به ترتیب اولویت بررسی شد: تطابق دستی تأیید‌شده (بازنگری کاربر)، تطابق کامل قالبی (همه قالب‌های لازم موجود)، و تطابق جزئی قالبی (حداقل ۳۰٪ قالب‌ها).',
-    `۴. اگر تطابق قالبی پیدا نمی‌شد، شباهت فازی عنوان با ۵ روش مستقل محاسبه شد:
-    • لوانشتاین — فاصله ویرایشی حرف‌به‌حرف: حداقل تعداد حذف/اضافه/جایگزینی حروف برای تبدیل یک عنوان به عنوان دیگر. تغییرات کوچک تایپی را می‌گیرد و به طول رشته حساس است.
-    • بای‌گرام — مقایسه جفت‌حرف‌های مجاور (مثلاً «فا-وا»، «وا-ره») با شاخص سایرنسن‑دایس: نسبت بای‌گرام‌های مشترک به کل بای‌گرام‌ها. در برابر جابجایی ترتیب حروف مقاوم‌تر از لوانشتاین است.
-    • توکن فازی — هر «کلمه» عنوان با نزدیک‌ترین کلمه عنوان دیگر تطبیق داده می‌شود (تطبیق یک‌به‌یک حریصانه): تفاوت‌های نگارشی و تصریفی کلمات را می‌بخشد.
-    • اشتراک واژگان — تعداد کلمات دقیقاً مشترک تقسیم بر میانگین تعداد کلمات دو عنوان: وقتی هر دو عنوان از واژگان مشترک سازمانی استفاده کنند قوی‌ترین سیگنال را می‌دهد.
-    • امتیاز ساختاری — شباهت مسیر والد‌ها (از ریشه تا برگ) با همان معیار اشتراک واژگان: وقتی دو گره در شاخه‌های هم‌نام ساختاری قرار دارند امتیاز می‌گیرد حتی اگر عنوان‌شان متفاوت باشد.
-    این ۵ امتیاز با میانگین وزن‌دار (۳۰٪ شامل‌بودن/توکن‌ها + ۲۵٪ اشتراک واژگان + ۲۰٪ توکن فازی + ۱۵٪ بای‌گرام + ۱۰٪ لوانشتاین) ترکیب و سپس با وزن ۶۰٪ عنوان + ۲۰٪ جایگاه ساختاری + ۲۰٪ قالب‌های مشترک به امتیاز نهایی تبدیل شد.`,
-    '۵. امتیاز نهایی بالاتر از آستانه تطابق (پیش‌فرض ۴۵٪) به عنوان پوشش کامل یا جزئی ثبت شد؛ زیر آستانه، «گپ باز». امتیاز تفکیکی هر روش در scoreBreakdown ذخیره می‌شود تا شفاف باشد هر روش چند امتیاز داده است.',
-    '۶. در پایان، رکورد گپ هر نیاز با امتیاز تطابق، نوع تطابق، شرح فارسی چرایی و زنجیره مرجع (مسیر مالک) ثبت شد. گپ‌های همان درختواره جایگزین شدند اما بازنگری‌های دستی کاربر حفظ و بر نتیجه جدید اعمال گردید (تأیید/رد/تغییر).',
+      ? `گره‌های برگ و پرسش در درختوارهٔ «${input.producedTreeName}» به‌همراه قالب‌ها، نمونه‌ها و دارایی‌های دانشی آن‌ها خوانده شدند.`
+      : 'درختوارهٔ تولیدشده‌ای انتخاب نشده بود؛ بنابراین تطابق با دارایی تولیدشده بررسی نشد.',
+    input.producedTreeName
+      ? 'برای هر نیاز، ابتدا علامت تطابق دستیِ عنوان یکسان و سپس وجود همهٔ قالب‌های لازم در گره‌های تولیدشده بررسی شد.'
+      : 'چون گرهٔ تولیدشده‌ای برای مقایسه نبود، نیازها در این مرحله بدون تطابق تولیدشده باقی ماندند.',
+    input.producedTreeName
+      ? `اگر همهٔ قالب‌ها پیدا نشد، پوشش جزئی قالب‌ها سنجیده شد؛ حداقل لازم در این اجرا ${Math.round(options.partialMatchThreshold * 100)}٪ بود.`
+      : 'بررسی پوشش قالبی انجام نشد؛ همهٔ نیازها به‌عنوان گپ باز ثبت شدند.',
+    input.producedTreeName
+      ? `برای موارد باقی‌مانده، شباهت عنوان و مسیر والدها محاسبه شد (ترکیب واژگان، توکن فازی، بای‌گرام و فاصلهٔ ویرایشی)؛ آستانهٔ پذیرش ${Math.round(options.fuzzyThreshold * 100)}٪ بود.`
+      : 'بررسی شباهت عنوان و ساختار انجام نشد، چون درختوارهٔ تولیدشده‌ای وجود نداشت.',
+    input.producedTreeName
+      ? `نتیجهٔ هر نیاز به «پوشش کامل»، «پوشش جزئی» یا «گپ باز» تبدیل شد؛ وزن عنوان ${Math.round(options.titleWeight * 100)}٪، ساختار ${Math.round(options.structureWeight * 100)}٪ و قالب ${Math.round(options.templateWeight * 100)}٪ بود.`
+      : 'نتیجهٔ هر نیاز به‌عنوان «گپ باز» ثبت شد.',
+    'بازنگری‌های دستی ذخیره‌شده پس از نتیجهٔ خودکار اعمال شدند تا نظر کاربر حفظ شود.',
+    'نتیجه و پیوند گرهٔ متناظر ثبت شد؛ سپس آمار پوشش و خلاصهٔ گزارش محاسبه شد. سوابق پژوهشی موجود حذف نشدند.',
   ];
 
   // ---- جمع‌بندی ----

@@ -235,7 +235,7 @@ export function SearchableSelect({
         <div className="flex-1 min-w-0 pr-2 text-right">
           {selectedOption ? (
             <div className="flex flex-col truncate">
-              <span className="text-sm truncate font-medium text-gray-800 leading-snug">
+              <span className={`text-sm truncate font-medium leading-snug ${isDark ? 'text-white' : 'text-gray-800'}`}>
                 {selectedOption.label}
               </span>
               {selectedOption.sublabel && (

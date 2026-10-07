@@ -29,7 +29,9 @@ import {
 } from 'lucide-react';
 import { PageToolbar, PageToolbarAction } from '../ui/PageToolbar';
 import { ConfirmModal } from '../ui/ConfirmModal';
+import { TreeLevelsHelp } from '../../pages/Trees/components/TreeLevelsHelp';
 import { exportToExcel } from '../../lib/excelUtils';
+import { formatPersianDate as formatDate } from '../../utils/persianDate';
 import toast from 'react-hot-toast';
 
 export interface TreeItem {
@@ -70,23 +72,12 @@ interface TreeIndexPageProps {
   onSoftDeleteTree: (treeId: number) => Promise<boolean>;
   onRestoreTree: (treeId: number) => Promise<boolean>;
   onPermanentDeleteTree: (treeId: number) => Promise<boolean>;
-  onShowHelp?: () => void;
 }
 
 // فرمت‌کننده تاریخ شمسی ساده و تمیز
 function formatPersianDate(isoString: string): string {
   if (!isoString) return '-';
-  try {
-    const d = new Date(isoString);
-    if (isNaN(d.getTime())) return isoString;
-    return new Intl.DateTimeFormat('fa-IR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(d);
-  } catch {
-    return isoString.substring(0, 10);
-  }
+  return formatDate(isoString);
 }
 
 export function TreeIndexPage({
@@ -107,13 +98,13 @@ export function TreeIndexPage({
   onSoftDeleteTree,
   onRestoreTree,
   onPermanentDeleteTree,
-  onShowHelp,
 }: TreeIndexPageProps) {
   // فیلترها و وضعیت
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState<string>('all');
   const [selectedBase, setSelectedBase] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'active' | 'trash'>('active');
+  const [showHelp, setShowHelp] = useState(false);
 
   // صفحه‌بندی
   const [currentPage, setCurrentPage] = useState(1);
@@ -263,18 +254,15 @@ export function TreeIndexPage({
       },
       title: 'بارگذاری مجدد داده‌ها',
     },
-    ...(onShowHelp
-      ? [
-          {
-            id: 'help',
-            label: 'راهنمای کاربری',
-            icon: HelpCircle,
-            variant: 'ghost' as const,
-            onClick: onShowHelp,
-            title: 'راهنمای درختواره‌ها',
-          },
-        ]
-      : []),
+    {
+      id: 'help',
+      label: 'راهنمای کاربری',
+      icon: HelpCircle,
+      variant: 'ghost',
+      onClick: () => setShowHelp(value => !value),
+      title: 'راهنمای درختواره‌ها',
+      active: showHelp,
+    },
   ];
 
   return (
@@ -286,7 +274,29 @@ export function TreeIndexPage({
         icon={MainIcon}
         iconColor={iconGradient}
         actions={toolbarActions}
+        pdfEnabled={!loading && paginatedList.length > 0}
+        actionsClassName="flex-nowrap overflow-x-auto pb-1"
       />
+
+      {showHelp && (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-7 text-blue-900">
+            <strong className="block mb-1">
+              {treeType === 'required'
+                ? 'راهنمای درختواره مورد نیاز'
+                : treeType === 'produced'
+                  ? 'راهنمای درختواره تولیدشده'
+                  : 'راهنمای درختواره پژوهشی'}
+            </strong>
+            {treeType === 'required'
+              ? 'درختواره مورد نیاز، دانش و توانمندی‌های لازم را از ریشه تا برگ تعریف می‌کند. برای شروع، درختواره را ایجاد یا انتخاب کنید و سپس گره‌ها را به ترتیب سطح بسازید.'
+              : treeType === 'produced'
+                ? 'درختواره تولیدشده، دانش و توانمندی‌های موجود را ثبت می‌کند. درختواره را انتخاب کنید و گره‌های موجود را در سطح مناسب وارد کنید.'
+                : 'درختواره پژوهشی برای سازمان‌دهی موضوعات پژوهشی و پیگیری گپ‌های دانشی است. درختواره را انتخاب کنید تا موارد پژوهشی و وضعیت آن‌ها را ببینید.'}
+          </div>
+          <TreeLevelsHelp />
+        </div>
+      )}
 
       {/* ۲. کارت‌های آماری سریع */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
@@ -532,8 +542,11 @@ export function TreeIndexPage({
                       </td>
 
                       {/* تاریخ ایجاد */}
-                      <td className="py-4 px-4 text-center whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 font-mono">
-                        {formatPersianDate(tree.createdAt)}
+                      <td className="py-4 px-4 text-center whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                          <Calendar size={13} className="text-gray-400" />
+                          {formatPersianDate(tree.createdAt)}
+                        </span>
                       </td>
 
                       {/* وضعیت */}

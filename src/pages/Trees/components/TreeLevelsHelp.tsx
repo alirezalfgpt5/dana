@@ -3,7 +3,7 @@ import { HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { LEVELS, LEVEL_ORDER } from '../constants/treeLevels';
 
 export function TreeLevelsHelp() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">

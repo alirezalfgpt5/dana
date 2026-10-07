@@ -1,10 +1,12 @@
 // src/components/ui/PageToolbar.tsx
 // کامپوننت نوار ابزار هماهنگ بالای صفحات با چیدمان آیکون در بالا و عنوان در زیر
 
-import React from 'react';
-import { LucideIcon } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { FileSpreadsheet, FileText, LucideIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { exportCurrentPageToExcel, createPdfReportSnapshot, hasCurrentPagePdfData } from '../../utils/reportExport';
+import { PdfPreview } from '../shared/PdfPreview';
 
 export interface PageToolbarAction {
   id: string;
@@ -24,8 +26,10 @@ export interface PageToolbarProps {
   icon?: LucideIcon | React.ComponentType<{ size?: number; className?: string }>;
   iconColor?: string;
   actions?: PageToolbarAction[];
+  actionsClassName?: string;
   extra?: React.ReactNode;
   className?: string;
+  pdfEnabled?: boolean;
 }
 
 const variantStyles: Record<string, {
@@ -90,11 +94,56 @@ export function PageToolbar({
   icon: Icon,
   iconColor = 'from-blue-600 to-indigo-600',
   actions = [],
+  actionsClassName,
   extra,
   className,
+  pdfEnabled,
 }: PageToolbarProps) {
+  const [pdfPreview, setPdfPreview] = useState<{ title: string; html: string } | null>(null);
+  const [pageHasPdfData, setPageHasPdfData] = useState(false);
+  const hasExcelExport = actions.some(action => /excel|export/i.test(action.id));
+  const hasPdfExport = actions.some(action => /pdf|print/i.test(action.id));
+  const pageTitle = typeof title === 'string' ? title : 'گزارش صفحه';
+  const canCreatePdf = pdfEnabled ?? pageHasPdfData;
+
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (!main) return;
+    const updateAvailability = () => setPageHasPdfData(hasCurrentPagePdfData());
+    updateAvailability();
+    const observer = new MutationObserver(updateAvailability);
+    observer.observe(main, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, []);
+
+  const exportActions: PageToolbarAction[] = [
+    ...(!hasExcelExport ? [{
+      id: 'page-export-excel',
+      label: 'خروجی اکسل',
+      icon: FileSpreadsheet,
+      variant: 'success' as const,
+      onClick: () => {
+        void exportCurrentPageToExcel(pageTitle);
+      },
+      title: 'دریافت اطلاعات قابل مشاهدهٔ این صفحه در قالب اکسل',
+    }] : []),
+    ...(!hasPdfExport ? [{
+      id: 'page-export-pdf',
+      label: 'خروجی PDF',
+      icon: FileText,
+      variant: 'indigo' as const,
+      onClick: () => {
+        const snapshot = createPdfReportSnapshot(pageTitle);
+        if (snapshot) setPdfPreview(snapshot);
+      },
+      disabled: !canCreatePdf,
+      title: 'آماده‌سازی نسخهٔ صفحه‌آرایی‌شده برای چاپ یا ذخیره به‌صورت PDF',
+    }] : []),
+  ];
+
   return (
     <div
+      data-page-toolbar="true"
       className={twMerge(
         'w-full bg-white dark:bg-[#1e1e2f] border border-gray-200/80 dark:border-gray-800 rounded-2xl p-4 shadow-sm transition-all duration-200',
         className
@@ -139,9 +188,9 @@ export function PageToolbar({
         <div className="flex flex-wrap items-center gap-2.5 justify-end">
           {extra && <div className="flex items-center gap-2 flex-wrap">{extra}</div>}
 
-          {actions.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {actions.map((action) => {
+          {actions.length + exportActions.length > 0 && (
+            <div className={twMerge('flex items-center gap-2 flex-wrap', actionsClassName)}>
+              {[...actions, ...exportActions].map((action) => {
                 const ActionIcon = action.icon;
                 const variant = action.variant || 'secondary';
                 const style = variantStyles[variant] || variantStyles.secondary;
@@ -191,6 +240,13 @@ export function PageToolbar({
           )}
         </div>
       </div>
+      {pdfPreview && (
+        <PdfPreview
+          title={pdfPreview.title}
+          html={pdfPreview.html}
+          onClose={() => setPdfPreview(null)}
+        />
+      )}
     </div>
   );
 }

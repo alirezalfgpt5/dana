@@ -24,7 +24,7 @@ import toast from 'react-hot-toast';
 import { TreeGraphView } from '../Trees/components/TreeGraphView';
 import { getTreeOrgText } from '../../utils/orgHelper';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { formatNumber } from '../../utils/numberFormat';
+import { formatNumber, getDatePickerDigits } from '../../utils/numberFormat';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 
 // استخراج امن کامپوننت‌ها برای جلوگیری از خطای Element type is invalid در React 19 / Vite
@@ -51,8 +51,8 @@ const safeTransition = () => {
 type OutputType = 'tree' | 'gaps' | 'research' | 'issues' | 'full-report';
 
 export function Outputs() {
-  const { trees, fetchTrees, exportTree } = useTree();
-  const { exportExcel, getGraphData, loading, graphData } = useOutputs();
+  const { trees, fetchTrees } = useTree();
+  const { exportExcel, getGraphData, graphLoading, graphData, error: graphError } = useOutputs();
   const [fullscreenChart, setFullscreenChart] = useState<string | null>(null);
 
   const handleFullscreenToggle = (chartId: string) => {
@@ -123,15 +123,9 @@ export function Outputs() {
         responsibleUnit: selectedUnit || undefined,
       };
 
-      if (outputType === 'tree') {
-        await exportTree(selectedTreeId!);
-      } else {
-        await exportExcel(outputType, selectedTreeId || 0, options);
-      }
-
-      toast.success('📥 فایل اکسل با موفقیت دانلود شد');
+      await exportExcel(outputType, selectedTreeId || 0, options);
     } catch (error: any) {
-      toast.error(error.message || '❌ خطا در خروجی اکسل');
+      console.error('Excel output failed:', error);
     } finally {
       setIsExporting(false);
     }
@@ -143,9 +137,13 @@ export function Outputs() {
       return;
     }
 
-    await getGraphData(selectedTreeId);
     setShowPreview(true);
-    toast.success('📊 پیش‌نمایش گراف بارگذاری شد');
+    const result = await getGraphData(selectedTreeId);
+    if (result?.nodes.length) {
+      toast.success('پیش‌نمایش گراف بارگذاری شد');
+    } else if (result) {
+      toast('این درختواره هنوز گرهی برای نمایش گراف ندارد.', { icon: 'ℹ️' });
+    }
   };
 
   // گزینه‌های درختواره
@@ -175,6 +173,7 @@ export function Outputs() {
         subtitle="استخراج اکسل، تحلیل آماری و نمایش گراف درختواره‌ها"
         icon={FileSpreadsheet}
         iconColor="from-blue-500 to-cyan-600"
+        pdfEnabled={showPreview && !graphLoading && !!graphData?.nodes.length}
         actions={[
           {
             id: 'export-excel',
@@ -190,7 +189,7 @@ export function Outputs() {
             label: 'پیش‌نمایش گراف',
             icon: Eye,
             variant: 'indigo',
-            disabled: !selectedTreeId || loading,
+            disabled: !selectedTreeId || graphLoading,
             onClick: handlePreview,
             title: 'مشاهده پیش‌نمایش گراف درختواره',
           },
@@ -238,7 +237,10 @@ export function Outputs() {
             <SearchableSelect
               options={treeOptions}
               value={selectedTreeId ? String(selectedTreeId) : ''}
-              onChange={(val) => setSelectedTreeId(val ? parseInt(val as string) : null)}
+              onChange={(val) => {
+                setShowPreview(false);
+                setSelectedTreeId(val ? parseInt(val as string) : null);
+              }}
               placeholder="انتخاب درختواره..."
             />
           </div>
@@ -308,6 +310,9 @@ export function Outputs() {
                 onChange={(date: any) => setFromDate(date)}
                 calendar={persian}
                 locale={persian_fa}
+                digits={getDatePickerDigits()}
+                portal
+                zIndex={10000}
                 animations={safeTransition() ? [safeTransition()] : []}
                 format="YYYY/MM/DD"
                 inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-right font-sans text-sm pr-10"
@@ -337,6 +342,9 @@ export function Outputs() {
                 onChange={(date: any) => setToDate(date)}
                 calendar={persian}
                 locale={persian_fa}
+                digits={getDatePickerDigits()}
+                portal
+                zIndex={10000}
                 animations={safeTransition() ? [safeTransition()] : []}
                 format="YYYY/MM/DD"
                 inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-right font-sans text-sm pr-10"
@@ -404,14 +412,14 @@ export function Outputs() {
       </div>
 
       {/* Preview */}
-      {showPreview && graphData && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
+      {showPreview && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden" data-pdf-content data-pdf-has-data={!graphLoading && !!graphData?.nodes.length}>
           <div className="p-4 border-b bg-gradient-to-r from-gray-50 to-white flex items-center justify-between">
             <div className="flex items-center gap-3">
               <BarChart3 size={18} className="text-indigo-600" />
               <h3 className="font-bold text-gray-800">👁️ پیش‌نمایش گراف</h3>
               <span className="text-xs text-gray-400">
-                {graphData.tree?.name} 
+                {graphData?.tree?.name || treeOptions.find(option => option.value === String(selectedTreeId))?.label}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -425,9 +433,28 @@ export function Outputs() {
             </div>
           </div>
                     <div className="p-6 bg-gray-50/50">
-            {loading ? (
+            {graphLoading ? (
               <div className="flex items-center justify-center h-96">
                 <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : graphError ? (
+              <div role="alert" className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-xl border border-rose-200 bg-rose-50 p-6 text-center text-rose-800">
+                <p className="font-semibold">پیش‌نمایش گراف بارگذاری نشد.</p>
+                <p className="text-sm">{graphError}</p>
+                <button
+                  type="button"
+                  onClick={() => selectedTreeId && void getGraphData(selectedTreeId)}
+                  disabled={!selectedTreeId}
+                  className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                >
+                  تلاش دوباره
+                </button>
+              </div>
+            ) : !graphData?.nodes.length ? (
+              <div role="status" className="flex min-h-64 flex-col items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 p-6 text-center text-sky-800">
+                <GitBranch size={32} className="text-sky-600" />
+                <p className="font-semibold">برای این درختواره گرهی جهت نمایش وجود ندارد.</p>
+                <p className="text-sm">درختوارهٔ انتخاب‌شده را بررسی کنید یا پس از ثبت گره‌ها، پیش‌نمایش را دوباره بارگذاری کنید.</p>
               </div>
             ) : (
               <div className="space-y-6">

@@ -591,6 +591,11 @@ export function Definitions() {
         icon={SettingsIcon}
         iconColor="from-slate-600 to-indigo-600"
         actions={toolbarActions}
+        pdfEnabled={activeTab === 'dynamic-meta' ? undefined : !loading && (
+          activeTab === 'levels' ? levels.length > 0 :
+          activeTab === 'knowledge-types' ? knowledgeTypes.length > 0 :
+          orgLevels.length > 0
+        )}
       />
 
       {/* Tabs */}
@@ -614,7 +619,17 @@ export function Definitions() {
           </div>
         </div>
 
-        <div className="p-6">{renderTabContent()}</div>
+        <div
+          data-pdf-content
+          data-pdf-has-data={activeTab === 'dynamic-meta' ? undefined : (
+            activeTab === 'levels' ? levels.length > 0 :
+            activeTab === 'knowledge-types' ? knowledgeTypes.length > 0 :
+            orgLevels.length > 0
+          )}
+          className="p-6"
+        >
+          {renderTabContent()}
+        </div>
       </div>
 
       {/* Modals */}

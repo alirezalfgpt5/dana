@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store';
-import { Shield, Plus, Edit2, Trash2, CheckSquare, Square, Save, X } from 'lucide-react';
+import { Shield, Plus, Edit2, Trash2, CheckSquare, Square, Save, X, RefreshCw, HelpCircle, History } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { MENU_CONFIG } from '../config/menuConfig'; // We'll extract flattened routes from here or hardcode it
+import { PageToolbar, PageToolbarAction } from '../components/ui/PageToolbar';
+import { useNavigate } from 'react-router-dom';
 
 // For simplicity, we define a list of permissions:
 const ALL_PERMISSIONS = [
@@ -28,8 +29,10 @@ const ALL_PERMISSIONS = [
 
 export function RolesManagement() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [roles, setRoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
   
   const [showModal, setShowModal] = useState(false);
   const [editingRole, setEditingRole] = useState<any>(null);
@@ -133,28 +136,57 @@ export function RolesManagement() {
     setShowModal(true);
   };
 
+  const toolbarActions: PageToolbarAction[] = [
+    {
+      id: 'add-role',
+      label: 'نقش جدید',
+      icon: Plus,
+      variant: 'primary',
+      onClick: () => openModal(),
+    },
+    {
+      id: 'audit-history',
+      label: 'تاریخچه تغییرات',
+      icon: History,
+      variant: 'indigo',
+      onClick: () => navigate('/audit'),
+    },
+    {
+      id: 'refresh',
+      label: 'بروزرسانی',
+      icon: RefreshCw,
+      onClick: fetchRoles,
+      disabled: loading,
+    },
+    {
+      id: 'help',
+      label: 'راهنمای کاربری',
+      icon: HelpCircle,
+      variant: 'ghost',
+      onClick: () => setShowHelp(value => !value),
+    },
+  ];
+
   if (user?.role !== 'superadmin' && user?.role !== 'admin') {
     return <div className="p-8 text-center text-red-500">شما دسترسی به این بخش را ندارید</div>;
   }
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Shield className="text-purple-500" />
-            نقش‌ها و دسترسی‌ها
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">مدیریت نقش‌های سیستم و سطوح دسترسی کاربران</p>
+      <PageToolbar
+        title="نقش‌ها و دسترسی‌ها"
+        subtitle="مدیریت نقش‌های سیستم و سطوح دسترسی کاربران"
+        icon={Shield}
+        iconColor="from-purple-600 to-indigo-600"
+        actions={toolbarActions}
+      />
+
+      {showHelp && (
+        <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 text-sm leading-7 text-purple-900" role="status">
+          <strong className="block mb-1">راهنمای نقش‌ها و دسترسی‌ها</strong>
+          از «نقش جدید» برای تعریف نقش استفاده کنید، سپس دسترسی‌های صفحات را انتخاب و ذخیره کنید. نقش‌های سیستمی و نقش دارای دسترسی کامل محدودیت ویرایش دارند. برای مشاهده رویدادهای ثبت‌شده، «تاریخچه تغییرات» را باز کنید.
         </div>
-        <button 
-          onClick={() => openModal()}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 shadow-lg shadow-purple-200/50"
-        >
-          <Plus size={18} />
-          نقش جدید
-        </button>
-      </div>
+      )}
 
       <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl border border-gray-200 dark:border-[#2d2d44] shadow-sm overflow-hidden">
         <div className="overflow-x-auto">

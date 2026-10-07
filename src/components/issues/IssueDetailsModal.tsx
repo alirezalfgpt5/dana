@@ -8,7 +8,7 @@ import {
   Calendar, Shield, AlertCircle, Paperclip, Download, ChevronLeft,
   FileDown, ExternalLink
 } from 'lucide-react';
-import { format } from 'date-fns-jalali';
+import { formatPersianDateTime } from '../../utils/persianDate';
 import { formatCurrency, formatNumber } from '../../utils/numberFormat';
 import { getIssueOrgText } from '../../utils/orgHelper';
 
@@ -607,7 +607,7 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
                             <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
                               <span>حجم: {formatFileSize(att.fileSize)}</span>
                               {att.uploadedAt && (
-                                <span>تاریخ بارگذاری: {format(new Date(att.uploadedAt), 'yyyy/MM/dd HH:mm')}</span>
+                                <span>تاریخ بارگذاری: {formatPersianDateTime(att.uploadedAt)}</span>
                               )}
                             </div>
                           </div>

@@ -390,6 +390,7 @@ export function initDb() {
       stage_100 TEXT,
       application TEXT,
       status TEXT DEFAULT 'pending',
+      category TEXT,
       metadata TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -585,7 +586,6 @@ export function initDb() {
     const treeNodeCols = (sqlite.prepare("PRAGMA table_info(tree_nodes)").all() as any[]).map(c => c.name);
     if (!treeNodeCols.includes('knowledge_type')) {
       sqlite.exec('ALTER TABLE tree_nodes ADD COLUMN knowledge_type TEXT;');
-      console.log('✅ Added knowledge_type column to tree_nodes');
     }
   } catch (e) {}
 
@@ -597,11 +597,9 @@ export function initDb() {
     if (!researchCols.includes('period_id')) {
       sqlite.exec('ALTER TABLE research_items ADD COLUMN period_id INTEGER REFERENCES periods(id);');
       sqlite.exec('CREATE INDEX IF NOT EXISTS research_period_idx ON research_items(period_id);');
-      console.log('✅ Added period_id column to research_items');
     }
     if (!researchCols.includes('issue_id')) {
       sqlite.exec('ALTER TABLE research_items ADD COLUMN issue_id INTEGER REFERENCES issues(id);');
-      console.log('✅ Added issue_id column to research_items');
     }
   } catch (e) {}
 
@@ -614,8 +612,6 @@ export function initDb() {
   // ============================================
   // ۲-۲. درج داده‌های اولیه (Seed)
   // ============================================
-
-  console.log('📝 Inserting initial data...');
 
   // ۱. انواع دانش (Knowledge Types)
   const defaultKnowledgeTypes = [
@@ -793,7 +789,6 @@ export function initDb() {
       new Date().toISOString(),
       new Date().toISOString()
     );
-    console.log('✅ Admin user created (username: admin, password: admin123)');
   }
 
   // ============================================
@@ -804,7 +799,9 @@ export function initDb() {
     if (!issuesCols.includes('period_id')) {
       sqlite.exec("ALTER TABLE issues ADD COLUMN period_id INTEGER REFERENCES periods(id);");
       sqlite.exec("CREATE INDEX IF NOT EXISTS issues_period_idx ON issues(period_id);");
-      console.log('✅ Added period_id column to issues');
+    }
+    if (!issuesCols.includes('category')) {
+      sqlite.exec('ALTER TABLE issues ADD COLUMN category TEXT;');
     }
     // انتساب دوره برای مسائلی که period_id ندارند از روی درخت متناظر گره
     sqlite.exec(`
@@ -828,7 +825,6 @@ export function initDb() {
     if (!gapsCols.includes('period_id')) {
       sqlite.exec("ALTER TABLE gaps ADD COLUMN period_id INTEGER REFERENCES periods(id);");
       sqlite.exec("CREATE INDEX IF NOT EXISTS gaps_period_idx ON gaps(period_id);");
-      console.log('✅ Added period_id column to gaps');
     }
     sqlite.exec(`
       UPDATE gaps 
@@ -852,7 +848,6 @@ export function initDb() {
     if (!issuesCols.includes('source_issue_id')) {
       sqlite.exec("ALTER TABLE issues ADD COLUMN source_issue_id INTEGER REFERENCES issues(id) ON DELETE SET NULL;");
       sqlite.exec("CREATE INDEX IF NOT EXISTS issues_source_issue_idx ON issues(source_issue_id);");
-      console.log('✅ Added source_issue_id column to issues');
     }
     // بازگردانی خودکار شناسه‌های مبدأ از روی متادیتای نسخه‌های منتقل‌شده قبلی
     try {
@@ -872,7 +867,5 @@ export function initDb() {
   // ۲-۳. سیدر داده‌ها طبق درخواست کاربر دستی است (Manual Console Seed)
   // دستور اجرا در کنسول: npm run seed
   // ============================================
-  console.log('💡 [DANA Database] سید خودکار غیرفعال است. جهت اجرای سید دستی از دستور "npm run seed" در کنسول استفاده فرمایید.');
-  
-  console.log('🎉 Database initialization completed!');
+  console.log('💡 [DANA Database] Auto-seed is disabled. To run the seed manually, use the "npm run seed" command in the console.');
 }

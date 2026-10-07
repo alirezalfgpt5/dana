@@ -53,6 +53,8 @@ export const ApplicationTab: React.FC<ApplicationTabProps> = ({
               calendar={persian}
               locale={persian_fa}
               format="YYYY/MM/DD"
+              portal
+              zIndex={10000}
               inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none bg-gray-50/50 focus:bg-white text-sm pr-10"
               containerClassName="w-full"
               placeholder="انتخاب تاریخ..."

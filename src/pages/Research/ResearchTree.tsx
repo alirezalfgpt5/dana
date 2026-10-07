@@ -4,7 +4,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTree } from '../../hooks/useTree';
-import { useGapAnalysis } from '../../hooks/useGapAnalysis';
 import { 
   Database, Search, X, Download, RefreshCw,
   CheckCircle, AlertCircle, Clock, 
@@ -20,9 +19,26 @@ import toast from 'react-hot-toast';
 import { useUIStore } from '../../store';
 import { TreeIndexPage } from '../../components/trees/TreeIndexPage';
 import { PageToolbar } from '../../components/ui/PageToolbar';
+import { useUserPreference } from '../../utils/userPreferences';
 import { TreeModal } from '../Trees/modals/TreeModal';
 import { useTreeData } from '../Trees/hooks/useTreeData';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
+
+const matchesResearchFilter = (filter: FilterGroup | null, row: any): boolean => {
+  if (!filter) return true;
+  const matchesRule = (rule: FilterGroup | { field: string; op: string; value: string | string[] }) => {
+    if ('rules' in rule) return matchesResearchFilter(rule, row);
+    const actual = String(row[rule.field] ?? '').toLocaleLowerCase();
+    const values = (Array.isArray(rule.value) ? rule.value : [rule.value]).map(value => String(value).toLocaleLowerCase());
+    if (rule.op === 'neq') return !values.includes(actual);
+    if (rule.op === 'like') return values.some(value => actual.includes(value));
+    if (rule.op === 'in') return values.includes(actual);
+    return values.includes(actual);
+  };
+  return filter.condition === 'AND'
+    ? filter.rules.every(matchesRule)
+    : filter.rules.some(matchesRule);
+};
 
 export function ResearchTree() {
   const navigate = useNavigate();
@@ -36,15 +52,15 @@ export function ResearchTree() {
     fetchTree, 
     tree, 
     loading, 
+    error: treeError,
     deleteTree, 
     restoreTree, 
     createTree, 
     updateTree 
   } = useTree();
-  const { gaps, fetchGaps } = useGapAnalysis();
   const { periods, bases, units, orgLevels, fetchPeriods, fetchOrgData } = useTreeData();
 
-  const [viewMode, setViewMode] = useState<'table' | 'tree'>('table');
+  const [viewMode, setViewMode] = useUserPreference<'table' | 'tree'>('research:viewMode', 'table');
   const [searchTerm, setSearchTerm] = useState('');
   const [advancedFilter, setAdvancedFilter] = useState<FilterGroup | null>(null);
   const [filterPriority, setFilterPriority] = useState<string>('all');
@@ -108,6 +124,7 @@ export function ResearchTree() {
   const [editingResearchItem, setEditingResearchItem] = useState<any>(null);
   const [researchFormData, setResearchFormData] = useState<any>({});
   const [savingResearch, setSavingResearch] = useState(false);
+  const [repairingResearchTree, setRepairingResearchTree] = useState(false);
   const [programCoveragesOptions, setProgramCoveragesOptions] = useState<any[]>([]);
   const [priorityOptions, setPriorityOptions] = useState<string[]>(['critical', 'high', 'medium', 'low']);
   const [importanceOptions, setImportanceOptions] = useState<string[]>(['راهبردی', 'عملیاتی', 'تاکتیکی']);
@@ -140,14 +157,8 @@ export function ResearchTree() {
           }));
         }
       });
-      fetchGaps({ 
-         treeId: selectedTreeId,
-         search: searchTerm || undefined,
-         priority: filterPriority !== 'all' ? filterPriority : undefined,
-         advancedFilter: advancedFilter ? JSON.stringify(advancedFilter) : undefined
-      });
     }
-  }, [selectedTreeId, searchTerm, filterPriority, advancedFilter]);
+  }, [selectedTreeId]);
 
   // باز کردن خودکار فرم ویرایش در صورت وجود پارامتر edit در آدرس
   useEffect(() => {
@@ -225,7 +236,7 @@ export function ResearchTree() {
     setConfirmModal({
       isOpen: true,
       title: 'انتقال درختواره پژوهشی به سطل بازیافت',
-      message: `آیا از انتقال درختواره پژوهشی «${tree?.name}» به سطل بازیافت اطمینان دارید؟`,
+      message: `آیا از انتقال درختواره پژوهشی «${selectedTree?.name || ''}» به سطل بازیافت اطمینان دارید؟`,
       action: async () => {
         const success = await deleteTree(selectedTreeId, false);
         if (success) {
@@ -236,15 +247,44 @@ export function ResearchTree() {
   };
 
   const researchTrees = trees.filter(t => t.type === 'research');
-  const filteredGaps = gaps;
+  const selectedTree = Number(tree?.id) === selectedTreeId ? tree as any : null;
+  const treeNodes = Array.isArray(selectedTree?.nodes) ? selectedTree.nodes : [];
+  const researchItems = Array.isArray(selectedTree?.research) ? selectedTree.research : [];
+  const treeGaps = Array.isArray(selectedTree?.gaps) ? selectedTree.gaps : [];
+  const filteredGaps: any[] = treeNodes
+    .map((node: any) => {
+      const researchItem = researchItems.find((item: any) => Number(item.nodeId) === Number(node.id));
+      const gap = researchItem
+        ? treeGaps.find((item: any) => Number(item.id) === Number(researchItem.gapId))
+        : treeGaps.find((item: any) => Number(item.requiredNodeId) === Number(node.id));
+      return {
+        ...gap,
+        id: researchItem?.id ?? node.id,
+        title: node.title || 'بدون عنوان',
+        description: node.description,
+        requiredNode: node,
+        status: gap?.status || 'open',
+        priority: researchItem?.priority || node.priority || gap?.priority,
+        researchItem: researchItem || null,
+      };
+    })
+    .filter((row: any) => {
+      const query = searchTerm.trim().toLocaleLowerCase();
+      if (query && ![row.title, row.description, row.priority, row.researchItem?.responsibleUnit]
+        .some(value => String(value || '').toLocaleLowerCase().includes(query))) return false;
+      if (filterPriority !== 'all' && row.priority !== filterPriority) return false;
+      if (filterImportance !== 'all' && row.researchItem?.importance !== filterImportance) return false;
+      if (filterTimeFrame !== 'all' && row.researchItem?.timeFrame !== filterTimeFrame) return false;
+      return matchesResearchFilter(advancedFilter, row);
+    });
 
   // آمار
   const stats = {
-    total: gaps.length,
-    open: gaps.filter(g => g.status === 'open').length,
-    filled: gaps.filter(g => g.status === 'filled').length,
-    partial: gaps.filter(g => g.status === 'partially_filled').length,
-    byPriority: gaps.reduce((acc: any, gap) => {
+    total: filteredGaps.length,
+    open: filteredGaps.filter((g: any) => g.status === 'open').length,
+    filled: filteredGaps.filter((g: any) => g.status === 'filled').length,
+    partial: filteredGaps.filter((g: any) => g.status === 'partially_filled').length,
+    byPriority: filteredGaps.reduce((acc: any, gap: any) => {
       const priority = gap.priority || 'medium';
       acc[priority] = (acc[priority] || 0) + 1;
       return acc;
@@ -269,7 +309,7 @@ export function ResearchTree() {
       await api.put(`/api/research/${editingResearchItem.id}`, researchFormData);
       toast.success('اطلاعات پژوهش با موفقیت ذخیره شد');
       setEditingResearchItem(null);
-      if (selectedTreeId) fetchGaps({ treeId: selectedTreeId });
+      if (selectedTreeId) fetchTree(selectedTreeId);
     } catch (e: any) {
       toast.error(e.message || 'خطا در ذخیره اطلاعات');
     } finally {
@@ -277,9 +317,54 @@ export function ResearchTree() {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    if (!selectedTreeId || researchItems.length === 0) return;
+    try {
+      const response = await window.customFetch(`/api/outputs/research/${selectedTreeId}/excel`);
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || `خطا در دریافت فایل (${response.status})`);
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `درختواره_پژوهشی_${selectedTreeId}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error('Research tree Excel export failed:', error);
+      toast.error(error instanceof Error ? error.message : 'خطا در دریافت فایل اکسل');
+    }
+  };
+
+  const handleRepairResearchTree = async () => {
     if (!selectedTreeId) return;
-    window.location.href = `/api/export/research?treeId=${selectedTreeId}`;
+    setRepairingResearchTree(true);
+    try {
+      const response = await window.customFetch('/api/gaps/generate-research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ researchTreeId: selectedTreeId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'بازیابی موضوع‌های پژوهشی ناموفق بود');
+
+      if (result.success) {
+        toast.success(result.message || 'موضوع‌های پژوهشی بازیابی شدند');
+      } else {
+        toast(result.message || 'گپی برای تولید موضوع پژوهشی پیدا نشد', { icon: 'ℹ️' });
+      }
+      await fetchTree(selectedTreeId);
+      await fetchTrees({ type: 'research' });
+    } catch (error) {
+      console.error('Failed to repair the selected research tree:', error);
+      toast.error(error instanceof Error ? error.message : 'بازیابی موضوع‌های پژوهشی ناموفق بود');
+    } finally {
+      setRepairingResearchTree(false);
+    }
   };
 
   // =========================================================================
@@ -321,7 +406,6 @@ export function ResearchTree() {
           onPermanentDeleteTree={async (id) => {
             return await deleteTree(id, true);
           }}
-          onShowHelp={() => setShowHelp(!showHelp)}
         />
 
         {/* مدال ایجاد / ویرایش درختواره پژوهشی */}
@@ -371,7 +455,8 @@ export function ResearchTree() {
       icon: Download,
       variant: 'success' as const,
       onClick: handleExport,
-      title: 'دریافت خروجی اکسل از موارد پژوهشی',
+      disabled: researchItems.length === 0,
+      title: researchItems.length ? 'دریافت خروجی اکسل از موارد پژوهشی' : 'در این درختواره مورد پژوهشی برای خروجی وجود ندارد',
     },
     {
       id: 'refresh',
@@ -381,7 +466,6 @@ export function ResearchTree() {
       onClick: () => {
         if (selectedTreeId) {
           fetchTree(selectedTreeId);
-          fetchGaps({ treeId: selectedTreeId });
           toast.success('اطلاعات بروزرسانی شد');
         }
       },
@@ -392,7 +476,8 @@ export function ResearchTree() {
       label: 'ویرایش مشخصات',
       icon: Edit2,
       variant: 'warning' as const,
-      onClick: () => handleEditTreeClick(tree),
+      onClick: () => handleEditTreeClick(selectedTree),
+      disabled: !selectedTree,
       title: 'ویرایش مشخصات درختواره پژوهشی',
     },
     {
@@ -408,7 +493,7 @@ export function ResearchTree() {
       label: 'راهنما',
       icon: HelpCircle,
       variant: 'ghost' as const,
-      onClick: () => setShowHelp(!showHelp),
+      onClick: () => setShowHelp(value => !value),
       title: 'راهنمای تحلیل پژوهش',
     },
   ];
@@ -417,12 +502,39 @@ export function ResearchTree() {
     <div className="space-y-6" dir="rtl">
       {/* نوار ابزار اختصاصی بالای صفحه با آیکون در بالا و عنوان در زیر */}
       <PageToolbar
-        title={tree?.name || 'درختواره پژوهشی'}
-        subtitle={tree ? `ساختار سازمانی: ${getTreeOrgText(tree)} • دوره: ${(tree as any).periodName || 'نامشخص'}` : 'در حال بارگذاری...'}
+        title={selectedTree?.name || 'درختواره پژوهشی'}
+        subtitle={selectedTree ? `ساختار سازمانی: ${getTreeOrgText(selectedTree)} • دوره: ${selectedTree.periodName || 'نامشخص'}` : 'در حال بارگذاری...'}
         icon={Database}
         iconColor="from-purple-600 to-indigo-600"
         actions={viewToolbarActions}
+        actionsClassName="flex-nowrap overflow-x-auto pb-1"
+        pdfEnabled={!loading && treeNodes.length > 0}
       />
+      {!selectedTree && !loading && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <span>{treeError || 'درختواره پژوهشی انتخاب‌شده پیدا نشد یا داده‌ای برای نمایش ندارد.'}</span>
+          <button
+            type="button"
+            onClick={() => void fetchTree(selectedTreeId)}
+            className="shrink-0 rounded-lg bg-amber-100 px-3 py-1.5 font-medium hover:bg-amber-200"
+          >
+            تلاش دوباره
+          </button>
+        </div>
+      )}
+      {selectedTree && !loading && treeNodes.length === 0 && (
+        <div role="status" className="flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800 sm:flex-row sm:items-center sm:justify-between">
+          <span>برای این درختواره هنوز گرهی ثبت نشده است. اگر در تحلیل شکاف گپ باز یا نیمه‌پر دارید، بازیابی را اجرا کنید؛ گپ‌های تکمیل‌شده به موضوع پژوهشی تبدیل نمی‌شوند.</span>
+          <button
+            type="button"
+            onClick={() => void handleRepairResearchTree()}
+            disabled={repairingResearchTree || loading}
+            className="shrink-0 rounded-lg bg-sky-700 px-3 py-2 font-semibold text-white transition hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {repairingResearchTree ? 'در حال بازیابی...' : 'بازیابی موضوع‌ها از گپ‌ها'}
+          </button>
+        </div>
+      )}
 
       {/* راهنما */}
       {showHelp && (
@@ -447,7 +559,7 @@ export function ResearchTree() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div data-pdf-content data-pdf-has-data={treeNodes.length > 0} className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-500 font-medium">مجموع شکاف‌های پژوهشی</p>
@@ -528,11 +640,11 @@ export function ResearchTree() {
 
       {/* Visualization / Content */}
       {viewMode === 'tree' ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 min-h-[500px]">
-          <TreeGraphView nodes={tree?.nodes || []} treeName={tree?.name || 'درختواره پژوهشی'} />
+        <div data-pdf-content data-pdf-chart data-pdf-has-data={treeNodes.length > 0} className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 min-h-[500px]">
+          <TreeGraphView nodes={treeNodes} treeName={selectedTree?.name || 'درختواره پژوهشی'} />
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
+        <div data-pdf-content data-pdf-has-data={filteredGaps.length > 0} className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-right border-collapse">
               <thead>
@@ -554,7 +666,7 @@ export function ResearchTree() {
                     </td>
                   </tr>
                 ) : (
-                  filteredGaps.map(gap => (
+                  filteredGaps.map((gap: any) => (
                     <tr key={gap.id} className="hover:bg-purple-50/20 transition-colors">
                       <td className="p-3.5">
                         <div className="font-medium text-gray-800">{(gap as any).title || gap.requiredNode?.title}</div>
@@ -574,23 +686,27 @@ export function ResearchTree() {
                           {gap.priority || 'نامشخص'}
                         </span>
                       </td>
-                      <td className="p-3.5 text-xs text-gray-600">{gap.researchItem?.importanceLevel || '-'}</td>
+                      <td className="p-3.5 text-xs text-gray-600">{gap.researchItem?.importance || '-'}</td>
                       <td className="p-3.5 text-xs text-gray-600">{gap.researchItem?.timeFrame || '-'}</td>
                       <td className="p-3.5 text-xs text-gray-600">{gap.researchItem?.costBenefit || '-'}</td>
                       <td className="p-3.5">
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => {
-                              setEditingResearchItem(gap.researchItem || { id: gap.id });
-                              setResearchFormData(gap.researchItem || {});
+                              if (!gap.researchItem) return;
+                              setEditingResearchItem(gap.researchItem);
+                              setResearchFormData(gap.researchItem);
                             }}
+                            disabled={!gap.researchItem}
+                            title={gap.researchItem ? 'ویرایش ابعاد پژوهشی' : 'برای این گره، اطلاعات پژوهشی ثبت نشده است'}
                             className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                            title="ویرایش ابعاد پژوهشی"
                           >
                             <Edit2 size={16} />
                           </button>
                           <button
                             onClick={() => handleConvertToIssue(gap)}
+                            disabled={!gap.researchItem}
+                            title={gap.researchItem ? 'تبدیل موضوع پژوهشی به مسئله' : 'برای این گره، اطلاعات پژوهشی ثبت نشده است'}
                             className="px-2.5 py-1 text-xs font-medium bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors"
                           >
                             تبدیل به مسئله

@@ -5,10 +5,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   History, Search, Filter, X, ChevronDown, ChevronUp,
   User, Calendar, Activity, FileText, Trash2, Edit, Plus,
-  RefreshCw, AlertCircle, CheckCircle, Clock, Eye
+  RefreshCw, AlertCircle, CheckCircle, Clock, Eye, HelpCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns-jalali';
+import { formatPersianDateTime } from '../utils/persianDate';
+import { PageToolbar, PageToolbarAction } from '../components/ui/PageToolbar';
 
 interface AuditLogEntry {
   id: number;
@@ -31,6 +32,7 @@ export function AuditLog() {
   const [pageSize] = useState(15);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [stats, setStats] = useState({ total: 0, creates: 0, updates: 0, deletes: 0 });
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     fetchLogs();
@@ -107,7 +109,7 @@ export function AuditLog() {
   const formatDate = (dateStr: string) => {
     try {
       const date = new Date(dateStr);
-      return format(date, 'yyyy/MM/dd HH:mm:ss');
+      return formatPersianDateTime(date, 'yyyy/MM/dd HH:mm:ss');
     } catch { return dateStr; }
   };
 
@@ -129,30 +131,44 @@ export function AuditLog() {
   const totalPages = Math.ceil(filteredLogs.length / pageSize);
   const paginatedLogs = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+  const toolbarActions: PageToolbarAction[] = [
+    {
+      id: 'refresh',
+      label: 'بروزرسانی',
+      icon: RefreshCw,
+      variant: 'primary',
+      onClick: () => {
+        fetchLogs();
+        fetchStats();
+      },
+      disabled: loading,
+    },
+    {
+      id: 'help',
+      label: 'راهنمای کاربری',
+      icon: HelpCircle,
+      variant: 'ghost',
+      onClick: () => setShowHelp(value => !value),
+    },
+  ];
+
   return (
     <div className="space-y-6" dir="rtl">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-200/50">
-              <History size={24} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">تاریخچه تغییرات سیستم</h1>
-              <p className="text-gray-500 text-sm mt-0.5">ردگیری تمامی عملیات‌های انجام شده توسط کاربران</p>
-            </div>
-          </div>
+      <PageToolbar
+        title="تاریخچه تغییرات سیستم"
+        subtitle="ردگیری تمامی عملیات‌های انجام‌شده توسط کاربران"
+        icon={History}
+        iconColor="from-indigo-500 to-purple-600"
+        pdfEnabled={!loading && logs.length > 0}
+        actions={toolbarActions}
+      />
+
+      {showHelp && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm leading-7 text-indigo-900" role="status">
+          <strong className="block mb-1">راهنمای تاریخچه تغییرات</strong>
+          عملیات را بر اساس نام کاربر، نوع عملیات یا ماژول فیلتر کنید. دکمهٔ جزئیات هر ردیف، داده‌های کامل تغییر را نشان می‌دهد؛ تاریخ‌ها با تقویم شمسی نمایش داده می‌شوند.
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => window.print()} disabled={loading || logs.length === 0} className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-gray-200/50 disabled:opacity-50 disabled:cursor-not-allowed">
-            <FileText size={16} /> خروجی PDF
-          </button>
-          <button onClick={fetchLogs} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-indigo-200/50">
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> بروزرسانی
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

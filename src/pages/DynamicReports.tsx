@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Download } from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { createPdfReportSnapshot, hasCurrentPagePdfData, type PdfReportSnapshot } from '../utils/reportExport';
+import { PdfPreview } from '../components/shared/PdfPreview';
+import { formatPersianDate } from '../utils/persianDate';
 
 export const DynamicReports: React.FC = () => {
   const [data, setData] = useState<{ issues: any[]; gaps: any[]; nodes: any[] } | null>(null);
@@ -12,6 +15,7 @@ export const DynamicReports: React.FC = () => {
   const [dataSource, setDataSource] = useState<'issues' | 'gaps' | 'nodes'>('issues');
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
   const [groupByField, setGroupByField] = useState('status');
+  const [pdfPreview, setPdfPreview] = useState<PdfReportSnapshot | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -123,7 +127,7 @@ export const DynamicReports: React.FC = () => {
       `منبع داده: ${dataSourceLabels[dataSource] || dataSource}`,
       `شاخص گروه‌بندی: ${groupByLabels[groupByField] || groupByField}`,
       `تعداد کل رکوردها: ${exportData.length}`,
-      `تاریخ گزارش: ${new Date().toLocaleDateString('fa-IR')}`
+      `تاریخ گزارش: ${formatPersianDate(new Date())}`
     ]);
     chartSheet.getRow(2).font = { name: FONT_NAME, size: 9, color: { argb: 'FF475569' } };
     chartSheet.getRow(2).alignment = { vertical: 'middle' };
@@ -322,7 +326,7 @@ export const DynamicReports: React.FC = () => {
           priority: priorityMap[gap.priority] || gap.priority || 'متوسط',
           matchScore: gap.matchScore ? `${gap.matchScore}%` : '۰%',
           description: gap.description || '-',
-          createdAt: gap.createdAt ? new Date(gap.createdAt).toLocaleDateString('fa-IR') : '-',
+          createdAt: gap.createdAt ? formatPersianDate(gap.createdAt) : '-',
         });
 
         row.height = 22;
@@ -454,6 +458,15 @@ export const DynamicReports: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setPdfPreview(createPdfReportSnapshot('گزارش‌ساز پویا و تحلیل وضعیت مسائل'))}
+            disabled={!hasCurrentPagePdfData()}
+            className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+            title="چاپ یا ذخیره گزارش و نمودارهای فعلی به‌صورت PDF"
+          >
+            <FileText className="w-4 h-4 ml-2" />
+            خروجی PDF
+          </button>
+          <button
             onClick={async () => {
               try {
                 toast.loading('در حال دریافت خروجی کامل اکسل از سرور...', { id: 'srv-excel' });
@@ -568,10 +581,11 @@ export const DynamicReports: React.FC = () => {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
         ) : (
-          <div className="mt-8">
+          <div className="mt-8" data-pdf-content data-pdf-has-data={!loading && chartData.length > 0}>
             {renderChart()}
           </div>
         )}
+        {pdfPreview && <PdfPreview title={pdfPreview.title} html={pdfPreview.html} onClose={() => setPdfPreview(null)} />}
       </div>
     </div>
   );

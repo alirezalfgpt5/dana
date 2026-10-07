@@ -24,6 +24,7 @@ interface Gap {
   hasResearch?: boolean;
   researchItemId?: number | null;
   researchItem?: any;
+  researchItems?: any[];
   issue?: any;
 }
 
@@ -71,6 +72,8 @@ interface PaginatedResponse {
     totalPages: number;
   };
 }
+
+const ANALYSIS_RESULT_SESSION_KEY = 'gap_analysis_current_result';
 
 export function useGapAnalysis() {
   const [gaps, setGaps] = useState<Gap[]>([]);
@@ -134,6 +137,75 @@ export function useGapAnalysis() {
     }
   }, []);
 
+  const fetchAllGaps = useCallback(async (treeId: number): Promise<Gap[] | null> => {
+    try {
+      const allGaps: Gap[] = [];
+      let page = 1;
+      let totalPages = 1;
+
+      do {
+        const params = new URLSearchParams({
+          treeId: String(treeId),
+          page: String(page),
+          limit: '100',
+        });
+        const response: PaginatedResponse = await apiClient(`/api/gaps?${params.toString()}`);
+        if (!Array.isArray(response.data) || !response.pagination) {
+          throw new Error('ساختار پاسخ فهرست ارتباط‌های گپ نامعتبر است');
+        }
+        allGaps.push(...response.data);
+        totalPages = response.pagination.totalPages;
+        page += 1;
+      } while (page <= totalPages);
+
+      return allGaps;
+    } catch (err: any) {
+      if (!err._toastShown) {
+        toast.error(err.message || 'خطا در دریافت ارتباط‌های تحلیل شکاف');
+      }
+      return null;
+    }
+  }, []);
+
+  const clearAnalysisResults = useCallback(() => {
+    setGaps([]);
+    setReport(null);
+    setPagination({ total: 0, page: 1, limit: 20, totalPages: 0 });
+    lastFiltersRef.current = {};
+    try {
+      sessionStorage.removeItem(ANALYSIS_RESULT_SESSION_KEY);
+    } catch {
+      // Session storage may be unavailable in restricted browser contexts.
+    }
+  }, []);
+
+  const restoreAnalysisResults = useCallback((requiredTreeId: number, producedTreeId: number) => {
+    try {
+      const stored = sessionStorage.getItem(ANALYSIS_RESULT_SESSION_KEY);
+      if (!stored) return false;
+      const cached = JSON.parse(stored);
+      if (
+        Number(cached.requiredTreeId) !== requiredTreeId
+        || Number(cached.producedTreeId) !== producedTreeId
+        || !cached.report
+        || !Array.isArray(cached.gaps)
+      ) return false;
+
+      setReport(cached.report);
+      setGaps(cached.gaps);
+      setPagination({
+        total: Number(cached.totalGaps) || cached.gaps.length,
+        page: 1,
+        limit: Number(cached.totalGaps) || cached.gaps.length || 20,
+        totalPages: 1,
+      });
+      return true;
+    } catch (error) {
+      console.error('Failed to restore the current gap analysis result:', error);
+      return false;
+    }
+  }, []);
+
   // ============================================
   // دریافت یک گپ با جزئیات کامل
   // ============================================
@@ -158,8 +230,14 @@ export function useGapAnalysis() {
   // ============================================
 
   const analyzeGaps = useCallback(async (requiredTreeId: number, producedTreeId: number, options?: {
+    fuzzyThreshold?: number;
+    partialMatchThreshold?: number;
+    titleWeight?: number;
+    structureWeight?: number;
+    templateWeight?: number;
+    allowManualChecked?: boolean;
     defaultPriority?: string;
-  }) => {
+  }, runId?: string) => {
     setLoading(true);
 
     try {
@@ -170,11 +248,29 @@ export function useGapAnalysis() {
           requiredTreeId,
           producedTreeId,
           options: options || {},
+          runId,
         }),
       });
 
       setReport(data.report);
       setGaps(data.gaps || []);
+      setPagination({
+        total: data.totalGaps || data.gaps?.length || 0,
+        page: 1,
+        limit: data.totalGaps || data.gaps?.length || 20,
+        totalPages: 1,
+      });
+      try {
+        sessionStorage.setItem(ANALYSIS_RESULT_SESSION_KEY, JSON.stringify({
+          requiredTreeId,
+          producedTreeId,
+          report: data.report,
+          gaps: data.gaps || [],
+          totalGaps: data.totalGaps || data.gaps?.length || 0,
+        }));
+      } catch (error) {
+        console.error('Failed to preserve the current gap analysis result for this session:', error);
+      }
       const summary = data.report?.summaryFa || `${data.gaps?.length || 0} گپ شناسایی شد`;
       toast.success(`تحلیل شکاف انجام شد: ${summary.slice(0, 80)}${summary.length > 80 ? '…' : ''}`, { duration: 5000 });
       return data;
@@ -213,7 +309,13 @@ export function useGapAnalysis() {
   // پر کردن گپ
   // ============================================
 
-  const fillGap = useCallback(async (gapId: number, producedNodeId: number, statusChoice: 'filled' | 'partially_filled' = 'filled', description?: string) => {
+  const fillGap = useCallback(async (
+    gapId: number,
+    producedNodeId: number,
+    producedTreeId: number,
+    statusChoice: 'filled' | 'partially_filled',
+    description?: string,
+  ) => {
     setLoading(true);
 
     try {
@@ -222,6 +324,7 @@ export function useGapAnalysis() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           producedNodeId,
+          producedTreeId,
           status: statusChoice,
           description: description || '',
         }),
@@ -305,6 +408,9 @@ export function useGapAnalysis() {
     loading,
     pagination,
     fetchGaps,
+    fetchAllGaps,
+    clearAnalysisResults,
+    restoreAnalysisResults,
     fetchGap,
     analyzeGaps,
     reviewGap,

@@ -25,6 +25,8 @@ import { formatCurrency, formatNumber } from '../../utils/numberFormat';
 import { getIssueOrgText } from '../../utils/orgHelper';
 import toast from 'react-hot-toast';
 import { PageToolbar } from '../../components/ui/PageToolbar';
+import { useUserPreference } from '../../utils/userPreferences';
+import { formatPersianDate } from '../../utils/persianDate';
 
 export function IssueSystem() {
   const location = useLocation();
@@ -69,7 +71,7 @@ export function IssueSystem() {
   const [searchTerm, setSearchTerm] = useState('');
   const [advancedFilter, setAdvancedFilter] = useState<FilterGroup | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'grid' | 'kanban'>('grid');
+  const [viewMode, setViewMode] = useUserPreference<'list' | 'grid' | 'kanban'>('issues:viewMode', 'grid');
   const [dynamicPriorities, setDynamicPriorities] = useState<string[]>(['خیلی زیاد', 'زیاد', 'متوسط', 'کم']);
   const [dynamicCategories, setDynamicCategories] = useState<string[]>([
     'عمومی', 'فنی و مهندسی', 'مدیریتی و سازمانی', 'فرهنگی و اجتماعی', 
@@ -88,6 +90,13 @@ export function IssueSystem() {
       search: searchTerm || undefined,
       advancedFilter: advancedFilter ? JSON.stringify(advancedFilter) : undefined
     });
+  };
+
+  const clearIssueSearch = () => {
+    setSearchTerm('');
+    if (new URLSearchParams(location.search).has('q')) {
+      navigate('/issues', { replace: true });
+    }
   };
 
   const handleExportExcel = async () => {
@@ -122,12 +131,12 @@ export function IssueSystem() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const q = params.get('q');
-    if (q) {
-      setSearchTerm(q);
-    }
+    setSearchTerm(params.get('q') || '');
+  }, [location.search]);
+
+  useEffect(() => {
     loadIssuesData(1);
-  }, [location.search, activePeriod?.id, filterByPeriod, timeFrameFilter, statusFilter, priorityFilter, categoryFilter, searchTerm]);
+  }, [activePeriod?.id, filterByPeriod, timeFrameFilter, statusFilter, priorityFilter, categoryFilter, searchTerm]);
 
   useEffect(() => {
     fetchTemplates().catch(console.error);
@@ -327,6 +336,7 @@ export function IssueSystem() {
         subtitle="مدیریت، پیگیری و به‌روزرسانی مسائل دانشی و پژوهشی"
         icon={FileText}
         iconColor="from-purple-600 to-indigo-600"
+        pdfEnabled={!loading && filteredIssues.length > 0}
         extra={
           <div className="flex items-center gap-2 flex-wrap">
             {activePeriod && (
@@ -560,7 +570,7 @@ export function IssueSystem() {
             {searchTerm && (
               <button
                 type="button"
-                onClick={() => setSearchTerm('')}
+                onClick={clearIssueSearch}
                 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-full transition-colors"
                 title="پاک کردن جستجو"
               >
@@ -655,7 +665,7 @@ export function IssueSystem() {
             <div className="min-w-0">
               <button
                 onClick={() => {
-                  setSearchTerm('');
+                  clearIssueSearch();
                   setStatusFilter('all');
                   setPriorityFilter('all');
                   setCategoryFilter('all');
@@ -756,7 +766,7 @@ export function IssueSystem() {
             {searchTerm && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-[10px]">
                 جستجو: {searchTerm}
-                <button onClick={() => setSearchTerm('')} className="hover:text-red-500">
+                <button onClick={clearIssueSearch} className="hover:text-red-500">
                   <X size={12} />
                 </button>
               </span>
@@ -790,6 +800,7 @@ export function IssueSystem() {
       </div>
 
       {/* Issues List */}
+      <div data-pdf-content data-pdf-has-data={!loading && filteredIssues.length > 0}>
       {loading ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-12 text-center">
           <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -907,7 +918,7 @@ export function IssueSystem() {
                       <span className="w-px h-3 bg-gray-300" />
                       <span>💰 {formatCurrency(issue.requiredBudget || 0)} ریال</span>
                       <span className="w-px h-3 bg-gray-300" />
-                      <span>📅 {issue.approvalDate ? format(new Date(issue.approvalDate), 'yyyy/MM/dd') : '-'}</span>
+                      <span>📅 {formatPersianDate(issue.approvalDate)}</span>
                     </div>
                   </div>
 
@@ -1192,6 +1203,7 @@ export function IssueSystem() {
           })}
         </div>
       )}
+      </div>
 
       {/* Pagination */}
       {!loading && filteredIssues.length > 0 && pagination.totalPages > 1 && (

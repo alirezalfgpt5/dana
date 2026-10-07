@@ -1,6 +1,5 @@
 // src/pages/Gaps/GapAnalysis.tsx
-// صفحه تحلیل شکاف دانشی - نسخه ۴.۰ (ظاهر ارتقاء یافته + گزارش توضیحی تحلیل)
-// منطق کسب‌وکار و فراخوانی‌های API بدون تغییر؛ فقط نمایش و تجربه کاربری بهبود یافته است.
+// صفحه تحلیل شکاف دانشی و نمایش روابط میان نیازها، تولیدشده‌ها و پژوهش‌ها
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useGapAnalysis } from '../../hooks/useGapAnalysis';
@@ -11,16 +10,19 @@ import {
   Filter, HelpCircle, Zap, Edit2, Upload,
   FileText, Info, Layers, Sparkles, TrendingUp, ChevronDown, RotateCcw, ListChecks,
   Database, UserCheck, Ban, ShieldCheck, History, GitBranch as PathIcon, XCircle,
-  Building2
+  Building2, ExternalLink
 } from 'lucide-react';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RelationalView } from '../../components/gaps/RelationalView';
+import { AnalysisTimeline, type AnalysisProgressEvent } from '../../components/gaps/AnalysisTimeline';
 import toast from 'react-hot-toast';
+import { apiClient } from '../../lib/apiClient';
 import { TreeGraphView } from '../Trees/components/TreeGraphView';
 import { useNavigate } from 'react-router-dom';
 import ExcelIcon from '../../components/icon/ExcelIcon';
 import { getTreeOrgText, getGapOrgText } from '../../utils/orgHelper';
 import { PageToolbar } from '../../components/ui/PageToolbar';
+import { useUserPreference } from '../../utils/userPreferences';
 
 /** برچسب فارسی سطوح درختواره */
 const LEVEL_LABELS: Record<string, string> = {
@@ -42,6 +44,9 @@ export function GapAnalysis() {
     loading,
     pagination,
     fetchGaps,
+    fetchAllGaps,
+    clearAnalysisResults,
+    restoreAnalysisResults,
     analyzeGaps,
     reviewGap,
     fillGap,
@@ -49,82 +54,122 @@ export function GapAnalysis() {
     getGapStats,
   } = useGapAnalysis();
 
-  const { trees, fetchTrees } = useTree();
+  const { trees, fetchTrees, loading: treesLoading } = useTree();
 
   // 🟢 کش انتخاب درختواره‌ها در sessionStorage:
   // - اولین ورود بعد از لاگین: خالی
   // - تا وقتی کاربر تغییر ندهد یا لاگ‌اوت نکند: آخرین انتخاب حفظ می‌شود
   const [requiredTreeId, setRequiredTreeIdState] = useState<number | null>(() => {
-    try { const v = sessionStorage.getItem('gap_selected_required_tree'); return v ? parseInt(v) : null; } catch { return null; }
+    try {
+      const value = Number(sessionStorage.getItem('gap_selected_required_tree'));
+      return Number.isInteger(value) && value > 0 ? value : null;
+    } catch {
+      return null;
+    }
   });
   const [producedTreeId, setProducedTreeIdState] = useState<number | null>(() => {
-    try { const v = sessionStorage.getItem('gap_selected_produced_tree'); return v !== null ? parseInt(v) : null; } catch { return null; }
+    try {
+      const stored = sessionStorage.getItem('gap_selected_produced_tree');
+      if (stored === null) return null;
+      const value = Number(stored);
+      return Number.isInteger(value) && value >= 0 ? value : null;
+    } catch {
+      return null;
+    }
   });
   const setRequiredTreeId = (id: number | null) => {
+    if (id !== requiredTreeId) {
+      clearAnalysisResults();
+      setMethodologyEvents([]);
+    }
     setRequiredTreeIdState(id);
     try { id ? sessionStorage.setItem('gap_selected_required_tree', String(id)) : sessionStorage.removeItem('gap_selected_required_tree'); } catch {}
   };
-  const setProducedTreeId = (id: number | null) => {
+  const setProducedTreeId = (id: number | null, invalidateResults = true) => {
+    if (invalidateResults && id !== producedTreeId) {
+      clearAnalysisResults();
+      setMethodologyEvents([]);
+    }
     setProducedTreeIdState(id);
     try { id !== null ? sessionStorage.setItem('gap_selected_produced_tree', String(id)) : sessionStorage.removeItem('gap_selected_produced_tree'); } catch {}
   };
   const [generating, setGenerating] = useState(false);
-  const { tree: requiredTreeData, fetchTree: fetchRequiredTree } = useTree();
-  const { tree: producedTreeData, fetchTree: fetchProducedTree } = useTree();
-  const [viewMode, setViewMode] = useState<'tree' | 'table' | 'relational'>('tree');
-  const [relHoveredGap, setRelHoveredGap] = useState<number | null>(null);
+  const {
+    tree: requiredTreeData,
+    fetchTree: fetchRequiredTree,
+    loading: requiredTreeLoading,
+  } = useTree();
+  const {
+    tree: producedTreeData,
+    fetchTree: fetchProducedTree,
+    loading: producedTreeLoading,
+    error: producedTreeError,
+  } = useTree();
+  const [viewMode, setViewMode] = useUserPreference<'tree' | 'table' | 'relational'>('gaps:viewMode', 'tree');
+  const [relationalGaps, setRelationalGaps] = useState<any[]>([]);
+  const [relationalLoading, setRelationalLoading] = useState(false);
+  const [relationalError, setRelationalError] = useState<string | null>(null);
+  const [relationalRefreshKey, setRelationalRefreshKey] = useState(0);
+  const [analysisActivity, setAnalysisActivity] = useState<'idle' | 'running'>('idle');
+  const [methodologyEvents, setMethodologyEvents] = useState<AnalysisProgressEvent[]>([]);
+
+  useEffect(() => {
+    if (!report || methodologyEvents.length > 0 || !Array.isArray(report.methodologyFa)) return;
+    setMethodologyEvents(report.methodologyFa.map((title: string, id: number) => ({
+      id,
+      title,
+      status: 'completed' as const,
+    })));
+  }, [report, methodologyEvents.length]);
 
   // ساخت داده‌های نمای ارتباطی
   const relRequiredNodes = useMemo(() => {
-    const nodes = requiredTreeData?.nodes || [];
-    return nodes.filter((n: any) => n.level === 'L' || n.level === 'SB').map((n: any) => {
-      const gap = gaps.find((g: any) => g.requiredNodeId === n.id);
-      const research = gap?.researchItem;
+    const nodes = requiredTreeData?.id === requiredTreeId ? requiredTreeData.nodes || [] : [];
+    const gapsByRequiredNode = new Map(relationalGaps.map(gap => [gap.requiredNodeId, gap]));
+    return nodes.filter(n => n.level === 'L' || n.level === 'Q').map(n => {
+      const gap = gapsByRequiredNode.get(n.id);
       return {
         id: n.id,
         title: n.title,
         level: n.level,
         levelLabel: LEVEL_LABELS[n.level] || n.level,
         gapId: gap?.id,
-        gapStatus: gap?.status || 'filled',
+        gapStatus: gap?.status,
+        gapType: gap?.gapType,
         matchScore: gap?.matchScore || 0,
         producedNodeId: gap?.producedNodeId,
-        researchItem: research,
+        producedTreeName: gap?.metadata?.producedTreeName,
+        researchItems: gap?.researchItems || (gap?.researchItem ? [gap.researchItem] : []),
         gap: gap,
       };
     });
-  }, [requiredTreeData, gaps]);
+  }, [requiredTreeData, requiredTreeId, relationalGaps]);
 
   const relProducedNodes = useMemo(() => {
-    const nodes = producedTreeData?.nodes || [];
-    return nodes.filter((n: any) => n.level === 'L' || n.level === 'SB').map((n: any) => {
-      const connectedGap = relRequiredNodes.find((r: any) => r.producedNodeId === n.id);
+    const nodes = producedTreeData?.id === producedTreeId ? producedTreeData.nodes || [] : [];
+    const linkedNodeIds = new Set(relRequiredNodes.map(node => node.producedNodeId).filter(Boolean));
+    return nodes.filter(n => n.level === 'L' || n.level === 'Q').map(n => {
       return {
         id: n.id,
         title: n.title,
         level: n.level,
         levelLabel: LEVEL_LABELS[n.level] || n.level,
-        connected: !!connectedGap,
-        connectedGapId: connectedGap?.gapId,
-        matchScore: connectedGap?.matchScore || 0,
+        connected: linkedNodeIds.has(n.id),
       };
     });
-  }, [producedTreeData, relRequiredNodes]);
+  }, [producedTreeData, producedTreeId, relRequiredNodes]);
 
   const relResearchItems = useMemo(() => {
-    const items: any[] = [];
-    relRequiredNodes.forEach((r: any) => {
-      if (r.researchItem) {
-        items.push({
-          ...r.researchItem,
-          requiredNodeId: r.id,
-          requiredNodeTitle: r.title,
-          gapStatus: r.gapStatus,
-        });
-      }
-    });
-    return items;
-  }, [relRequiredNodes]);
+    return relationalGaps.flatMap(gap =>
+      (gap.researchItems || (gap.researchItem ? [gap.researchItem] : [])).map((item: any) => ({
+        ...item,
+        gapId: gap.id,
+        requiredNodeId: gap.requiredNodeId,
+        requiredNodeTitle: gap.requiredNode?.title || '',
+        gapStatus: gap.status,
+      })),
+    );
+  }, [relationalGaps]);
   // خواندن تنظیمات تحلیل شکاف از localStorage
   const GAP_CONFIG_KEY = 'dana_gap_config';
   const getGapConfig = () => {
@@ -140,8 +185,9 @@ export function GapAnalysis() {
   const [showFillModal, setShowFillModal] = useState(false);
   const [fillProducedNodeId, setFillProducedNodeId] = useState<number | null>(null);
   // 🟢 انتخاب نوع تطابق هنگام پر کردن گپ (کامل یا جزئی)
-  const [fillStatusChoice, setFillStatusChoice] = useState<'filled' | 'partially_filled'>('filled');
+  const [fillStatusChoice, setFillStatusChoice] = useState<'filled' | 'partially_filled' | null>(null);
   const [fillNote, setFillNote] = useState('');
+  const [isFillingGap, setIsFillingGap] = useState(false);
   const [showMethodology, setShowMethodology] = useState(() => {
     const cfg = getGapConfig();
     return cfg?.showMethodology !== undefined ? cfg.showMethodology : false;
@@ -166,9 +212,13 @@ export function GapAnalysis() {
   useEffect(() => {
     if (requiredTreeId) {
       fetchRequiredTree(requiredTreeId);
-      fetchGaps({ treeId: requiredTreeId, page: 1, limit: 20 });
+      const restored = producedTreeId !== null
+        && restoreAnalysisResults(requiredTreeId, producedTreeId);
+      if (!restored) {
+        fetchGaps({ treeId: requiredTreeId, page: 1, limit: 20 });
+      }
     }
-  }, [requiredTreeId, fetchRequiredTree]);
+  }, [requiredTreeId, producedTreeId, fetchRequiredTree, fetchGaps, restoreAnalysisResults]);
 
   useEffect(() => {
     if (producedTreeId) {
@@ -176,13 +226,32 @@ export function GapAnalysis() {
     }
   }, [producedTreeId, fetchProducedTree]);
 
+  useEffect(() => {
+    if (viewMode !== 'relational' || !requiredTreeId) return;
+    let active = true;
+    setRelationalLoading(true);
+    setRelationalError(null);
+
+    fetchAllGaps(requiredTreeId).then(result => {
+      if (!active) return;
+      if (result === null) {
+        setRelationalGaps([]);
+        setRelationalError('بارگذاری داده‌های ارتباطی ناموفق بود. دوباره نمای ارتباطی را باز کنید.');
+      } else {
+        setRelationalGaps(result);
+      }
+    }).finally(() => {
+      if (active) setRelationalLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [viewMode, requiredTreeId, relationalRefreshKey, fetchAllGaps]);
+
   // بارگذاری فهرست درختواره‌ها در آغاز
   useEffect(() => {
     fetchTrees();
-    // اگر کاربر قبلاً در این سشن درختی انتخاب کرده بود، گپ‌های آن بارگذاری شود؛ در غیر این صورت خالی می‌ماند
-    if (requiredTreeId) {
-      fetchGaps({ treeId: requiredTreeId, page: 1, limit: 20 });
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -204,20 +273,105 @@ export function GapAnalysis() {
       return;
     }
 
+    const requiredTree = requiredTrees.find(tree => tree.id === requiredTreeId);
+    const producedTree = producedTreeId > 0
+      ? producedTrees.find(tree => tree.id === producedTreeId)
+      : undefined;
+    if (!requiredTree || (producedTreeId > 0 && !producedTree)) {
+      toast.error('درختوارهٔ انتخاب‌شده در دسترس نیست؛ فهرست درختواره‌ها را تازه‌سازی کنید.');
+      return;
+    }
+
+    const cfg = getGapConfig();
+    const configuredStructureWeight = Number(cfg?.structuralWeight ?? 20);
+    const configuredFuzzyThreshold = Number(cfg?.fuzzyThreshold ?? 45);
+    const structureWeight = Number.isFinite(configuredStructureWeight)
+      ? Math.max(0, Math.min(0.5, configuredStructureWeight / 100))
+      : 0.2;
+    const fuzzyThreshold = Number.isFinite(configuredFuzzyThreshold)
+      ? Math.max(0.1, Math.min(0.8, configuredFuzzyThreshold / 100))
+      : 0.45;
+
+    clearAnalysisResults();
+    setMethodologyEvents([]);
+    setAnalysisActivity('running');
+    setShowMethodology(true);
+
+    const runId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    let polling = true;
+    let pollInFlight: Promise<void> | null = null;
+    let latestProgressEvents: AnalysisProgressEvent[] = [];
+    let progressFailureLogged = false;
+    const pollProgress = () => {
+      if (!polling) return Promise.resolve();
+      if (pollInFlight) return pollInFlight;
+
+      pollInFlight = (async () => {
+        try {
+          const progress = await apiClient<{
+            status: 'running' | 'completed' | 'failed';
+            events: AnalysisProgressEvent[];
+          }>(`/api/gaps/analyze/progress/${runId}`, { showErrorToast: false });
+          latestProgressEvents = progress.events || [];
+          setMethodologyEvents(latestProgressEvents);
+        } catch (error: any) {
+          if (error.status !== 404 && !progressFailureLogged) {
+            progressFailureLogged = true;
+            console.error('Failed to load gap analysis progress:', error);
+          }
+        }
+      })().finally(() => {
+        pollInFlight = null;
+      });
+      return pollInFlight;
+    };
+    let progressTimer: number | undefined;
+
     try {
-      const cfg = getGapConfig();
-      const result = await analyzeGaps(requiredTreeId, producedTreeId);
+      try {
+        await apiClient(`/api/gaps/analyze/progress/${runId}`, {
+          method: 'POST',
+          showErrorToast: false,
+        });
+      } catch (error) {
+        if (!progressFailureLogged) {
+          progressFailureLogged = true;
+          console.error('Could not initialize live gap analysis events:', error);
+        }
+      }
+      await pollProgress();
+      progressTimer = window.setInterval(() => {
+        void pollProgress();
+      }, 350);
+      const result = await analyzeGaps(requiredTreeId, producedTreeId, {
+        fuzzyThreshold,
+        structureWeight,
+        titleWeight: 0.8 - structureWeight,
+        defaultPriority: cfg?.defaultPriority || 'زیاد',
+      }, runId);
+      await pollProgress();
+      await pollProgress();
       if (result) {
         setShowStats(true);
-        if (cfg?.showMethodology !== undefined) {
-          setShowMethodology(cfg.showMethodology);
-        } else {
-          setShowMethodology(true);
+        if (!latestProgressEvents.length || latestProgressEvents.some(event => event.status !== 'completed')) {
+          latestProgressEvents = (result.report?.methodologyFa || []).map((title: string, id: number) => ({
+            id,
+            title,
+            status: 'completed' as const,
+          }));
+          setMethodologyEvents(latestProgressEvents);
         }
         // 🟢 ذخیره سوابق و مسیر مالک از پاسخ سرور
         if (result.runHistory) setRunHistory(result.runHistory);
         if (result.ownerPath) setOwnerPath(result.ownerPath);
-        fetchRequiredTree(requiredTreeId); // Fetch the tree nodes for visualization
+        await fetchRequiredTree(requiredTreeId);
+        setRelationalRefreshKey(key => key + 1);
+      } else if (!latestProgressEvents.some(event => event.status === 'failed')) {
+        setMethodologyEvents(previous => previous.length > 0
+          ? previous.map(event => event.status === 'active' ? { ...event, status: 'failed' } : event)
+          : [{ id: 0, title: 'تحلیل به نتیجه نرسید؛ پیام خطای ثبت‌شده را بررسی کنید.', status: 'failed' }]);
       }
     } catch (error: any) {
       if (error.message?.includes('no such table') || error.message?.includes('SQLITE_ERROR')) {
@@ -225,6 +379,10 @@ export function GapAnalysis() {
       } else {
         toast.error(error.message || 'خطا در تحلیل شکاف');
       }
+    } finally {
+      polling = false;
+      if (progressTimer !== undefined) window.clearInterval(progressTimer);
+      setAnalysisActivity('idle');
     }
   };
 
@@ -239,8 +397,23 @@ export function GapAnalysis() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'خطا در تولید درختواره پژوهشی');
-      toast.success(data.message || 'درختواره پژوهشی با موفقیت تولید شد');
-      fetchGaps({ treeId: requiredTreeId });
+      if (data.success) {
+        if (!Number.isInteger(Number(data.treeId)) || Number(data.nodeCount) < 1) {
+          throw new Error('درختواره پژوهشی ایجاد شد، اما گره‌های ذخیره‌شده تأیید نشدند؛ دوباره تلاش کنید.');
+        }
+        toast.success(data.message || 'درختواره پژوهشی با موفقیت به‌روزرسانی شد');
+        await Promise.all([
+          fetchGaps({ treeId: requiredTreeId }),
+          fetchTrees(),
+        ]);
+        setRelationalRefreshKey(key => key + 1);
+        navigate(`/research?treeId=${data.treeId}`);
+      } else {
+        toast(data.message || 'موضوعی برای تولید پژوهش یافت نشد', { icon: 'ℹ️' });
+        await fetchGaps({ treeId: requiredTreeId });
+        await fetchTrees();
+        setRelationalRefreshKey(key => key + 1);
+      }
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -248,20 +421,35 @@ export function GapAnalysis() {
     }
   };
 
-  const handleFillGap = async (gapId: number, producedNodeId: number, statusChoice: 'filled' | 'partially_filled' = 'filled', note?: string) => {
-    await fillGap(gapId, producedNodeId, statusChoice, note);
-    setShowFillModal(false);
-    setSelectedGap(null);
-    setFillNote('');
-    // 🟢 همگام‌سازی نمای درختی و جدول با وضعیت جدید گپ‌ها
-    if (requiredTreeId) fetchRequiredTree(requiredTreeId);
-    toast.success(statusChoice === 'partially_filled' ? 'گپ با تطابق جزئی ثبت شد' : 'گپ با موفقیت پر شد');
+  const handleFillGap = async (
+    gapId: number,
+    producedNodeId: number,
+    targetTreeId: number,
+    statusChoice: 'filled' | 'partially_filled',
+    note?: string,
+  ) => {
+    setIsFillingGap(true);
+    try {
+      const result = await fillGap(gapId, producedNodeId, targetTreeId, statusChoice, note);
+      if (!result) return;
+
+      setShowFillModal(false);
+      setSelectedGap(null);
+      setFillProducedNodeId(null);
+      setFillStatusChoice(null);
+      setFillNote('');
+      if (requiredTreeId) await fetchRequiredTree(requiredTreeId);
+      setRelationalRefreshKey(key => key + 1);
+    } finally {
+      setIsFillingGap(false);
+    }
   };
 
   const handleDeleteGap = async (gapId: number) => {
     await deleteGap(gapId);
     // 🟢 همگام‌سازی نمای درختی و جدول پس از حذف
     if (requiredTreeId) fetchRequiredTree(requiredTreeId);
+    setRelationalRefreshKey(key => key + 1);
   };
 
   // 🟢 ثبت بازنگری دستی
@@ -271,6 +459,7 @@ export function GapAnalysis() {
     setReviewModalGap(null);
     setReviewNote('');
     if (requiredTreeId) fetchRequiredTree(requiredTreeId);
+    setRelationalRefreshKey(key => key + 1);
   };
 
   const handleConvertToResearch = (gap: any, nodeFallback?: any) => {
@@ -362,6 +551,12 @@ export function GapAnalysis() {
 
   // تعداد گپ‌های باز
   const openGaps = gaps.filter(g => g.status === 'open').length;
+  const isFillTargetTreeLoaded = producedTreeId !== null
+    && producedTreeId > 0
+    && producedTreeData?.id === producedTreeId;
+  const fillableProducedNodes = isFillTargetTreeLoaded
+    ? (producedTreeData.nodes || []).filter(node => node.level === 'L' || node.level === 'Q')
+    : [];
 
   /** تنظیمات حلقه پوشش کلی (donut) */
   const coveragePercent = report?.weightedCoveragePercent ?? (stats.total > 0 ? Math.round((stats.filled / stats.total) * 100) : 0);
@@ -389,6 +584,7 @@ export function GapAnalysis() {
         subtitle="مقایسه درختواره مورد نیاز و تولیدشده - شناسایی گپ‌های دانشی و نیازمندی‌های پژوهش"
         icon={Target}
         iconColor="from-rose-500 to-red-600"
+        pdfEnabled={!loading && !!report}
         actions={[
           {
             id: 'analyze',
@@ -425,15 +621,6 @@ export function GapAnalysis() {
             disabled: !requiredTreeId,
             onClick: () => fileInputRef.current?.click(),
             title: 'ورود اطلاعات گپ‌ها از فایل اکسل',
-          },
-          {
-            id: 'pdf-print',
-            label: 'چاپ / PDF',
-            icon: FileText,
-            variant: 'indigo',
-            disabled: gaps.length === 0,
-            onClick: () => window.print(),
-            title: 'چاپ یا دریافت نسخه PDF گزارش تحلیل',
           },
           {
             id: 'help',
@@ -577,7 +764,8 @@ export function GapAnalysis() {
                 sublabel: `ساختار سازمانی: ${getTreeOrgText(t)}`,
               }))}
               value={requiredTreeId ? String(requiredTreeId) : ''}
-              onChange={(val) => setRequiredTreeId(val ? parseInt(val as string) : null)}
+              onChange={(val) => setRequiredTreeId(val ? Number(val) : null)}
+              disabled={analysisActivity !== 'idle'}
               placeholder="انتخاب درختواره مورد نیاز..."
             />
           </div>
@@ -589,7 +777,8 @@ export function GapAnalysis() {
             <SearchableSelect
               options={producedTreeOptions}
               value={producedTreeId !== null ? String(producedTreeId) : ''}
-              onChange={(val) => setProducedTreeId(val !== '' ? parseInt(val as string) : null)}
+              onChange={(val) => setProducedTreeId(val !== '' ? Number(val) : null)}
+              disabled={analysisActivity !== 'idle'}
               placeholder="انتخاب درختواره تولیدشده..."
             />
           </div>
@@ -634,8 +823,8 @@ export function GapAnalysis() {
       </div>
 
       {/* ═══════════════ شرح تحلیل (گزارش توضیحی موتور) ═══════════════ */}
-      {report && (
-        <div className="relative overflow-hidden bg-gradient-to-l from-slate-50 via-white to-white rounded-2xl shadow-sm border border-slate-200">
+      {(report || analysisActivity === 'running' || methodologyEvents.length > 0) && (
+        <div data-pdf-content data-pdf-has-data={!!report} className="relative overflow-hidden bg-gradient-to-l from-slate-50 via-white to-white rounded-2xl shadow-sm border border-slate-200">
           <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-l from-sky-400 via-indigo-400 to-rose-400" />
           <button
             onClick={() => setShowMethodology(!showMethodology)}
@@ -646,52 +835,60 @@ export function GapAnalysis() {
                 <Sparkles size={18} className="text-white" />
               </div>
               <div className="text-right">
-                <h3 className="font-bold text-gray-800 text-sm">شرح تحلیل انجام‌شده</h3>
+                <h3 className="font-bold text-gray-800 text-sm">
+                  {analysisActivity === 'running' ? 'تحلیل شکاف در حال اجرا' : 'شرح تحلیل انجام‌شده'}
+                </h3>
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  موتور تحلیل نسخه ۲ — {report.requiredTree} {report.producedTree !== 'بدون درختواره تولیدشده' ? `× ${report.producedTree}` : '(بدون تولیدشده)'}
+                  {report
+                    ? `موتور تحلیل نسخه ۲ — ${report.requiredTree} ${report.producedTree !== 'بدون درختواره تولیدشده' ? `× ${report.producedTree}` : '(بدون تولیدشده)'}`
+                    : 'مراحل واقعی اجرا از سرور محلی دریافت می‌شود.'}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[11px] font-medium border border-indigo-100">
-                <FileText size={12} />
-                {report.createdAt}
-              </span>
+              {report && (
+                <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[11px] font-medium border border-indigo-100">
+                  <FileText size={12} />
+                  {report.createdAt}
+                </span>
+              )}
               <ChevronDown size={18} className={`text-gray-400 transition-transform duration-300 ${showMethodology ? 'rotate-180' : ''}`} />
             </div>
           </button>
 
           {showMethodology && (
             <div className="border-t border-slate-100 p-5 animate-fade-in">
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+              <div className={`grid grid-cols-1 gap-5 ${report ? 'lg:grid-cols-5' : ''}`}>
 
                 {/* جمع‌بندی + حلقه پوشش */}
-                <div className="lg:col-span-2 flex flex-col items-center gap-4">
-                  <div className="relative w-36 h-36">
-                    <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
-                      <circle cx="40" cy="40" r="34" fill="none" stroke="#f1f5f9" strokeWidth="9" />
-                      <circle
-                        cx="40" cy="40" r="34" fill="none"
-                        stroke="url(#coverageGradient)"
-                        strokeWidth="9" strokeLinecap="round"
-                        style={{ ...ringStyle, transition: 'stroke-dasharray 1s ease-out' }}
-                      />
-                      <defs>
-                        <linearGradient id="coverageGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="#6366f1" />
-                          <stop offset="100%" stopColor="#ec4899" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-2xl font-black text-gray-800">{coveragePercent}٪</span>
-                      <span className="text-[10px] text-gray-400">پوشش وزن‌دار</span>
+                {report && (
+                  <div className="lg:col-span-2 flex flex-col items-center gap-4">
+                    <div className="relative w-36 h-36">
+                      <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                        <circle cx="40" cy="40" r="34" fill="none" stroke="#f1f5f9" strokeWidth="9" />
+                        <circle
+                          cx="40" cy="40" r="34" fill="none"
+                          stroke="url(#coverageGradient)"
+                          strokeWidth="9" strokeLinecap="round"
+                          style={{ ...ringStyle, transition: 'stroke-dasharray 1s ease-out' }}
+                        />
+                        <defs>
+                          <linearGradient id="coverageGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#6366f1" />
+                            <stop offset="100%" stopColor="#ec4899" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-2xl font-black text-gray-800">{coveragePercent}٪</span>
+                        <span className="text-[10px] text-gray-400">پوشش وزن‌دار</span>
+                      </div>
                     </div>
+                    <p className="text-xs text-gray-600 leading-relaxed text-justify bg-slate-50 rounded-xl p-3 border border-slate-100">
+                      {report.summaryFa}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-600 leading-relaxed text-justify bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    {report.summaryFa}
-                  </p>
-                </div>
+                )}
 
                 {/* گام‌های روش تحلیل */}
                 <div className="lg:col-span-3">
@@ -699,19 +896,10 @@ export function GapAnalysis() {
                     <ListChecks size={14} className="text-indigo-400" />
                     روش تحلیل (گام به گام)
                   </h4>
-                  <ol className="space-y-2.5">
-                    {(report.methodologyFa || []).map((step, i) => (
-                      <li key={i} className="flex gap-3 items-start group">
-                        <span className="shrink-0 w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 text-[11px] font-bold flex items-center justify-center border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                          {i + 1}
-                        </span>
-                        <p className="text-xs text-gray-600 leading-relaxed text-justify pt-0.5">{step}</p>
-                      </li>
-                    ))}
-                  </ol>
+                  <AnalysisTimeline events={methodologyEvents} running={analysisActivity === 'running'} />
 
                   {/* پوشش بر اساس سطح */}
-                  {report.byLevel && Object.keys(report.byLevel).length > 0 && (
+                  {report?.byLevel && Object.keys(report.byLevel).length > 0 && (
                     <div className="mt-4 pt-4 border-t border-slate-100">
                       <h4 className="flex items-center gap-2 text-xs font-bold text-gray-500 mb-2">
                         <TrendingUp size={13} className="text-rose-400" />
@@ -831,7 +1019,7 @@ export function GapAnalysis() {
 
       {/* ═══════════════ کارت‌های آماری ═══════════════ */}
       {gaps.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div data-pdf-content data-pdf-has-data={gaps.length > 0} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {/* کل گپ‌ها */}
           <div className="stat-card bg-white rounded-2xl shadow-sm border border-gray-200/80 p-4 text-center">
             <p className="text-[11px] text-gray-400 mb-1">کل گپ‌ها</p>
@@ -873,7 +1061,6 @@ export function GapAnalysis() {
           </div>
         </div>
       )}
-
       {/* ═══════════════ نتایج ═══════════════ */}
       {loading ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-12 text-center">
@@ -881,17 +1068,19 @@ export function GapAnalysis() {
           <p className="text-gray-500 text-sm">در حال بارگذاری گپ‌ها...</p>
         </div>
       ) : filteredGaps.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-12 text-center">
+        <div data-pdf-content data-pdf-has-data={!!report} className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-12 text-center">
           <div className="w-20 h-20 bg-gradient-to-br from-rose-50 to-amber-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-100">
             <Target size={40} className="text-rose-300" />
           </div>
           <h3 className="text-xl font-bold text-gray-600 mb-2">هیچ گپی یافت نشد</h3>
           <p className="text-gray-400 text-sm max-w-md mx-auto">
             {gaps.length === 0
-              ? 'ابتدا تحلیل شکاف را با انتخاب درختواره‌ها و کلیک روی «اجرای تحلیل شکاف» انجام دهید.'
+              ? report
+                ? 'تحلیل انجام شد و گپی برای نمایش یافت نشد.'
+                : 'ابتدا تحلیل شکاف را با انتخاب درختواره‌ها و کلیک روی «اجرای تحلیل شکاف» انجام دهید.'
               : 'با فیلترهای موجود، گپی یافت نشد. فیلترها را تغییر دهید.'}
           </p>
-          {gaps.length === 0 && (
+          {gaps.length === 0 && !report && (
             <button
               onClick={handleAnalyze}
               disabled={!requiredTreeId || producedTreeId === null}
@@ -941,26 +1130,33 @@ export function GapAnalysis() {
           </div>
 
           {viewMode === 'relational' ? (
-            <RelationalView
-              requiredNodes={relRequiredNodes}
-              producedNodes={relProducedNodes}
-              researchItems={relResearchItems}
-              onNodeClick={(node, type) => {
-                if (type === 'required') {
-                  const gap = gaps.find((g: any) => g.requiredNodeId === node.id);
-                  if (gap && gap.status !== 'filled') {
-                    handleConvertToResearch(gap, node);
-                  } else if (gap) {
-                    toast.success('این نیاز دانشی کاملاً پوشش داده شده است');
+            <div data-pdf-content data-pdf-chart data-pdf-has-data={relRequiredNodes.length > 0 || relProducedNodes.length > 0}>
+              <RelationalView
+                requiredNodes={relRequiredNodes}
+                producedNodes={relProducedNodes}
+                researchItems={relResearchItems}
+                loading={relationalLoading || requiredTreeLoading}
+                error={relationalError}
+                emptyMessage={requiredTreeId
+                  ? 'برای این درختواره هنوز گرهٔ قابل تحلیل یا نتیجهٔ ارتباطی وجود ندارد.'
+                  : 'ابتدا درختوارهٔ مورد نیاز را از بخش انتخاب درختواره‌ها برگزینید.'}
+                onNodeClick={(node, type) => {
+                  if (type === 'required') {
+                    const gap = relationalGaps.find((g: any) => g.requiredNodeId === node.id);
+                    if (gap && gap.status !== 'filled') {
+                      handleConvertToResearch(gap, node);
+                    } else if (gap) {
+                      toast.success('این نیاز دانشی کاملاً پوشش داده شده است');
+                    }
+                  } else if (type === 'research') {
+                    const gap = relationalGaps.find((g: any) => g.id === node.gapId);
+                    if (gap) handleConvertToResearch(gap, node);
                   }
-                } else if (type === 'research') {
-                  const gap = gaps.find((g: any) => g.requiredNodeId === node.requiredNodeId);
-                  if (gap) handleConvertToResearch(gap, node);
-                }
-              }}
-            />
+                }}
+              />
+            </div>
           ) : viewMode === 'tree' ? (
-            <div>
+            <div data-pdf-content data-pdf-chart data-pdf-has-data={!!requiredTreeData?.nodes?.length}>
               {requiredTreeData && requiredTreeData.nodes ? (
                 <TreeGraphView
                   nodes={requiredTreeData.nodes.map((node: any) => {
@@ -991,7 +1187,7 @@ export function GapAnalysis() {
               )}
             </div>
           ) : (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 overflow-hidden">
+            <div data-pdf-content data-pdf-has-data={filteredGaps.length > 0} className="bg-white rounded-2xl shadow-sm border border-gray-200/80 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-right">
                   <thead className="bg-gradient-to-l from-gray-50 to-white border-b border-gray-100">
@@ -1112,7 +1308,9 @@ export function GapAnalysis() {
                               <button
                                 onClick={() => {
                                   setSelectedGap(gap);
-                                  setFillStatusChoice('filled');
+                                  setFillProducedNodeId(null);
+                                  setFillStatusChoice(null);
+                                  setFillNote('');
                                   setShowFillModal(true);
                                 }}
                                 className="p-1.5 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
@@ -1274,7 +1472,7 @@ export function GapAnalysis() {
       {/* ═══════════════ مودال پر کردن گپ ═══════════════ */}
       {showFillModal && selectedGap && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-fade-in">
             <div className="p-4 border-b bg-gradient-to-l from-sky-50 to-indigo-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white rounded-lg shadow-sm border border-sky-100">
@@ -1288,9 +1486,13 @@ export function GapAnalysis() {
                 </div>
               </div>
               <button
+                disabled={isFillingGap}
                 onClick={() => {
                   setShowFillModal(false);
                   setSelectedGap(null);
+                  setFillProducedNodeId(null);
+                  setFillStatusChoice(null);
+                  setFillNote('');
                 }}
                 className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white/70 rounded-lg transition-colors"
               >
@@ -1298,81 +1500,175 @@ export function GapAnalysis() {
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 overflow-y-auto">
               {selectedGap.description && (
                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs text-gray-600 leading-relaxed flex gap-2">
                   <Info size={14} className="text-slate-400 shrink-0 mt-0.5" />
-                  <span>{selectedGap.description}</span>
+                  <div>
+                    <p className="font-semibold text-gray-700 mb-1">نتیجهٔ تحلیل شکاف</p>
+                    <p>{selectedGap.description}</p>
+                    <p className="mt-1 text-gray-500">
+                      این نتیجه فقط تطابق خودکار را نشان می‌دهد؛ برای ثبت ارتباط دستی، گرهٔ درست را از درختوارهٔ تولیدشده انتخاب کنید.
+                    </p>
+                  </div>
                 </div>
               )}
 
               <p className="text-sm text-gray-600">
-                برای پر کردن این گپ، گره تولیدشده معادل را انتخاب کنید:
+                ابتدا درختوارهٔ مقصد را انتخاب کنید؛ سپس گره دانشی متناظر را برگزینید. انتخاب گره، ارتباط آن با این گپ را ثبت می‌کند.
               </p>
-
-              {/* 🟢 نوع تطابق: کامل یا جزئی */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">نوع تطابق</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFillStatusChoice('filled')}
-                    className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 text-xs font-medium ${
-                      fillStatusChoice === 'filled'
-                        ? 'border-emerald-400 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-100'
-                        : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
-                    }`}
-                  >
-                    <CheckCircle size={16} />
-                    تطابق کامل
-                    <span className="text-[10px] opacity-70">دانش به‌طور کامل پوشش داده شده</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFillStatusChoice('partially_filled')}
-                    className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 text-xs font-medium ${
-                      fillStatusChoice === 'partially_filled'
-                        ? 'border-amber-400 bg-amber-50 text-amber-700 ring-2 ring-amber-100'
-                        : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
-                    }`}
-                  >
-                    <AlertCircle size={16} />
-                    تطابق جزئی
-                    <span className="text-[10px] opacity-70">بخشی از نیاز پوشش دارد و ادامه پژوهش لازم است</span>
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">توضیح (اختیاری — در سوابق ثبت می‌شود)</label>
-                <textarea
-                  value={fillNote}
-                  onChange={e => setFillNote(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 min-h-[60px] bg-gray-50/50 focus:bg-white"
-                  placeholder="مثلاً: ۷۰٪ محتوا پوشش داده شده؛ بخش سنجش عملکرد هنوز نیاز به پژوهش دارد..."
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  درختوارهٔ تولیدشده <span className="text-rose-500">*</span>
+                </label>
+                <SearchableSelect
+                  options={producedTrees.map(tree => ({
+                    value: String(tree.id),
+                    label: tree.name,
+                  }))}
+                  value={producedTreeId && producedTreeId > 0 ? String(producedTreeId) : ''}
+                  disabled={producedTreeLoading}
+                  onChange={(value) => {
+                    const nextTreeId = value ? Number(value) : 0;
+                    setProducedTreeId(nextTreeId, false);
+                    setFillProducedNodeId(null);
+                    setFillStatusChoice(null);
+                    setFillNote('');
+                  }}
+                  placeholder="جستجو و انتخاب درختواره..."
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  انتخاب گره تولیدشده <span className="text-rose-500">*</span>
-                </label>
-                {producedTreeId && producedTreeData?.nodes ? (
+              {producedTreeId && producedTreeId > 0 && !producedTrees.some(tree => tree.id === producedTreeId) && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  این درختواره در فهرست فعلی نیست. فهرست را تازه‌سازی کنید و دوباره انتخاب کنید.
+                </div>
+              )}
+
+              {producedTreeId && producedTreeId > 0 && producedTreeLoading && (
+                <div className="rounded-xl border border-sky-100 bg-sky-50 p-3 text-sm text-sky-800">
+                  در حال بارگذاری گره‌های درختواره...
+                </div>
+              )}
+
+              {producedTreeId && producedTreeId > 0 && !producedTreeLoading && !isFillTargetTreeLoaded && producedTreeError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                  بارگذاری گره‌های این درختواره ناموفق بود: {producedTreeError}
+                </div>
+              )}
+
+              {isFillTargetTreeLoaded && fillableProducedNodes.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    گره دانشی متناظر <span className="text-rose-500">*</span>
+                  </label>
                   <SearchableSelect
-                    options={producedTreeData.nodes.map((n: any) => ({
-                      value: String(n.id),
-                      label: n.title,
+                    options={fillableProducedNodes.map(node => ({
+                      value: String(node.id),
+                      label: `${node.title} (${node.level === 'Q' ? 'پرسش' : 'دانش'})`,
                     }))}
                     value={fillProducedNodeId ? String(fillProducedNodeId) : ''}
-                    onChange={(val) => setFillProducedNodeId(val ? parseInt(val as string) : null)}
-                    placeholder="جستجو و انتخاب گره تولیدشده..."
+                    onChange={(value) => setFillProducedNodeId(value ? Number(value) : null)}
+                    placeholder="جستجو و انتخاب گره دانشی..."
                   />
-                ) : (
-                  <div className="text-sm text-rose-500 bg-rose-50 p-2 rounded-lg border border-rose-200">
-                    ابتدا یک درختواره تولیدشده انتخاب کنید.
-                  </div>
+                  <p className="text-xs text-gray-500 mt-1.5">
+                    اگر گرهٔ متناظر وجود ندارد، از پیوند زیر آن را در همین درختواره اضافه کنید و سپس فهرست گره‌ها را تازه کنید.
+                  </p>
+                </div>
+              )}
+
+              {isFillTargetTreeLoaded && fillableProducedNodes.length === 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 space-y-1">
+                  <p className="font-semibold">در این درختواره گره دانشی قابل انتخابی وجود ندارد.</p>
+                  <p>یک گره دانشی یا پرسش به آن اضافه کنید؛ سپس به این پنجره برگردید و گره‌ها را تازه‌سازی کنید.</p>
+                </div>
+              )}
+
+              {(!producedTreeId || producedTreeId <= 0) && producedTrees.length === 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  هنوز درختوارهٔ تولیدشده‌ای در دسترس نیست. ابتدا یک درختواره بسازید؛ سپس آن را از فهرست بالا انتخاب کنید.
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <a
+                  href={producedTreeId && producedTreeId > 0 ? `/trees/produced?treeId=${producedTreeId}` : '/trees/produced'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sky-700 hover:text-sky-900 font-medium"
+                >
+                  <ExternalLink size={15} />
+                  {producedTreeId && producedTreeId > 0 ? 'بازکردن درختواره برای افزودن گره' : 'رفتن به درختواره‌های تولیدشده'}
+                </a>
+                {(!producedTreeId || producedTreeId <= 0 || !isFillTargetTreeLoaded) && (
+                  <button
+                    type="button"
+                    onClick={() => fetchTrees()}
+                    disabled={treesLoading}
+                    className="text-gray-600 hover:text-gray-900 underline underline-offset-2 disabled:opacity-50"
+                  >
+                    {treesLoading ? 'در حال تازه‌سازی...' : 'تازه‌سازی فهرست درختواره‌ها'}
+                  </button>
+                )}
+                {isFillTargetTreeLoaded && producedTreeId !== null && (
+                  <button
+                    type="button"
+                    onClick={() => fetchProducedTree(producedTreeId)}
+                    disabled={producedTreeLoading}
+                    className="text-gray-600 hover:text-gray-900 underline underline-offset-2 disabled:opacity-50"
+                  >
+                    {producedTreeLoading ? 'در حال تازه‌سازی...' : 'تازه‌سازی گره‌ها'}
+                  </button>
                 )}
               </div>
+
+              {fillProducedNodeId && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      میزان پوشش <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFillStatusChoice('filled')}
+                        className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 text-xs font-medium ${
+                          fillStatusChoice === 'filled'
+                            ? 'border-emerald-400 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-100'
+                            : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
+                        }`}
+                      >
+                        <CheckCircle size={16} />
+                        پوشش کامل
+                        <span className="text-[10px] opacity-70">دانش به‌طور کامل پوشش داده شده</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFillStatusChoice('partially_filled')}
+                        className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 text-xs font-medium ${
+                          fillStatusChoice === 'partially_filled'
+                            ? 'border-amber-400 bg-amber-50 text-amber-700 ring-2 ring-amber-100'
+                            : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
+                        }`}
+                      >
+                        <AlertCircle size={16} />
+                        پوشش جزئی
+                        <span className="text-[10px] opacity-70">بخشی از نیاز پوشش دارد و پژوهش ادامه دارد</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">توضیح (اختیاری — در سوابق ثبت می‌شود)</label>
+                    <textarea
+                      value={fillNote}
+                      onChange={e => setFillNote(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 min-h-[60px] bg-gray-50/50 focus:bg-white"
+                      placeholder="مثلاً: ۷۰٪ محتوا پوشش داده شده؛ بخش سنجش عملکرد هنوز نیاز به پژوهش دارد..."
+                    />
+                  </div>
+                </>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <button
@@ -1381,27 +1677,29 @@ export function GapAnalysis() {
                     setShowFillModal(false);
                     setSelectedGap(null);
                     setFillProducedNodeId(null);
+                    setFillStatusChoice(null);
                     setFillNote('');
                   }}
+                  disabled={isFillingGap}
                   className="flex-1 px-4 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium transition-all duration-200"
                 >
                   انصراف
                 </button>
                 <button
-                  disabled={!fillProducedNodeId}
+                  disabled={!fillProducedNodeId || !fillStatusChoice || !isFillTargetTreeLoaded || !producedTreeId || isFillingGap}
                   onClick={() => {
-                    if (fillProducedNodeId && selectedGap) {
-                      handleFillGap(selectedGap.id, fillProducedNodeId, fillStatusChoice, fillNote || undefined);
+                    if (fillProducedNodeId && selectedGap && fillStatusChoice && isFillTargetTreeLoaded && producedTreeId) {
+                      handleFillGap(selectedGap.id, fillProducedNodeId, producedTreeId, fillStatusChoice, fillNote || undefined);
                     }
                   }}
                   className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-                    fillProducedNodeId
+                    fillProducedNodeId && fillStatusChoice && isFillTargetTreeLoaded && producedTreeId && !isFillingGap
                       ? 'bg-gradient-to-l from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white shadow-lg shadow-sky-200/60'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
                 >
-                  <CheckCircle size={16} />
-                  پر کردن گپ
+                  {isFillingGap ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                  {isFillingGap ? 'در حال ثبت...' : 'ثبت ارتباط و وضعیت گپ'}
                 </button>
               </div>
             </div>

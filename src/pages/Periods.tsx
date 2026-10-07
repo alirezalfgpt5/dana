@@ -28,6 +28,9 @@ import rawPersianFa from 'react-date-object/locales/persian_fa';
 import rawTransition from 'react-element-popper/animations/transition';
 import toast from 'react-hot-toast';
 import { PageToolbar, PageToolbarAction } from '../components/ui/PageToolbar';
+import { formatPersianDate } from '../utils/persianDate';
+import { useUserPreference } from '../utils/userPreferences';
+import { getDatePickerDigits } from '../utils/numberFormat';
 
 const resolveComponent = (comp: any) => {
   if (!comp) return null;
@@ -69,7 +72,7 @@ export function Periods() {
   const [formData, setFormData] = useState({ name: '', startDate: '', endDate: '', description: '' });
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [viewMode, setViewMode] = useUserPreference<'table' | 'grid'>('periods:viewMode', 'table');
 
   const { fetchPeriods: fetchUIPeriods } = useUIStore();
 
@@ -260,6 +263,7 @@ export function Periods() {
         icon={CalendarDays}
         iconColor="from-blue-600 to-indigo-600"
         actions={toolbarActions}
+        pdfEnabled={!loading && !error && filteredPeriods.length > 0}
       />
 
       {/* Stats */}
@@ -365,7 +369,7 @@ export function Periods() {
           </button>
         </div>
       ) : viewMode === 'table' ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
+        <div data-pdf-content data-pdf-has-data={filteredPeriods.length > 0} className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-right">
               <thead className="bg-gradient-to-r from-gray-50 to-white border-b">
@@ -391,8 +395,8 @@ export function Periods() {
                   filteredPeriods.map((period) => (
                     <tr key={period.id} className="hover:bg-gray-50/80 transition-colors group">
                       <td className="px-6 py-4 font-medium text-gray-800">{period.name}</td>
-                      <td className="px-6 py-4 text-gray-600 font-mono text-sm" dir="ltr">{period.startDate}</td>
-                      <td className="px-6 py-4 text-gray-600 font-mono text-sm" dir="ltr">{period.endDate}</td>
+                      <td className="px-6 py-4 text-gray-600 text-sm" dir="ltr"><span className="inline-flex rounded-lg bg-gray-100 px-2.5 py-1 font-medium text-gray-700">{formatPersianDate(period.startDate)}</span></td>
+                      <td className="px-6 py-4 text-gray-600 text-sm" dir="ltr"><span className="inline-flex rounded-lg bg-gray-100 px-2.5 py-1 font-medium text-gray-700">{formatPersianDate(period.endDate)}</span></td>
                       <td className="px-6 py-4 text-gray-500 text-sm max-w-[150px] truncate">
                         {period.description || '-'}
                       </td>
@@ -445,7 +449,7 @@ export function Periods() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div data-pdf-content data-pdf-has-data={filteredPeriods.length > 0} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredPeriods.length === 0 ? (
             <div className="col-span-full bg-white rounded-xl shadow-sm border p-12 text-center text-gray-400">
               <FolderOpen size={48} className="mx-auto mb-3 text-gray-300" />
@@ -463,12 +467,12 @@ export function Periods() {
                     <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                       <span className="flex items-center gap-1">
                         <Calendar size={12} />
-                        {period.startDate}
+                        {formatPersianDate(period.startDate)}
                       </span>
                       <span className="text-gray-300">→</span>
                       <span className="flex items-center gap-1">
                         <Calendar size={12} />
-                        {period.endDate}
+                        {formatPersianDate(period.endDate)}
                       </span>
                     </div>
                     {period.description && (
@@ -546,6 +550,9 @@ export function Periods() {
                 <DatePicker
                   calendar={persian}
                   locale={persian_fa}
+                  digits={getDatePickerDigits()}
+                  portal
+                  zIndex={10000}
                   animations={[transition()]}
                   inputClass="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm text-right font-sans"
                   containerClassName="w-full"
@@ -561,6 +568,9 @@ export function Periods() {
                 <DatePicker
                   calendar={persian}
                   locale={persian_fa}
+                  digits={getDatePickerDigits()}
+                  portal
+                  zIndex={10000}
                   animations={[transition()]}
                   inputClass="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50/50 focus:bg-white text-sm text-right font-sans"
                   containerClassName="w-full"

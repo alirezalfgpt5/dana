@@ -157,14 +157,14 @@ async function setupAdmin() {
         value: resolvedRecoveryKey,
         updatedAt: new Date().toISOString(),
       });
-      console.log('🔒 Master Recovery Key initialized securely (stored locally in .recoverykey and system settings).');
     } else if (masterKeySetting.value === 'DANA-ADMIN-SECURE-2026' || !masterKeySetting.value) {
       await db.update(systemSettings)
         .set({ value: resolvedRecoveryKey, updatedAt: new Date().toISOString() })
         .where(eq(systemSettings.key, 'master_recovery_key'));
-      console.log('🔒 Migrated legacy predictable recovery key to a cryptographically secure key.');
     }
-  } catch (e) {}
+  } catch (error) {
+    console.error('Failed to initialize the master recovery key:', error);
+  }
 }
 
 setupAdmin();
@@ -231,7 +231,6 @@ app.use(async (req, res, next) => {
             const userUpdatedAt = new Date(user.updatedAt).getTime();
             if (!isNaN(userUpdatedAt) && tokenIssuedAt < userUpdatedAt - 10000) {
               isTokenValid = false;
-              console.warn(`Token invalidated for user ${user.username} due to credential change`);
             }
           }
           if (isTokenValid) {

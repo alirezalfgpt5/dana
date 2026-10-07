@@ -18,10 +18,14 @@ import {
   RefreshCw,
   ChevronLeft,
   AlertCircle,
-  Download
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { format } from 'date-fns-jalali';
+import { formatPersianDate, formatPersianDateTime } from '../utils/persianDate';
 import toast from 'react-hot-toast';
+import { createPdfReportSnapshot, exportCurrentPageToExcel, hasCurrentPagePdfData, type PdfReportSnapshot } from '../utils/reportExport';
+import { PdfPreview } from '../components/shared/PdfPreview';
 
 export function Dashboard() {
   const { user } = useAuthStore();
@@ -36,6 +40,7 @@ export function Dashboard() {
   const [orgStats, setOrgStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [pdfPreview, setPdfPreview] = useState<PdfReportSnapshot | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -101,7 +106,7 @@ export function Dashboard() {
 
     const row = (...cells: any[]) => cells.map(esc).join(',');
 
-    const nowStr = format(new Date(), 'yyyy/MM/dd HH:mm');
+    const nowStr = formatPersianDateTime(new Date());
     const periodName = activePeriod ? activePeriod.name : 'همه دوره‌ها';
     const userName = user?.fullName || 'کاربر سیستم';
     const orgLevel = user?.organizationLevel || 'سازمان';
@@ -248,8 +253,29 @@ export function Dashboard() {
             style={{ color: 'var(--text-faint)', backgroundColor: 'var(--surface-soft)', borderColor: 'var(--border-soft)' }}
           >
             <Clock size={14} />
-            بروزرسانی: {format(lastUpdated, 'HH:mm')}
+            بروزرسانی: {formatPersianDateTime(lastUpdated, 'HH:mm')}
           </span>
+          <button
+            onClick={() => {
+              void exportCurrentPageToExcel('داشبورد');
+            }}
+            className="p-2.5 rounded-xl transition-colors border flex items-center gap-2 text-sm"
+            style={{ color: '#047857', backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+            title="دریافت اطلاعات داشبورد در قالب اکسل"
+          >
+            <FileSpreadsheet size={18} />
+            <span className="hidden sm:inline">خروجی اکسل</span>
+          </button>
+          <button
+            onClick={() => setPdfPreview(createPdfReportSnapshot('داشبورد'))}
+            disabled={!hasCurrentPagePdfData()}
+            className="p-2.5 rounded-xl transition-colors border flex items-center gap-2 text-sm"
+            style={{ color: '#4338ca', backgroundColor: '#eef2ff', borderColor: '#c7d2fe' }}
+            title="چاپ یا ذخیره گزارش داشبورد به‌صورت PDF"
+          >
+            <FileText size={18} />
+            <span className="hidden sm:inline">خروجی PDF</span>
+          </button>
           <button 
             onClick={handleExport}
             className="p-2.5 rounded-xl transition-colors border flex items-center gap-2 text-sm"
@@ -299,7 +325,7 @@ export function Dashboard() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4" data-pdf-content data-pdf-has-data={stats.trees + stats.gaps + stats.issues > 0}>
         <MetricCard title="کل درختواره‌ها" value={stats.trees} subtitle={`${stats.required} مورد نیاز • ${stats.produced} تولید شده`} icon={<GitBranch size={24} />} />
         <MetricCard title="گپ‌های دانشی" value={stats.gaps} subtitle={`${stats.openGaps} شکاف باز نیازمند اقدام`} icon={<Target size={24} />} tone="#e11d48" />
         <MetricCard title="مسائل در جریان" value={stats.issues} subtitle={`${stats.completedIssues} مسئله با موفقیت حل شده`} icon={<FileText size={24} />} tone="#d97706" />
@@ -496,7 +522,7 @@ export function Dashboard() {
                       {act.entityName} <span className="font-normal" style={{ color: 'var(--text-muted)' }}>توسط {act.fullName || 'سیستم'}</span>
                     </p>
                     <p className="text-[10px] mt-1" style={{ color: 'var(--text-faint)' }}>
-                      {act.action === 'CREATE' ? 'ایجاد شد' : act.action === 'UPDATE' ? 'بروزرسانی شد' : 'حذف شد'} • {new Date(act.createdAt).toLocaleDateString('fa-IR')}
+                      {act.action === 'CREATE' ? 'ایجاد شد' : act.action === 'UPDATE' ? 'بروزرسانی شد' : 'حذف شد'} • {formatPersianDate(act.createdAt)}
                     </p>
                   </div>
                 </div>
@@ -508,6 +534,7 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+      {pdfPreview && <PdfPreview title={pdfPreview.title} html={pdfPreview.html} onClose={() => setPdfPreview(null)} />}
     </div>
   );
 }

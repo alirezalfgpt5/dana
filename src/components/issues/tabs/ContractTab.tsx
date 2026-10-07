@@ -80,6 +80,8 @@ export const ContractTab: React.FC<ContractTabProps> = ({
               onChange={(date: any) => setContractData({...contractData, date: formatPickerDate(date)})}
               calendar={persian}
               locale={persian_fa}
+              portal
+              zIndex={10000}
               format="YYYY/MM/DD"
               inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm pr-10"
               containerClassName="w-full"
@@ -96,6 +98,8 @@ export const ContractTab: React.FC<ContractTabProps> = ({
               onChange={(date: any) => setContractData({...contractData, startDate: formatPickerDate(date)})}
               calendar={persian}
               locale={persian_fa}
+              portal
+              zIndex={10000}
               format="YYYY/MM/DD"
               inputClass="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50/50 focus:bg-white text-sm pr-10"
               containerClassName="w-full"

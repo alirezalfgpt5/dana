@@ -805,9 +805,10 @@ export function TemplatesManagement() {
         icon={FileText}
         iconColor="from-indigo-600 to-purple-600"
         actions={toolbarActions}
+        pdfEnabled={!loading && flatTemplates.length > 0}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div data-pdf-content data-pdf-has-data={!loading && flatTemplates.length > 0} className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {/* سمت راست - گروه‌بندی */}
         <div className="md:col-span-1 space-y-4">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">

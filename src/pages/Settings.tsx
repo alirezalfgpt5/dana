@@ -12,6 +12,8 @@ import {
 import { useSecurityStore, useUIStore, useAuthStore, THEMES, ThemeId } from '../store';
 import { DynamicMetadataManager } from '../components/DynamicMetadataManager';
 import { formatNumber } from '../utils/numberFormat';
+import { setUserNumberSettings } from '../utils/numberFormat';
+import { getUserPreference, migrateLegacyNumberPreferences } from '../utils/userPreferences';
 import toast from 'react-hot-toast';
 
 type TabType = 'general' | 'appearance' | 'gapConfig' | 'security';
@@ -104,8 +106,9 @@ export function Settings() {
   // ============================================
 
   useEffect(() => {
-    const rawNumberFormat = localStorage.getItem('dana_number_format') || 'persian';
-    const rawGrouping = localStorage.getItem('dana_show_thousand_separator') !== 'false';
+    migrateLegacyNumberPreferences();
+    const rawNumberFormat = getUserPreference('numberFormat', true);
+    const rawGrouping = getUserPreference('showThousandSeparator', true);
     const rawCurrency = localStorage.getItem('dana_currency_unit') || 'ریال';
 
     setFormData({
@@ -115,7 +118,7 @@ export function Settings() {
       sidebarTitle: sidebarTitle || 'DANA',
       browserTitle: browserTitle || 'DANA - سیستم مدیریت دانش و نظام مسائل',
       lockTimer: lockTimerMinutes || 15,
-      numberFormat: (rawNumberFormat as 'persian' | 'latin') || 'persian',
+      numberFormat: rawNumberFormat ? 'persian' : 'latin',
       showThousandSeparator: rawGrouping,
       currencyUnit: rawCurrency,
     });
@@ -407,14 +410,11 @@ export function Settings() {
         sidebarTitle: formData.sidebarTitle,
         browserTitle: formData.browserTitle,
         siteLogo: logoBase64 !== siteLogo ? (logoBase64 || '') : (siteLogo || ''),
-        numberFormat: formData.numberFormat,
-        showThousandSeparator: String(formData.showThousandSeparator),
         currencyUnit: formData.currencyUnit || 'ریال',
       };
       
-      localStorage.setItem('dana_number_format', formData.numberFormat);
-      localStorage.setItem('dana_show_thousand_separator', String(formData.showThousandSeparator));
       localStorage.setItem('dana_currency_unit', formData.currencyUnit || 'ریال');
+      setUserNumberSettings(formData.numberFormat === 'persian', formData.showThousandSeparator);
 
       if (saveSystemSettings) {
         await saveSystemSettings(settingsToSave);

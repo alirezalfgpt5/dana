@@ -26,6 +26,23 @@ import { requireRole } from '../middleware/rbac.js';
 import { getUserOrgScope } from '../utils/orgAccess.js';
 export const treeRoutes = Router();
 
+async function isPeriodComplete(periodId: number | null | undefined): Promise<boolean> {
+  if (!periodId) return false;
+  const period = await db.query.periods.findFirst({
+    columns: { isComplete: true },
+    where: eq(periods.id, periodId),
+  });
+  return Number(period?.isComplete) === 1;
+}
+
+async function isTreePeriodComplete(treeId: number): Promise<boolean> {
+  const tree = await db.query.knowledgeTrees.findFirst({
+    columns: { periodId: true },
+    where: eq(knowledgeTrees.id, treeId),
+  });
+  return isPeriodComplete(tree?.periodId);
+}
+
 // ============================================
 // ایجاد نسخه/اسنپ‌شات از درختواره (Clone/Snapshot)
 // ============================================
@@ -46,6 +63,9 @@ treeRoutes.post('/:id/clone', async (req, res) => {
     const now = new Date().toISOString();
     const targetPeriodId = req.body.targetPeriodId ? parseInt(req.body.targetPeriodId) : sourceTree.periodId;
     const targetName = req.body.name || (sourceTree.name + (req.body.targetPeriodId ? '' : ' (نسخه ' + now.substring(0,10) + ')'));
+    if (await isPeriodComplete(targetPeriodId)) {
+      return res.status(409).json({ error: 'دورهٔ مقصد تکمیل شده و فقط‌خواندنی است' });
+    }
     
     // Create new tree
     const newTree = await db.insert(knowledgeTrees).values({
@@ -398,6 +418,9 @@ treeRoutes.post('/', requireRole(['admin', 'knowledge_manager']), async (req, re
     }
     const { name, type, description, periodId, baseId, unitId, metadata } = parseResult.data;
     const now = new Date().toISOString();
+    if (await isPeriodComplete(periodId)) {
+      return res.status(409).json({ error: 'امکان ایجاد درختواره در دورهٔ تکمیل‌شده وجود ندارد' });
+    }
     
     const result = await db.insert(knowledgeTrees).values({
       name,
@@ -464,6 +487,12 @@ treeRoutes.put('/:id', requireRole(['admin', 'knowledge_manager']), async (req, 
     if (!oldData) {
       return res.status(404).json({ error: 'درختواره یافت نشد' });
     }
+    if (await isPeriodComplete(oldData.periodId)) {
+      return res.status(409).json({ error: 'دورهٔ این درختواره تکمیل شده و فقط‌خواندنی است' });
+    }
+    if (await isPeriodComplete(periodId !== undefined ? periodId : oldData.periodId)) {
+      return res.status(409).json({ error: 'امکان انتقال درختواره به دورهٔ تکمیل‌شده وجود ندارد' });
+    }
     
     const result = await db.update(knowledgeTrees)
       .set({
@@ -509,6 +538,9 @@ treeRoutes.delete('/:id', requireRole(['admin', 'knowledge_manager']), async (re
     
     if (!existing) {
       return res.status(404).json({ error: 'درختواره یافت نشد' });
+    }
+    if (await isPeriodComplete(existing.periodId)) {
+      return res.status(409).json({ error: 'دورهٔ این درختواره تکمیل شده و فقط‌خواندنی است' });
     }
 
     // اگر حذف دائمی خواسته نشده باشد، حذف نرم انجام شود
@@ -617,6 +649,9 @@ treeRoutes.post('/:id/restore', requireRole(['admin', 'knowledge_manager']), asy
     if (!existing) {
       return res.status(404).json({ error: 'درختواره یافت نشد' });
     }
+    if (await isPeriodComplete(existing.periodId)) {
+      return res.status(409).json({ error: 'دورهٔ این درختواره تکمیل شده و فقط‌خواندنی است' });
+    }
     const now = new Date().toISOString();
     await db.update(knowledgeTrees).set({ isActive: 1, updatedAt: now }).where(eq(knowledgeTrees.id, treeId));
     logAudit({
@@ -695,6 +730,9 @@ treeRoutes.post('/:treeId/nodes', requireRole(['admin', 'knowledge_manager', 'ex
     
     if (!tree) {
       return res.status(404).json({ error: 'درختواره یافت نشد' });
+    }
+    if (await isPeriodComplete(tree.periodId)) {
+      return res.status(409).json({ error: 'دورهٔ این درختواره تکمیل شده و فقط‌خواندنی است' });
     }
     
     if (parentId) {
@@ -780,6 +818,9 @@ treeRoutes.put('/nodes/:nodeId', requireRole(['admin', 'knowledge_manager', 'exp
     
     if (!oldData) {
       return res.status(404).json({ error: 'گره یافت نشد' });
+    }
+    if (await isTreePeriodComplete(oldData.treeId)) {
+      return res.status(409).json({ error: 'دورهٔ این درختواره تکمیل شده و فقط‌خواندنی است' });
     }
 
     // ============================================
@@ -918,6 +959,9 @@ treeRoutes.delete('/nodes/:nodeId', requireRole(['admin', 'knowledge_manager', '
     if (!existing) {
       return res.status(404).json({ error: 'گره یافت نشد' });
     }
+    if (await isTreePeriodComplete(existing.treeId)) {
+      return res.status(409).json({ error: 'دورهٔ این درختواره تکمیل شده و فقط‌خواندنی است' });
+    }
     
     // بررسی گره‌های فرزند
     const children = await db.query.treeNodes.findMany({
@@ -1026,6 +1070,9 @@ treeRoutes.post('/:treeId/copy', async (req, res) => {
 
     if (!sourceTree) {
       return res.status(404).json({ error: 'درختواره مبدأ یافت نشد' });
+    }
+    if (await isPeriodComplete(sourceTree.periodId)) {
+      return res.status(409).json({ error: 'دورهٔ درختوارهٔ مبدأ تکمیل شده و فقط‌خواندنی است' });
     }
 
     const newTree = await db.insert(knowledgeTrees).values({
@@ -1215,4 +1262,3 @@ treeRoutes.get('/nodes/leaves', async (req, res) => {
 });
 
 export default treeRoutes;
-

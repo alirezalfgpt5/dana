@@ -122,7 +122,16 @@ periodRoutes.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Period not found' });
     }
 
-    if (isActive === 1 || isActive === true || isActive === '1') {
+    const requestedComplete = isComplete === undefined
+      ? Number(oldData.isComplete) === 1
+      : isComplete === 1 || isComplete === true || isComplete === '1';
+    const requestedActive = requestedComplete
+      ? 0
+      : isActive === undefined
+        ? Number(oldData.isActive) === 1 ? 1 : 0
+        : isActive === 1 || isActive === true || isActive === '1' ? 1 : 0;
+
+    if (requestedActive === 1) {
       // غیرفعال‌سازی سایر دوره‌ها تا همیشه فقط یک دوره فعال باشد
       await db.update(periods)
         .set({ isActive: 0, updatedAt: now })
@@ -135,8 +144,8 @@ periodRoutes.put('/:id', async (req, res) => {
         startDate: startDate !== undefined && startDate !== null ? startDate : oldData.startDate,
         endDate: endDate !== undefined && endDate !== null ? endDate : oldData.endDate,
         description: description !== undefined ? description : oldData.description,
-        isActive: isActive !== undefined ? (isActive === 1 || isActive === true || isActive === '1' ? 1 : 0) : oldData.isActive,
-        isComplete: isComplete !== undefined ? isComplete : oldData.isComplete,
+        isActive: requestedActive,
+        isComplete: requestedComplete ? 1 : 0,
         updatedAt: now,
       })
       .where(eq(periods.id, periodId))
