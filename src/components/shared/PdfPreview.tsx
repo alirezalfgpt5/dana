@@ -51,21 +51,22 @@ export function PdfPreview({ title, html, onClose }: PdfPreviewProps) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onClose}
-              className="flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
-              title="بستن پیش‌نمایش"
-            >
-              <X size={17} />
-              بستن
-            </button>
-            <button
-              type="button"
               onClick={() => window.print()}
               className="flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700"
             >
               <FileDown size={17} />
               ایجاد / ذخیره PDF
               <Printer size={15} className="opacity-80" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+              title="بستن پیش‌نمایش"
+              aria-label="بستن پیش‌نمایش"
+            >
+              <X size={17} />
+              بستن
             </button>
           </div>
         </div>

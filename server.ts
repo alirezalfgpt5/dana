@@ -46,7 +46,8 @@ if (portEq) {
 }
 const PORT = targetPort;
 
-const currentDir = process.cwd();
+const currentDir = process.env.APP_ROOT || process.cwd();
+const dataDir = process.env.USER_DATA_PATH || process.cwd();
 
 // ============================================
 // Import Routes
@@ -93,7 +94,7 @@ const dirs = [
   'storage/trees', 'storage/exports', 'backups'
 ];
 dirs.forEach(dir => {
-  const p = path.join(currentDir, dir);
+  const p = path.join(dataDir, dir);
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 });
 
@@ -126,7 +127,7 @@ async function setupAdmin() {
 
     // 🔒 مدیریت امن کلید بازیابی اضطراری بدون استفاده از مقدار پیش‌فرض ثابت و ناامن
     let resolvedRecoveryKey = process.env.MASTER_RECOVERY_KEY?.trim();
-    const recoveryKeyPath = path.join(currentDir, '.recoverykey');
+    const recoveryKeyPath = path.join(dataDir, '.recoverykey');
 
     if (!resolvedRecoveryKey) {
       if (fs.existsSync(recoveryKeyPath)) {
@@ -174,7 +175,7 @@ setupAdmin();
 // ============================================
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', version: '3.0.0' });
+  res.json({ status: 'ok', version: process.env.APP_VERSION || '3.0.0' });
 });
 
 
@@ -183,7 +184,7 @@ import jwt from 'jsonwebtoken';
 
 let JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  const secretPath = path.join(currentDir, '.jwtsecret');
+  const secretPath = path.join(dataDir, '.jwtsecret');
   if (fs.existsSync(secretPath)) {
     JWT_SECRET = fs.readFileSync(secretPath, 'utf8').trim();
   } else {
@@ -255,8 +256,8 @@ app.use(async (req, res, next) => {
 });
 
 // محافظت از فایل‌های محرمانه با احراز هویت (Fix 32)
-const persistentUploadsDir = process.env.UPLOAD_DIR || path.join(currentDir, 'uploads');
-const persistentStorageDir = process.env.STORAGE_DIR || path.join(currentDir, 'storage');
+const persistentUploadsDir = process.env.UPLOAD_DIR || path.join(dataDir, 'uploads');
+const persistentStorageDir = process.env.STORAGE_DIR || path.join(dataDir, 'storage');
 app.use('/uploads', requireAuth, express.static(persistentUploadsDir));
 app.use('/storage', requireAuth, express.static(persistentStorageDir));
 
@@ -264,7 +265,7 @@ app.use('/storage', requireAuth, express.static(persistentStorageDir));
 import { createManualBackup } from './server/utils/backup.js';
 
 app.get('/api/backup/download', requireAuth, (req, res) => {
-  const dbPath = path.join(currentDir, 'database.sqlite');
+  const dbPath = process.env.DB_PATH || path.join(dataDir, 'database.sqlite');
   if (fs.existsSync(dbPath)) {
     res.download(dbPath, 'database.sqlite');
   } else {
@@ -318,7 +319,7 @@ app.get('/api/metadata/system-settings', async (req: any, res: any) => {
 
 // مسیر مستندات رسمی OpenAPI / Swagger
 app.get('/api/docs/swagger.json', (_req, res) => {
-  res.sendFile(path.resolve('./docs/swagger.json'));
+  res.sendFile(path.join(currentDir, 'docs', 'swagger.json'));
 });
 
 app.use('/api/metadata', requireAuth, metadataRoutes);
@@ -471,7 +472,7 @@ app.post('/api/auth/reset-password-offline', recoveryLimiter, async (req, res) =
 
     let validKey = masterSetting?.value?.trim();
     if (!validKey || validKey === 'DANA-ADMIN-SECURE-2026') {
-      const recoveryKeyPath = path.join(currentDir, '.recoverykey');
+      const recoveryKeyPath = path.join(dataDir, '.recoverykey');
       if (fs.existsSync(recoveryKeyPath)) {
         try {
           const fileVal = fs.readFileSync(recoveryKeyPath, 'utf8').trim();

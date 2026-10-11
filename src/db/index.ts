@@ -12,7 +12,10 @@ import { runComprehensiveSeed } from './seeds.js';
 // ۱. اتصال به پایگاه داده
 // ============================================
 
-const dbPath = path.resolve(process.cwd(), 'database.sqlite');
+const dbPath =
+  typeof process !== 'undefined' && process.env?.DB_PATH
+    ? process.env.DB_PATH
+    : path.resolve(process.cwd(), 'database.sqlite');
 
 const dbDir = path.dirname(dbPath);
 if (!fs.existsSync(dbDir)) {

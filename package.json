@@ -1,16 +1,21 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "سامانه جامع مدیریت دانش، نظام مسائل، درخت دانش و ارزیابی پژوهش (DANA)",
   "type": "module",
+  "main": "electron-main.cjs",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
     "start": "tsx server.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "rimraf dist release server.cjs server.js",
     "lint": "tsc --noEmit",
-    "seed": "tsx scripts/run-seed.ts"
+    "seed": "tsx scripts/run-seed.ts",
+    "build:server": "esbuild server.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/server.cjs --external:electron --external:vite --external:esbuild",
+    "build:electron": "npm run build && npm run build:server && electron-builder --win",
+    "electron:dev": "cross-env NODE_ENV=development electron ."
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -65,9 +70,13 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
+    "cross-env": "^7.0.3",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "0.28.2",
+    "rimraf": "^6.0.1",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.21.0",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
   "overrides": {
@@ -76,6 +85,46 @@
   "allowScripts": {
     "esbuild@0.28.2": true,
     "@google/genai": false,
-    "protobufjs": false
+    "protobufjs": false,
+    "electron-winstaller@5.4.0": true
+  },
+  "build": {
+    "appId": "com.alirezalf.dana",
+    "productName": "سامانه مدیریت دانش و نظام مسائل دانا",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron-main.cjs",
+      "dist/**/*",
+      "docs/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "public/favicon.ico",
+      "artifactName": "Dana-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "include": "installer/installer.nsh",
+      "installerIcon": "public/favicon.ico",
+      "uninstallerIcon": "public/favicon.ico",
+      "installerHeaderIcon": "public/favicon.ico",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "سامانه DANA",
+      "deleteAppDataOnUninstall": false,
+      "language": "1065"
+    }
   }
 }

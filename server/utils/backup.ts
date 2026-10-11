@@ -12,8 +12,9 @@ import { sqlite } from '../../src/db/index.js';
 const BACKUP_INTERVAL = 12 * 60 * 60 * 1000; // ۱۲ ساعت
 
 export const setupAutoBackup = () => {
-  const dbPath = path.join(process.cwd(), 'database.sqlite');
-  const backupDir = path.join(process.cwd(), 'backups');
+  const dataDir = process.env.USER_DATA_PATH || process.cwd();
+  const dbPath = process.env.DB_PATH || path.join(dataDir, 'database.sqlite');
+  const backupDir = path.join(dataDir, 'backups');
 
   // ایجاد پوشه backups در صورت عدم وجود
   if (!fs.existsSync(backupDir)) {
@@ -101,8 +102,9 @@ function cleanupOldBackups(backupDir: string, daysToKeep: number = 30) {
 
 export async function createManualBackup(): Promise<{ success: boolean; path: string; name: string; size: number } | null> {
   try {
-    const dbPath = path.join(process.cwd(), 'database.sqlite');
-    const backupDir = path.join(process.cwd(), 'backups');
+    const dataDir = process.env.USER_DATA_PATH || process.cwd();
+    const dbPath = process.env.DB_PATH || path.join(dataDir, 'database.sqlite');
+    const backupDir = path.join(dataDir, 'backups');
     
     if (!fs.existsSync(dbPath)) {
       console.error('❌ Database file not found');
@@ -144,7 +146,8 @@ export async function createManualBackup(): Promise<{ success: boolean; path: st
 
 export async function restoreFromBackup(backupPath: string): Promise<boolean> {
   try {
-    const dbPath = path.join(process.cwd(), 'database.sqlite');
+    const dataDir = process.env.USER_DATA_PATH || process.cwd();
+    const dbPath = process.env.DB_PATH || path.join(dataDir, 'database.sqlite');
     
     if (!fs.existsSync(backupPath)) {
       console.error('❌ Backup file not found:', backupPath);
