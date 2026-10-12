@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "DANA",
   "private": true,
   "version": "1.0.0",
   "description": "سامانه جامع مدیریت دانش، نظام مسائل، درخت دانش و ارزیابی پژوهش (DANA)",
@@ -90,7 +90,7 @@
   },
   "build": {
     "appId": "com.alirezalf.dana",
-    "productName": "سامانه مدیریت دانش و نظام مسائل دانا",
+    "productName": "(DANA)سامانه مدیریت دانش و نظام مسائل دانا",
     "directories": {
       "output": "release"
     },
@@ -109,14 +109,14 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "public/favicon.ico",
+      "icon": "icon.ico",
       "artifactName": "Dana-Setup-${version}.${ext}"
     },
     "nsis": {
       "include": "installer/installer.nsh",
-      "installerIcon": "public/favicon.ico",
-      "uninstallerIcon": "public/favicon.ico",
-      "installerHeaderIcon": "public/favicon.ico",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
