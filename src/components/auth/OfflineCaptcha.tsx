@@ -699,7 +699,7 @@ export function OfflineCaptcha({ onVerify, className = '' }: OfflineCaptchaProps
                 if (isVerified) return;
                 setIsDragging(true);
               }}
-              className={`absolute top-0.5 bottom-0.5 w-11 rounded-lg flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing transition-all z-10 ${
+              className={`absolute top-0 bottom-0 w-11 rounded-lg flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing transition-all z-10 ${
                 isVerified
                   ? 'bg-emerald-600 text-white'
                   : isDragging
