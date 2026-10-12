@@ -441,6 +441,7 @@ export function Settings() {
         browserTitle: formData.browserTitle,
         siteLogo: logoBase64 !== siteLogo ? (logoBase64 || '') : (siteLogo || ''),
         currencyUnit: formData.currencyUnit || 'ریال',
+        lockTimer: String(formData.lockTimer ?? 15),
       };
       
       localStorage.setItem('dana_currency_unit', formData.currencyUnit || 'ریال');

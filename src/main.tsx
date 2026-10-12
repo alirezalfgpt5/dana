@@ -37,6 +37,21 @@ try {
   document.documentElement.setAttribute('data-theme', String(persisted.themeId || 'ocean'));
 } catch { /* noop */ }
 
+// پاکسازی وضعیت‌های نامعتبر یا قفل‌های به‌جامانده در استوریج برای تضمین باز شدن تمیز صفحه ورود
+try {
+  const sec = JSON.parse(localStorage.getItem('dana_security_state') || '{}');
+  if (sec?.state?.isLocked) {
+    sec.state.isLocked = false;
+    localStorage.setItem('dana_security_state', JSON.stringify(sec));
+  }
+  const auth = JSON.parse(localStorage.getItem('dana_auth_state') || '{}');
+  if (auth?.state && (!auth.state.token || !auth.state.user)) {
+    auth.state.user = null;
+    auth.state.token = null;
+    localStorage.setItem('dana_auth_state', JSON.stringify(auth));
+  }
+} catch { /* noop */ }
+
 // ============================================
 // Patch Global Fetch for Auth Token Injection & Cold-Start Auto-Retry
 // ============================================
@@ -68,8 +83,9 @@ window.customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const res = await originalFetch(input, options);
       
       if (res.status === 401 && isApiRequest) {
-        if (!urlString.includes('/api/auth/login')) {
-          handleUnauthorizedSession(requestToken, 'نشست شما منقضی شده است. لطفا دوباره وارد شوید.');
+        const isAuthRoute = urlString.includes('/api/auth/login') || urlString.includes('/api/auth/reset-password-offline');
+        if (!isAuthRoute) {
+          handleUnauthorizedSession(requestToken, 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
         }
       }
       

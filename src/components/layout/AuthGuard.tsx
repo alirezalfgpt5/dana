@@ -1,5 +1,5 @@
 // src/components/layout/AuthGuard.tsx
-// محافظت از مسیرها با احراز هویت
+// محافظت از مسیرها با احراز هویت و قفل خودکار صفحه هنگام عدم فعالیت
 
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
@@ -12,15 +12,16 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const { lockTimerMinutes, isLocked, setLocked } = useSecurityStore();
   const location = useLocation();
   const [password, setPassword] = React.useState('');
   const [error, setError] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
 
-  // قفل خودکار صفحه
+  // قفل خودکار صفحه بر اثر عدم فعالیت (فقط زمانی که کاربر لاگین معتبر با توکن دارد)
   React.useEffect(() => {
-    if (!user || lockTimerMinutes <= 0) return;
+    if (!user || !token || lockTimerMinutes <= 0) return;
 
     let timeout: NodeJS.Timeout;
     
@@ -41,33 +42,46 @@ export function AuthGuard({ children }: AuthGuardProps) {
       clearTimeout(timeout);
       events.forEach(name => document.removeEventListener(name, resetTimer));
     };
-  }, [user, lockTimerMinutes, isLocked, setLocked]);
+  }, [user, token, lockTimerMinutes, isLocked, setLocked]);
 
-  if (!user) {
+  // اگر کاربر یا توکن معتبر وجود ندارد، انتقال مستقیم به صفحه ورود بدون ورود به قفل صفحه
+  if (!user || !token) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // نمایش قفل صفحه فقط در صورت قفل شدن عمدی یا عدم فعالیت
   if (isLocked) {
-    const handleUnlock = (e: React.FormEvent) => {
+    const handleUnlock = async (e: React.FormEvent) => {
       e.preventDefault();
-      
-     (window.customFetch || window.fetch)('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user.username, password })
-      })
-        .then(r => r.json())
-        .then(data => {
-          if (data.token) {
-            clearExpiredSessionToken(data.token);
-            useAuthStore.getState().login(data.user || user, data.token);
-            setError('');
-            setPassword('');
-          } else {
-            setError('رمز عبور اشتباه است');
-          }
-        })
-        .catch(() => setError('خطا در اتصال به سرور'));
+      if (!password.trim()) {
+        setError('لطفاً رمز عبور را وارد کنید');
+        return;
+      }
+
+      setLoading(true);
+      setError('');
+
+      try {
+        const res = await (window.customFetch || window.fetch)('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: user.username, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+          clearExpiredSessionToken(data.token);
+          useAuthStore.getState().login(data.user || user, data.token);
+          setLocked(false);
+          setError('');
+          setPassword('');
+        } else {
+          setError(data.message || 'رمز عبور اشتباه است');
+        }
+      } catch {
+        setError('خطا در اتصال به سرور');
+      } finally {
+        setLoading(false);
+      }
     };
 
     return (
@@ -88,6 +102,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
                 placeholder="رمز عبور..."
                 value={password}
                 onChange={e => setPassword(e.target.value)}
+                disabled={loading}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl text-center focus:ring-2 focus:ring-blue-500 outline-none"
                 autoFocus
               />
@@ -95,13 +110,17 @@ export function AuthGuard({ children }: AuthGuardProps) {
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <button 
               type="submit" 
-              className="w-full bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 transition"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 transition disabled:opacity-50"
             >
-              بازگشایی
+              {loading ? 'در حال بررسی...' : 'بازگشایی'}
             </button>
             <button 
               type="button" 
-              onClick={() => useAuthStore.getState().logout()}
+              onClick={() => {
+                setLocked(false);
+                useAuthStore.getState().logout();
+              }}
               className="w-full text-gray-500 py-2 text-sm hover:text-gray-700"
             >
               خروج از حساب کاربری

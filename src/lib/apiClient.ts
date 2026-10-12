@@ -24,7 +24,9 @@ export async function apiClient<T = any>(
   } = options;
 
   if (useSecurityStore.getState().isLocked) {
-    throw new Error('Session locked');
+    const lockedErr: any = new Error('Session locked');
+    lockedErr._silent = true;
+    throw lockedErr;
   }
 
   try {
@@ -81,7 +83,7 @@ export async function apiClient<T = any>(
         const { user, token } = useAuthStore.getState();
         const requestToken = finalHeaders['Authorization']?.replace(/^Bearer\s+/i, '') || null;
         if (user && token) {
-          handleUnauthorizedSession(requestToken, 'نشست شما منقضی شد — برای ادامه، رمز عبور خود را وارد کنید');
+          handleUnauthorizedSession(requestToken, 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
         }
 
         throw new Error('Unauthorized');

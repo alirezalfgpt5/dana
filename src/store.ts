@@ -343,6 +343,12 @@ export const useUIStore = create<UIState>()(
                 showThousandSeparator: data.showThousandSeparator !== undefined ? data.showThousandSeparator === 'true' || data.showThousandSeparator === true : true,
                 currencyUnit: data.currencyUnit || get().currencyUnit || 'ریال',
               });
+              if (data.lockTimer !== undefined) {
+                const parsed = parseInt(String(data.lockTimer), 10);
+                if (!isNaN(parsed) && parsed >= 0) {
+                  useSecurityStore.getState().setLockTimerMinutes(parsed);
+                }
+              }
             }
           }
         } catch (error) {
@@ -479,6 +485,9 @@ export const useSecurityStore = create<SecurityState>()(
     {
       name: 'dana_security_state',
       storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        lockTimerMinutes: state.lockTimerMinutes,
+      }),
     }
   )
 );

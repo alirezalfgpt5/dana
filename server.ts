@@ -96,6 +96,98 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  const secretPath = path.join(dataDir, '.jwtsecret');
+  if (fs.existsSync(secretPath)) {
+    JWT_SECRET = fs.readFileSync(secretPath, 'utf8').trim();
+  } else {
+    JWT_SECRET = crypto.randomUUID();
+    fs.writeFileSync(secretPath, JWT_SECRET, 'utf8');
+  }
+}
+
+const SESSION_TIMEOUT = process.env.SESSION_TIMEOUT || '86400';
+
+const userAuthCache = new Map<string, { user: any; expiresAt: number }>();
+
+// احراز هویت مرکزی سراسری — باید قبل از تمام مسیرها (از جمله /api/auth/permissions) اجرا شود
+app.use(async (req, res, next) => {
+  let token: string | undefined;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else if (req.query && typeof req.query.token === 'string') {
+    token = req.query.token;
+  }
+
+  if (token) {
+    try {
+      // 1. بررسی و اعتبارسنجی JWT
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      if (decoded && decoded.id) {
+        // کش موقت کاربر در حافظه برای جلوگیری از رقابت روی SQLite در درخواست‌های موازی بعد از لاگین
+        const cached = userAuthCache.get(token);
+        let user = cached && cached.expiresAt > Date.now() ? cached.user : null;
+
+        if (!user) {
+          user = await db.query.users.findFirst({
+            where: (users, { eq, and }) => and(eq(users.id, decoded.id), eq(users.isActive, 1))
+          });
+          if (user) {
+            userAuthCache.set(token, { user, expiresAt: Date.now() + 30000 });
+          }
+        }
+
+        if (user) {
+          // بررسی ابطال توکن در صورت تغییر رمز عبور یا مشخصات (با حاشیه امن ۱۰ ثانیه‌ای برای اختلاف ساعت)
+          let isTokenValid = true;
+          if (decoded.iat && user.updatedAt) {
+            const tokenIssuedAt = decoded.iat * 1000;
+            const userUpdatedAt = new Date(user.updatedAt).getTime();
+            if (!isNaN(userUpdatedAt) && tokenIssuedAt < userUpdatedAt - 10000) {
+              isTokenValid = false;
+            }
+          }
+          if (isTokenValid) {
+            (req as any).user = user;
+          } else {
+            const tokenIssuedAt = decoded.iat * 1000;
+            const userUpdatedAt = new Date(user.updatedAt).getTime();
+            await logSessionAuthFailure(req, 'token_invalidated_by_user_update', {
+              tokenIssuedAt: new Date(tokenIssuedAt).toISOString(),
+              accountUpdatedAt: new Date(userUpdatedAt).toISOString(),
+            });
+            (req as any).authFailureReason = 'token_invalidated_by_user_update';
+          }
+        } else {
+          (req as any).authFailureReason = 'token_user_missing_or_inactive';
+        }
+      } else {
+        (req as any).authFailureReason = 'jwt_subject_missing';
+      }
+    } catch (err: any) {
+      if (err instanceof jwt.TokenExpiredError || err instanceof jwt.JsonWebTokenError) {
+        const isExpired = err instanceof jwt.TokenExpiredError;
+        (req as any).authFailureReason = isExpired ? 'jwt_expired' : 'jwt_invalid';
+        await logSessionAuthFailure(req, isExpired ? 'jwt_expired' : 'jwt_invalid', {
+          jwtError: err.name,
+          errorMessage: err.message,
+          ...(isExpired && err.expiredAt
+            ? { expiredAt: err.expiredAt.toISOString() }
+            : {}),
+        });
+      } else {
+        console.error('Database/server error in auth middleware:', err);
+      }
+    }
+  }
+  next();
+});
+
 // ============================================
 // پوشه‌ها
 // ============================================
@@ -218,103 +310,6 @@ app.get('/api/auth/permissions', requireAuth, async (req: any, res) => {
     console.error('Could not load current role permissions:', error);
     return res.status(500).json({ error: 'خطا در دریافت دسترسی‌های نقش' });
   }
-});
-
-import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
-
-let JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  const secretPath = path.join(dataDir, '.jwtsecret');
-  if (fs.existsSync(secretPath)) {
-    JWT_SECRET = fs.readFileSync(secretPath, 'utf8').trim();
-  } else {
-    JWT_SECRET = crypto.randomUUID();
-    fs.writeFileSync(secretPath, JWT_SECRET, 'utf8');
-  }
-}
-
-const SESSION_TIMEOUT = process.env.SESSION_TIMEOUT || '86400';
-
-const userAuthCache = new Map<string, { user: any; expiresAt: number }>();
-
-app.use(async (req, res, next) => {
-  let token: string | undefined;
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.substring(7);
-  } else if (req.query && typeof req.query.token === 'string') {
-    token = req.query.token;
-  }
-
-  if (token) {
-    try {
-      // 1. بررسی و اعتبارسنجی JWT
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
-      if (decoded && decoded.id) {
-        // کش موقت کاربر در حافظه برای جلوگیری از رقابت روی SQLite در درخواست‌های موازی بعد از لاگین
-        const cached = userAuthCache.get(token);
-        let user = cached && cached.expiresAt > Date.now() ? cached.user : null;
-
-        if (!user) {
-          user = await db.query.users.findFirst({
-            where: (users, { eq, and }) => and(eq(users.id, decoded.id), eq(users.isActive, 1))
-          });
-          if (user) {
-            userAuthCache.set(token, { user, expiresAt: Date.now() + 30000 });
-          }
-        }
-
-        if (user) {
-          // بررسی ابطال توکن در صورت تغییر رمز عبور یا مشخصات (با حاشیه امن ۱۰ ثانیه‌ای برای اختلاف ساعت)
-          let isTokenValid = true;
-          if (decoded.iat && user.updatedAt) {
-            const tokenIssuedAt = decoded.iat * 1000;
-            const userUpdatedAt = new Date(user.updatedAt).getTime();
-            if (!isNaN(userUpdatedAt) && tokenIssuedAt < userUpdatedAt - 10000) {
-              isTokenValid = false;
-            }
-          }
-          if (isTokenValid) {
-            (req as any).user = user;
-          } else {
-            const tokenIssuedAt = decoded.iat * 1000;
-            const userUpdatedAt = new Date(user.updatedAt).getTime();
-            await logSessionAuthFailure(req, 'token_invalidated_by_user_update', {
-              tokenIssuedAt: new Date(tokenIssuedAt).toISOString(),
-              accountUpdatedAt: new Date(userUpdatedAt).toISOString(),
-            });
-            return res.status(401).json({ error: 'نشست شما به دلیل تغییر اطلاعات کاربری منقضی شده است. لطفاً دوباره وارد شوید.' });
-          }
-        } else {
-          (req as any).authFailureReason = 'token_user_missing_or_inactive';
-        }
-      } else {
-        (req as any).authFailureReason = 'jwt_subject_missing';
-      }
-    } catch (err: any) {
-      if (err instanceof jwt.TokenExpiredError || err instanceof jwt.JsonWebTokenError) {
-        const isPublicAuthEndpoint = req.path === '/api/auth/login'
-          || req.path === '/api/auth/reset-password-offline';
-        if (!isPublicAuthEndpoint) {
-          const isExpired = err instanceof jwt.TokenExpiredError;
-          (req as any).authFailureReason = isExpired ? 'jwt_expired' : 'jwt_invalid';
-          await logSessionAuthFailure(req, isExpired ? 'jwt_expired' : 'jwt_invalid', {
-            jwtError: err.name,
-            errorMessage: err.message,
-            ...(isExpired && err.expiredAt
-              ? { expiredAt: err.expiredAt.toISOString() }
-              : {}),
-          });
-          return res.status(401).json({ error: 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.' });
-        }
-      } else {
-        console.error('Database/server error in auth middleware:', err);
-        return res.status(500).json({ error: 'خطای داخلی سرور در بررسی دسترسی' });
-      }
-    }
-  }
-  next();
 });
 
 // محافظت از فایل‌های محرمانه با احراز هویت (Fix 32)
