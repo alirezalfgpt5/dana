@@ -144,7 +144,7 @@ export function Settings() {
       loginTitle: loginTitle || 'سیستم مدیریت دانش و نظام مسائل',
       sidebarTitle: sidebarTitle || 'DANA',
       browserTitle: browserTitle || 'DANA - سیستم مدیریت دانش و نظام مسائل',
-      lockTimer: lockTimerMinutes || 15,
+      lockTimer: typeof lockTimerMinutes === 'number' ? lockTimerMinutes : 15,
       numberFormat: rawNumberFormat ? 'persian' : 'latin',
       showThousandSeparator: rawGrouping,
       currencyUnit: rawCurrency,

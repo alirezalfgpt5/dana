@@ -2,7 +2,7 @@
 // سیستم جامع لاگینگ، جلوگیری از تکرار لاگ‌ها و مدیریت استثناها (DANA)
 
 import util from 'util';
-import { writeApplicationDiagnostic } from './diagnostics.js';
+import { writeApplicationDiagnostic, writeServerErrorLog } from './diagnostics.js';
 
 export enum LogLevel {
   DEBUG = 0,
@@ -18,6 +18,7 @@ interface LogEntry {
   firstSeen: number;
   lastSeen: number;
   timer: NodeJS.Timeout | null;
+  error?: Error;
 }
 
 class SystemLogger {
@@ -107,7 +108,7 @@ class SystemLogger {
     return `${level}:${normalized}`;
   }
 
-  private printOutput(level: LogLevel, text: string, repeatedCount = 0, elapsedMs = 0) {
+  private printOutput(level: LogLevel, text: string, repeatedCount = 0, elapsedMs = 0, errObj?: Error) {
     const timestamp = new Date().toISOString();
     let prefix = '';
     let writer = this.raw.log;
@@ -138,11 +139,19 @@ class SystemLogger {
     }
 
     writer(`[${timestamp}] ${prefix}${repetitionNote} ${text}`);
-    if (level >= LogLevel.WARN) {
+    if (level === LogLevel.ERROR) {
+      writeServerErrorLog({
+        message: text,
+        errorName: errObj?.name || 'server_error',
+        stack: errObj?.stack,
+        details: repeatedCount > 1 ? { repeatedCount, elapsedMs } : undefined,
+        timestamp,
+      });
+    } else if (level === LogLevel.WARN) {
       writeApplicationDiagnostic({
-        level: level === LogLevel.ERROR ? 'error' : 'warning',
+        level: 'warning',
         source: 'server',
-        event: level === LogLevel.ERROR ? 'server_error' : 'server_warning',
+        event: 'server_warning',
         message: text,
         details: repeatedCount > 1 ? { repeatedCount, elapsedMs } : undefined,
         timestamp,
@@ -155,6 +164,8 @@ class SystemLogger {
 
     const message = this.formatMessage(args);
     if (!message) return;
+
+    const errObj = args.find(a => a instanceof Error);
 
     // Suppress experimental node warnings from cluttering error logs
     if (message.includes('ExperimentalWarning: SQLite is an experimental feature')) {
@@ -180,6 +191,7 @@ class SystemLogger {
     if (existing) {
       existing.count += 1;
       existing.lastSeen = now;
+      if (errObj && !existing.error) existing.error = errObj;
 
       // Reset debounce timer
       if (existing.timer) {
@@ -188,13 +200,13 @@ class SystemLogger {
 
       // If repeated a lot (e.g., 25 times), flush an interim note
       if (existing.count % 25 === 0) {
-        this.printOutput(level, existing.message, existing.count, now - existing.firstSeen);
+        this.printOutput(level, existing.message, existing.count, now - existing.firstSeen, existing.error);
       }
 
       // Schedule final flush after quiet window
       existing.timer = setTimeout(() => {
         if (existing.count > 1) {
-          this.printOutput(level, existing.message, existing.count, Date.now() - existing.firstSeen);
+          this.printOutput(level, existing.message, existing.count, Date.now() - existing.firstSeen, existing.error);
         }
         this.recentLogs.delete(signature);
       }, this.dedupWindowMs);
@@ -207,7 +219,7 @@ class SystemLogger {
     }
 
     // New unique log entry: print immediately!
-    this.printOutput(level, message);
+    this.printOutput(level, message, 0, 0, errObj);
 
     // Evict old entries if cache is growing too large
     if (this.recentLogs.size >= this.maxStoredEntries) {

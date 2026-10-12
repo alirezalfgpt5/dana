@@ -5,7 +5,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore, useSecurityStore } from '../../store';
 import { Lock } from 'lucide-react';
-import { clearExpiredSessionToken } from '../../services/sessionManager';
+import { unlockSession } from '../../services/sessionManager';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -69,9 +69,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
         });
         const data = await res.json();
         if (res.ok && data.token) {
-          clearExpiredSessionToken(data.token);
-          useAuthStore.getState().login(data.user || user, data.token);
-          setLocked(false);
+          unlockSession(data.user || user, data.token);
           setError('');
           setPassword('');
         } else {

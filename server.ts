@@ -22,8 +22,18 @@ app.set('trust proxy', 1); // Trust first proxy for express-rate-limit
 // سیستم لاگینگ هوشمند، جلوگیری از تکرار لاگ‌ها و مدیریت استثناها
 // ============================================
 import { logger, setupProcessExceptionHandlers } from './server/utils/logger.js';
-import { ensureApplicationLogs, setApplicationDiagnosticsEnabled, writeApplicationDiagnostic } from './server/utils/diagnostics.js';
-import { initializeSessionAuthLog, logSessionAuthFailure } from './server/utils/sessionAuthLog.js';
+import {
+  ensureApplicationLogs,
+  setApplicationDiagnosticsEnabled,
+  writeApplicationDiagnostic,
+  writeServerErrorLog,
+  writeClientErrorLog,
+} from './server/utils/diagnostics.js';
+import {
+  initializeSessionAuthLog,
+  logSessionAuthFailure,
+  logSessionAuthSuccess,
+} from './server/utils/sessionAuthLog.js';
 import { freePort, listenWithAutoPortRecovery, setupGracefulShutdown } from './server/utils/portManager.js';
 import { normalizePermissions } from './src/config/permissions.js';
 logger.patchConsole();
@@ -437,43 +447,28 @@ const clientDiagnosticLimiter = rateLimit({
 });
 
 app.post('/api/diagnostics/client', clientDiagnosticLimiter, (req, res) => {
-  const remoteAddress = req.socket.remoteAddress || '';
-  const isLoopback = remoteAddress === '::1'
-    || remoteAddress === '127.0.0.1'
-    || remoteAddress.startsWith('::ffff:127.');
-  if (!isLoopback) {
-    return res.status(403).end();
-  }
-
-  const origin = req.get('origin');
-  if (origin) {
-    try {
-      const hostname = new URL(origin).hostname;
-      if (!['localhost', '127.0.0.1', '[::1]', '::1'].includes(hostname)) {
-        return res.status(403).end();
-      }
-    } catch {
-      return res.status(403).end();
-    }
-  }
-
   const { message, event, details } = req.body || {};
   if (
     typeof message !== 'string'
     || !message.trim()
-    || message.length > 12000
+    || message.length > 16000
     || (event !== 'uncaught_error' && event !== 'unhandled_rejection' && event !== 'react_error_boundary')
   ) {
     return res.status(400).end();
   }
 
-  writeApplicationDiagnostic({
-    level: 'error',
-    source: 'renderer',
+  writeClientErrorLog({
     event,
     message,
+    stack: details?.stack ? String(details.stack) : undefined,
+    url: details?.url ? String(details.url) : req.headers.referer,
+    userId: (req as any).user?.id || details?.userId,
+    username: (req as any).user?.username || details?.username,
+    userAgent: req.headers['user-agent'],
+    ip: req.ip || req.socket?.remoteAddress,
     details: details && typeof details === 'object' && !Array.isArray(details) ? details : {},
   }, dataDir);
+
   return res.status(204).end();
 });
 
@@ -487,11 +482,13 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
 
     const user = await db.query.users.findFirst({
       where: (users, { eq }) => eq(users.username, username)
-
-
     });
 
     if (!user) {
+      await logSessionAuthFailure(req, 'login_failed_invalid_credentials', {
+        attemptedUsername: username,
+        reasonDescription: 'نام کاربری در سامانه یافت نشد',
+      });
       return res.status(401).json({ message: 'نام کاربری یا رمز عبور اشتباه است' });
     }
     const roleDef = await db.query.roles.findFirst({ where: (roles, { eq }) => eq(roles.name, user.role || "user") });
@@ -507,6 +504,11 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       logAudit({ userId: user.id, action: 'LOGIN_FAILED', entityName: 'Auth', entityId: user.id, changes: 'Invalid password', ip: req.ip, userAgent: req.headers['user-agent'] });
+      await logSessionAuthFailure(req, 'login_failed_invalid_credentials', {
+        userId: user.id,
+        attemptedUsername: username,
+        reasonDescription: 'رمز عبور واردشده اشتباه است',
+      });
       return res.status(401).json({ message: 'نام کاربری یا رمز عبور اشتباه است' });
     }
 
@@ -517,6 +519,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     );
     
     logAudit({ userId: user.id, action: 'LOGIN_SUCCESS', entityName: 'Auth', entityId: user.id, changes: 'User logged in', ip: req.ip, userAgent: req.headers['user-agent'] });
+    await logSessionAuthSuccess(req, user);
 
     res.json({
       user: {
@@ -688,7 +691,25 @@ async function startServer() {
   // ============================================
 
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    logger.error(`[${req.method} ${req.originalUrl || req.url}] Server Error:`, err);
+    writeServerErrorLog({
+      message: err?.message || String(err),
+      errorName: err?.name || 'ExpressServerError',
+      stack: err?.stack,
+      method: req.method,
+      url: req.originalUrl || req.url,
+      statusCode: err.status && typeof err.status === 'number' ? err.status : 500,
+      userId: (req as any).user?.id,
+      username: (req as any).user?.username,
+      ip: req.ip || req.socket?.remoteAddress,
+      details: {
+        query: req.query,
+        headers: {
+          'user-agent': req.headers['user-agent'],
+          'content-type': req.headers['content-type'],
+        },
+      },
+    }, dataDir);
+
     if (res.headersSent) {
       return next(err);
     }

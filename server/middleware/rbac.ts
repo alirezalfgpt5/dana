@@ -9,10 +9,13 @@ import { normalizePermissions } from '../../src/config/permissions.js';
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   if (!(req as AuthRequest).user) {
     const authFailureReason = (req as Request & { authFailureReason?: string }).authFailureReason;
+    const authHeader = req.headers.authorization;
     await logSessionAuthFailure(req, authFailureReason || 'authentication_required_but_user_missing', {
-      authorizationHeaderPresent: Boolean(req.headers.authorization),
+      authorizationHeaderPresent: Boolean(authHeader),
+      tokenPrefix: authHeader ? (authHeader.startsWith('Bearer ') ? 'Bearer' : 'Other') : null,
+      tokenLength: authHeader ? authHeader.length : 0,
     });
-    return res.status(401).json({ error: 'Unauthorized: Please log in.' });
+    return res.status(401).json({ error: 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.' });
   }
   next();
 };
@@ -24,8 +27,9 @@ export const requireRole = (roles: string[]) => {
     if (!user) {
       await logSessionAuthFailure(req, 'role_check_without_authenticated_user', {
         authorizationHeaderPresent: Boolean(req.headers.authorization),
+        requiredRoles: roles.join(', '),
       });
-      return res.status(401).json({ error: 'Unauthorized: Please log in.' });
+      return res.status(401).json({ error: 'لطفاً وارد سیستم شوید.' });
     }
     
     // Check DB for latest role instead of trusting JWT payload implicitly
@@ -37,8 +41,9 @@ export const requireRole = (roles: string[]) => {
       if (!dbUser) {
         await logSessionAuthFailure(req, 'authenticated_user_not_found', {
           authorizationHeaderPresent: Boolean(req.headers.authorization),
+          userId: user.id,
         });
-        return res.status(401).json({ error: 'Unauthorized: User not found.' });
+        return res.status(401).json({ error: 'کاربر یافت نشد.' });
       }
 
       const currentRole = dbUser.role;
@@ -48,7 +53,13 @@ export const requireRole = (roles: string[]) => {
       }
       
       if (roles.length > 0 && !roles.includes(currentRole)) {
-        return res.status(403).json({ error: 'Forbidden: You do not have the required permissions.' });
+        await logSessionAuthFailure(req, 'role_forbidden', {
+          userId: user.id,
+          username: user.username,
+          userRole: currentRole,
+          requiredRoles: roles.join(', '),
+        });
+        return res.status(403).json({ error: 'دسترسی غیرمجاز: نقش شما مجوز این عملیات را ندارد.' });
       }
       
       next();
@@ -79,7 +90,12 @@ export const requirePermission = (requiredPermissions: string | string[]) => {
         where: (roles, { eq }) => eq(roles.name, dbUser.role),
       });
       if (!role) {
-        return res.status(403).json({ error: 'Forbidden: No permissions are assigned to this role.' });
+        await logSessionAuthFailure(req, 'role_has_no_permissions', {
+          userId: user.id,
+          username: user.username,
+          userRole: dbUser.role,
+        });
+        return res.status(403).json({ error: 'هیچ دسترسی برای این نقش تعریف نشده است.' });
       }
 
       let permissions: unknown;
@@ -92,7 +108,14 @@ export const requirePermission = (requiredPermissions: string | string[]) => {
         Array.isArray(permissions) ? permissions.filter((item): item is string => typeof item === 'string') : [],
       ).filter(permission => permission !== 'all');
       if (!required.some(permission => assigned.includes(permission))) {
-        return res.status(403).json({ error: 'Forbidden: You do not have the required permission.' });
+        await logSessionAuthFailure(req, 'permission_denied', {
+          userId: user.id,
+          username: user.username,
+          userRole: dbUser.role,
+          requiredPermissions: required.join(', '),
+          assignedPermissions: assigned.join(', '),
+        });
+        return res.status(403).json({ error: 'دسترسی غیرمجاز: شما مجوز لازم برای این عملیات را ندارید.' });
       }
       return next();
     } catch (error) {

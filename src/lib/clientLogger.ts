@@ -13,10 +13,24 @@ export function reportClientDiagnostic(
   if (!message.trim()) return;
 
   try {
+    let userId: unknown = null;
+    let username: unknown = null;
+    try {
+      const auth = JSON.parse(localStorage.getItem('dana_auth_state') || '{}');
+      userId = auth?.state?.user?.id ?? null;
+      username = auth?.state?.user?.username ?? null;
+    } catch { /* ignore storage read error */ }
+
     const payload = JSON.stringify({
       event,
-      message: message.slice(0, 12000),
-      details,
+      message: message.slice(0, 16000),
+      details: {
+        url: window.location.href,
+        pathname: window.location.pathname,
+        userId,
+        username,
+        ...details,
+      },
     });
     const body = new Blob([payload], { type: 'application/json' });
     if (!navigator.sendBeacon('/api/diagnostics/client', body)) {
