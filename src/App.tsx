@@ -79,7 +79,7 @@ function AppToast({ item }: { item: ToastItem }) {
   );
 }
 
-import { useUIStore, useAuthStore, useSecurityStore } from './store';
+import { useUIStore, useAuthStore } from './store';
 import { MainLayout } from './components/layout/MainLayout';
 import { Login } from './pages/Login';
 import { AuthGuard } from './components/layout/AuthGuard';
@@ -210,29 +210,13 @@ export default function App() {
   }, [darkMode]);
 
   useEffect(() => {
-    const handleAuthError = (e: any) => {
-      const path = (window.location.pathname || '/') + (window.location.hash || '');
-      const isLogin = path.includes('/login');
-      const { user: curUser, token: curToken } = useAuthStore.getState();
-
-      // پاسخ‌های 401 دیررس یا تکراری بعد از شروع قفل نباید کاربر را از نشست خارج کنند.
-      if (isLogin || !curUser || !curToken || (window as any)._sessionExpiredHandled) return;
-
-      (window as any)._sessionExpiredHandled = true;
-      toast.error(translateUiText(e.detail || 'نشست شما منقضی شده است. لطفا دوباره وارد شوید.'), { id: 'app-auth-expired' });
-      useSecurityStore.getState().setLocked(true);
-      useAuthStore.setState({ token: null });
-    };
-    
     const handleNetworkError = (e: any) => {
       toast.error(translateUiText(e.detail || 'خطا در ارتباط با سرور'), { id: 'app-network-error' });
     };
 
-    window.addEventListener('auth-error', handleAuthError);
     window.addEventListener('network-error', handleNetworkError);
     
     return () => {
-      window.removeEventListener('auth-error', handleAuthError);
       window.removeEventListener('network-error', handleNetworkError);
     };
   }, []);

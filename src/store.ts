@@ -59,12 +59,11 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       login: (user, token) => {
-        try {
-          useSecurityStore.getState().setLocked(false);
-          (window as any)._sessionExpiredHandled = false;
-        } catch { /* noop */ }
         useUIStore.getState().setDataScope(null, null);
         set({ user, token });
+        try {
+          useSecurityStore.getState().setLocked(false);
+        } catch { /* noop */ }
       },
       logout: () => {
         // 🟢 پاک کردن کش‌های انتخاب کاربر هنگام خروج (انتخاب درختواره‌های تحلیل شکاف و...)
@@ -72,11 +71,10 @@ export const useAuthStore = create<AuthState>()(
           sessionStorage.removeItem('gap_selected_required_tree');
           sessionStorage.removeItem('gap_selected_produced_tree');
           sessionStorage.removeItem('gap_analysis_current_result');
-          useSecurityStore.getState().setLocked(false);
-          (window as any)._sessionExpiredHandled = false;
         } catch { /* noop */ }
         useUIStore.getState().setDataScope(null, null);
         set({ user: null, token: null });
+        useSecurityStore.getState().setLocked(false);
       },
       updateUser: (user) => set({ user }),
     }),
@@ -159,34 +157,12 @@ interface UIState {
 }
 
 let lastNetworkErrorTime = 0;
-let lastAuthErrorTime = 0;
-
-// مسیرهای عمومی (بدون نیاز به نشست) — روی این مسیرها هرگز پیام «نشست منقضی» نمایش داده نمی‌شود
-const isPublicRoute = () => {
-  const path = (window.location.pathname || '/') + (window.location.hash || '');
-  return path.includes('/login');
-};
 
 const dispatchNetworkError = (detail: string) => {
   const now = Date.now();
   if (now - lastNetworkErrorTime > 3000) {
     lastNetworkErrorTime = now;
     window.dispatchEvent(new CustomEvent('network-error', { detail }));
-  }
-};
-
-// ⚠️ تنها نقطه ارسال رویداد «نشست منقضی» — همه مسیرها از همین
-// تابع مشترک استفاده می‌کنند تا پیام فقط یک‌بار و فقط وقتی نشست فعالی وجود دارد صادر شود.
-export const dispatchAuthError = (detail: string) => {
-  const { token, user } = useAuthStore.getState();
-  // بدون نشست فعال (کاربر لاگین نکرده یا توکن قبلاً پاک شده) — نشستی برای انقضا وجود ندارد
-  if (!token || !user) return;
-  // در مسیرهای عمومی مثل صفحه لاگین، نباید پیام انقضای نشست بدهد
-  if (isPublicRoute()) return;
-  const now = Date.now();
-  if (now - lastAuthErrorTime > 4000) {
-    lastAuthErrorTime = now;
-    window.dispatchEvent(new CustomEvent('auth-error', { detail }));
   }
 };
 
@@ -204,9 +180,7 @@ const safeFetchJson = async (url: string, options: any = {}) => {
   try {
     const res = await fetch(url, options);
     if (!res.ok) {
-      if (res.status === 401) {
-        // window.customFetch رویداد dispatchAuthError را مدیریت می‌کند
-      } else {
+      if (res.status !== 401) {
         dispatchNetworkError(`خطای سرور: ${res.status}`);
       }
       return null;

@@ -7,7 +7,8 @@ export const api = axios.create({
   timeout: 15000,
 });
 
-import { dispatchAuthError, useAuthStore } from '../store';
+import { useAuthStore } from '../store';
+import { handleUnauthorizedSession } from './sessionManager';
 
 const requestTokens = new WeakMap<object, string | null>();
 
@@ -38,14 +39,9 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // 🟢 بدون نشست فعال یا در مسیر عمومی لاگین، ۴۰۱ طبیعی است و نباید پیام انقضای نشست بدهد
-      const currentPath = (window.location.pathname || '/') + (window.location.hash || '');
-      const onPublicRoute = currentPath.includes('/login');
       const { user, token } = useAuthStore.getState();
       const requestToken = error.config ? requestTokens.get(error.config) : null;
-      const hasSession = !!(user && token && requestToken && token === requestToken);
-      if (hasSession && !onPublicRoute) {
-        dispatchAuthError('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
-      }
+      if (user && token) handleUnauthorizedSession(requestToken || null, 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
       return Promise.reject(new Error('Unauthorized'));
     }
     

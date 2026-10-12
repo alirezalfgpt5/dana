@@ -5,6 +5,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore, useSecurityStore } from '../../store';
 import { Lock } from 'lucide-react';
+import { clearExpiredSessionToken } from '../../services/sessionManager';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -58,11 +59,10 @@ export function AuthGuard({ children }: AuthGuardProps) {
         .then(r => r.json())
         .then(data => {
           if (data.token) {
+            clearExpiredSessionToken(data.token);
             useAuthStore.getState().login(data.user || user, data.token);
-            setLocked(false);
             setError('');
             setPassword('');
-            window.location.reload();
           } else {
             setError('رمز عبور اشتباه است');
           }
@@ -101,7 +101,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
             </button>
             <button 
               type="button" 
-              onClick={() => { setLocked(false); useAuthStore.getState().logout(); }}
+              onClick={() => useAuthStore.getState().logout()}
               className="w-full text-gray-500 py-2 text-sm hover:text-gray-700"
             >
               خروج از حساب کاربری

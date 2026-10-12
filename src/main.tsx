@@ -7,7 +7,8 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import packageInfo from '../package.json';
-import { useAuthStore, dispatchAuthError } from './store';
+import { useAuthStore } from './store';
+import { handleUnauthorizedSession } from './services/sessionManager';
 import { initToastDeduplication } from './lib/toastInterceptor';
 import { initClientErrorHandling } from './lib/clientLogger';
 
@@ -49,12 +50,16 @@ window.customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const urlString = url.toString();
   const isApiRequest = urlString.startsWith('/api') || urlString.includes('/api/');
   const isGet = !options.method || options.method.toUpperCase() === 'GET';
+  let requestToken: string | null = null;
   
-  if (token && isApiRequest) {
-    const headers = new Headers(init?.headers);
+  if (isApiRequest) {
+    const headers = new Headers(input instanceof Request ? input.headers : undefined);
+    new Headers(init?.headers).forEach((value, name) => headers.set(name, value));
     if (!headers.has('Authorization')) {
-      headers.set('Authorization', `Bearer ${token}`);
+      if (token) headers.set('Authorization', `Bearer ${token}`);
     }
+    const authorization = headers.get('Authorization');
+    if (authorization?.startsWith('Bearer ')) requestToken = authorization.substring(7);
     options.headers = headers;
   }
   
@@ -63,16 +68,8 @@ window.customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const res = await originalFetch(input, options);
       
       if (res.status === 401 && isApiRequest) {
-        const currentAuth = useAuthStore.getState();
-        // پاسخ دیررسِ درخواست بدون نشست نباید ورود تازه یا خروج کاربر را دوباره قفل کند.
-        if (
-          token
-          && currentAuth.user
-          && currentAuth.token === token
-          && !urlString.includes('/api/auth/login')
-          && !urlString.includes('/api/metadata/system-settings')
-        ) {
-          dispatchAuthError('نشست شما منقضی شده است. لطفا دوباره وارد شوید.');
+        if (!urlString.includes('/api/auth/login')) {
+          handleUnauthorizedSession(requestToken, 'نشست شما منقضی شده است. لطفا دوباره وارد شوید.');
         }
       }
       

@@ -8,6 +8,7 @@ import { BookOpen, Sparkles, KeyRound, User, Shield, Eye, EyeOff, Info } from 'l
 import { OfflineCaptcha } from '../components/auth/OfflineCaptcha';
 import { ResetPasswordModal } from '../components/auth/ResetPasswordModal';
 import toast from 'react-hot-toast';
+import { clearExpiredSessionToken } from '../services/sessionManager';
 
 export function Login() {
   const [username, setUsername] = useState('');
@@ -55,10 +56,7 @@ export function Login() {
       }
 
       if (data.user && data.token) {
-        try {
-          useSecurityStore.getState().setLocked(false);
-          (window as any)._sessionExpiredHandled = false;
-        } catch { /* noop */ }
+        clearExpiredSessionToken(data.token);
         login(data.user, data.token);
         toast.success(`خوش آمدید ${data.user.fullName}`, {
           icon: '👋',

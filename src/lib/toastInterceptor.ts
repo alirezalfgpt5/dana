@@ -2,6 +2,7 @@
 // سیستم هوشمند مدیریت Toast، جلوگیری از لوپ خطا و عدم تکرار پیام‌های خطا
 
 import toast, { ToastOptions } from 'react-hot-toast';
+import { useSecurityStore } from '../store';
 
 interface ToastEntry {
   lastShown: number;
@@ -30,7 +31,7 @@ export function initToastDeduplication() {
     const cleanMessage = rawMessage.trim();
 
     if (
-      (window as any)._sessionExpiredHandled
+      useSecurityStore.getState().isLocked
       && /unauthorized(?::\s*(please log in|user not found))?/i.test(cleanMessage)
     ) {
       return 'suppressed-session-expiration-toast';

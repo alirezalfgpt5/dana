@@ -4,6 +4,7 @@
 import toast from 'react-hot-toast';
 import { useAuthStore, useSecurityStore } from '../store';
 import { translateUiText } from '../utils/uiText';
+import { handleUnauthorizedSession } from '../services/sessionManager';
 
 interface ApiOptions extends RequestInit {
   showErrorToast?: boolean;
@@ -22,11 +23,8 @@ export async function apiClient<T = any>(
     ...fetchOptions
   } = options;
 
-  // 🟢 اگر نشست منقضی شده و صفحه قفل است، درخواست‌های جدید زودتر قطع می‌شوند (جلوگیری از طوفان درخواست و پیام تکراری)
-  if ((window as any)._sessionExpiredHandled) {
-    if (useSecurityStore.getState().isLocked) {
-      throw new Error('Session locked');
-    }
+  if (useSecurityStore.getState().isLocked) {
+    throw new Error('Session locked');
   }
 
   try {
@@ -79,29 +77,13 @@ export async function apiClient<T = any>(
 
     // خطا در پاسخ
     if (!res.ok) {
-      // اگر ۴۰۱ بود، فقط یک‌بار پیام بده و به اسکرین‌لاک برو (نه صفحه لاگین)
       if (res.status === 401) {
-        const currentPath = (window.location.pathname || '/') + (window.location.hash || '');
-        const onPublicRoute = currentPath.includes('/login');
         const { user, token } = useAuthStore.getState();
         const requestToken = finalHeaders['Authorization']?.replace(/^Bearer\s+/i, '') || null;
-
-        // پاسخ یک درخواست قدیمی نباید نشست جدید را قفل کند.
-        if (user && token && token === requestToken && !onPublicRoute) {
-          // ⚠️ Dedup: فقط اولین ۴۰۱ پیام می‌دهد و قفل می‌کند — نه ۵۰ بار پیام پشت هم
-          if (!(window as any)._sessionExpiredHandled) {
-            (window as any)._sessionExpiredHandled = true;
-            toast.error('نشست شما منقضی شد — برای ادامه، رمز عبور خود را وارد کنید', {
-              id: 'app-auth-expired',
-              duration: 5000,
-            });
-            // 🟢 قفل صفحه (اسکرین‌لاک) به‌جای ردن به صفحه لاگین:
-            // داده‌ها و وضعیت کاربر حفظ می‌شود و با رمز صحیح ادامه می‌دهد
-            useSecurityStore.getState().setLocked(true);
-            // توکن نامعتبر حذف می‌شود اما user و همه stateها حفظ می‌مانند
-            useAuthStore.setState({ token: null });
-          }
+        if (user && token) {
+          handleUnauthorizedSession(requestToken, 'نشست شما منقضی شد — برای ادامه، رمز عبور خود را وارد کنید');
         }
+
         throw new Error('Unauthorized');
       }
       
