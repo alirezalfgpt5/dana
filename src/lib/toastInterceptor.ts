@@ -29,6 +29,13 @@ export function initToastDeduplication() {
     const rawMessage = typeof message === 'string' ? message : String(message || 'خطای غیرمنتظره');
     const cleanMessage = rawMessage.trim();
 
+    if (
+      (window as any)._sessionExpiredHandled
+      && /unauthorized(?::\s*(please log in|user not found))?/i.test(cleanMessage)
+    ) {
+      return 'suppressed-session-expiration-toast';
+    }
+
     // 1. بررسی فیوز محافظتی (Circuit Breaker) برای جلوگیری از لوپ بی‌پایان خطا
     recentTimestamps = recentTimestamps.filter(t => now - t < 1500);
     recentTimestamps.push(now);

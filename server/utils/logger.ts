@@ -2,6 +2,7 @@
 // سیستم جامع لاگینگ، جلوگیری از تکرار لاگ‌ها و مدیریت استثناها (DANA)
 
 import util from 'util';
+import { writeApplicationDiagnostic } from './diagnostics.js';
 
 export enum LogLevel {
   DEBUG = 0,
@@ -137,6 +138,16 @@ class SystemLogger {
     }
 
     writer(`[${timestamp}] ${prefix}${repetitionNote} ${text}`);
+    if (level >= LogLevel.WARN) {
+      writeApplicationDiagnostic({
+        level: level === LogLevel.ERROR ? 'error' : 'warning',
+        source: 'server',
+        event: level === LogLevel.ERROR ? 'server_error' : 'server_warning',
+        message: text,
+        details: repeatedCount > 1 ? { repeatedCount, elapsedMs } : undefined,
+        timestamp,
+      });
+    }
   }
 
   private logWithDeduplication(level: LogLevel, args: any[]) {
@@ -298,6 +309,13 @@ export function setupProcessExceptionHandlers() {
       err?.message?.includes('address already in use');
 
     if (isFatal) {
+      writeApplicationDiagnostic({
+        level: 'fatal',
+        source: 'server',
+        event: 'fatal_uncaught_exception',
+        message: err?.message || String(err),
+        details: { code: err?.code, stack: err?.stack },
+      });
       logger.raw.error(`[FATAL UNCAUGHT EXCEPTION] پروسه سرور به دلیل خطای غیرقابل بازگشت متوقف می‌شود:`, err);
       process.exit(1);
     }
@@ -306,6 +324,13 @@ export function setupProcessExceptionHandlers() {
 
     // If an infinite exception storm occurs, stop to prevent CPU pegging
     if (unhandledExceptionsCount > 30) {
+      writeApplicationDiagnostic({
+        level: 'fatal',
+        source: 'server',
+        event: 'uncaught_exception_storm',
+        message: 'The server is exiting after exceeding the uncaught exception safety threshold.',
+        details: { exceptionCount: unhandledExceptionsCount, stack: err?.stack },
+      });
       logger.raw.error('⚠️ [CRITICAL] نرخ استثناهای مکرر از آستانه ایمنی عبور کرد. سرور جهت بازیابی ری‌استارت می‌شود.');
       process.exit(1);
     }

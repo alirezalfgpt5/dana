@@ -16,14 +16,19 @@ import {
   ChevronLeft,
   AlertCircle,
   Download,
-  FileSpreadsheet
 } from 'lucide-react';
 import { format } from 'date-fns-jalali';
 import { formatPersianDate, formatPersianDateTime } from '../utils/persianDate';
 import toast from 'react-hot-toast';
 import { createPdfReportSnapshot, exportCurrentPageToExcel, hasCurrentPagePdfData, type PdfReportSnapshot } from '../utils/reportExport';
 import { PdfPreview } from '../components/shared/PdfPreview';
+import ExcelIcon from '../components/icon/ExcelIcon';
 import { apiClient } from '../lib/apiClient';
+import { PageToolbar } from '../components/ui/PageToolbar';
+
+const DashboardExcelIcon = ({ size = 18, className }: { size?: number; className?: string }) => (
+  <ExcelIcon size={size} className={className} aria-hidden="true" />
+);
 
 export function Dashboard() {
   const { user } = useAuthStore();
@@ -356,28 +361,20 @@ export function Dashboard() {
 
   return (
     <div className="space-y-8 pb-8">
-      {/* Header — هدر برند */}
-      <div className="relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-4 theme-card p-6 rounded-2xl">
-        <div 
-          className="absolute inset-0 opacity-[0.06] pointer-events-none" 
-          style={{ background: 'var(--brand-gradient)' }} 
-        />
-        <div className="relative flex items-center gap-4">
-          <div className="p-3 brand-gradient rounded-2xl shadow-lg">
-            <LayoutDashboard size={28} className="text-white" />
+      <PageToolbar
+        title="داشبورد"
+        subtitle={
+          <div className="flex flex-wrap items-center gap-2">
+            <span>{user?.fullName || 'کاربر'}</span>
+            <span className="h-1 w-1 rounded-full bg-current opacity-50" />
+            <span>{activePeriod ? `دوره فعال: ${activePeriod.name}` : 'همه دوره‌ها'}</span>
+            <span className="h-1 w-1 rounded-full bg-current opacity-50" />
+            <span>{selectedScopeLabel}</span>
           </div>
-          <div>
-            <h2 className="text-2xl font-bold text-strong">داشبورد</h2>
-            <p className="text-sm mt-1 flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
-              <span>{user?.fullName || 'کاربر'}</span>
-              <span className="w-1 h-1 rounded-full" style={{ backgroundColor: 'var(--text-faint)' }} />
-              <span>{activePeriod ? `دوره فعال: ${activePeriod.name}` : 'همه دوره‌ها'}</span>
-              <span className="w-1 h-1 rounded-full" style={{ backgroundColor: 'var(--text-faint)' }} />
-              <span>{selectedScopeLabel}</span>
-            </p>
-          </div>
-        </div>
-        <div className="relative flex items-center gap-3">
+        }
+        icon={LayoutDashboard}
+        extra={
+          <div className="flex flex-wrap items-center gap-3">
           {scopeReady && selectedBaseId !== '*' && availableUnits.length > 0 && (
             <label className="hidden min-w-36 text-xs font-medium text-strong sm:block">
               یگان
@@ -402,48 +399,49 @@ export function Dashboard() {
             <Clock size={14} />
             بروزرسانی: {formatPersianDateTime(lastUpdated, 'HH:mm')}
           </span>
-          <button
-            onClick={() => {
-              void exportCurrentPageToExcel('داشبورد');
-            }}
-            disabled={!scopeReady || loading}
-            className="p-2.5 rounded-xl transition-colors border flex items-center gap-2 text-sm"
-            style={{ color: '#047857', backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
-            title="دریافت اطلاعات داشبورد در قالب اکسل"
-          >
-            <FileSpreadsheet size={18} />
-            <span className="hidden sm:inline">خروجی اکسل</span>
-          </button>
-          <button
-            onClick={() => setPdfPreview(createPdfReportSnapshot('داشبورد'))}
-            disabled={!scopeReady || loading || !hasCurrentPagePdfData()}
-            className="p-2.5 rounded-xl transition-colors border flex items-center gap-2 text-sm"
-            style={{ color: '#4338ca', backgroundColor: '#eef2ff', borderColor: '#c7d2fe' }}
-            title="چاپ یا ذخیره گزارش داشبورد به‌صورت PDF"
-          >
-            <FileText size={18} />
-            <span className="hidden sm:inline">خروجی PDF</span>
-          </button>
-          <button 
-            onClick={handleExport}
-            disabled={!scopeReady || loading}
-            className="p-2.5 rounded-xl transition-colors border flex items-center gap-2 text-sm"
-            style={{ color: '#059669', backgroundColor: '#ecfdf5', borderColor: '#d1fae5' }}
-            title="دانلود گزارش CSV"
-          >
-            <Download size={18} />
-            <span className="hidden sm:inline">خروجی CSV</span>
-          </button>
-          <button 
-            onClick={handleRefresh}
-            className="btn-ghost p-2.5"
-            disabled={loading}
-            title="بروزرسانی"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
+          </div>
+        }
+        actions={[
+          {
+            id: 'dashboard-excel',
+            label: 'خروجی اکسل',
+            icon: DashboardExcelIcon,
+            variant: 'success',
+            disabled: !scopeReady || loading,
+            onClick: () => { void exportCurrentPageToExcel('داشبورد'); },
+            title: 'دریافت اطلاعات داشبورد در قالب اکسل',
+          },
+          {
+            id: 'dashboard-pdf',
+            label: 'خروجی PDF',
+            icon: FileText,
+            variant: 'indigo',
+            disabled: !scopeReady || loading || !hasCurrentPagePdfData(),
+            onClick: () => setPdfPreview(createPdfReportSnapshot('داشبورد')),
+            title: 'چاپ یا ذخیره گزارش داشبورد به‌صورت PDF',
+          },
+          {
+            id: 'dashboard-csv',
+            label: 'خروجی CSV',
+            icon: Download,
+            variant: 'success',
+            disabled: !scopeReady || loading,
+            onClick: handleExport,
+            title: 'دانلود گزارش CSV',
+          },
+          {
+            id: 'dashboard-refresh',
+            label: 'بروزرسانی',
+            icon: RefreshCw,
+            variant: 'secondary',
+            disabled: loading,
+            active: loading,
+            onClick: handleRefresh,
+            title: 'بروزرسانی',
+          },
+        ]}
+        actionsClassName="flex-wrap"
+      />
 
       {!scopeReady && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">

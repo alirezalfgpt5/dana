@@ -22,6 +22,8 @@ app.set('trust proxy', 1); // Trust first proxy for express-rate-limit
 // سیستم لاگینگ هوشمند، جلوگیری از تکرار لاگ‌ها و مدیریت استثناها
 // ============================================
 import { logger, setupProcessExceptionHandlers } from './server/utils/logger.js';
+import { ensureApplicationLogs, writeApplicationDiagnostic } from './server/utils/diagnostics.js';
+import { initializeSessionAuthLog, logSessionAuthFailure } from './server/utils/sessionAuthLog.js';
 import { freePort, listenWithAutoPortRecovery, setupGracefulShutdown } from './server/utils/portManager.js';
 logger.patchConsole();
 setupProcessExceptionHandlers();
@@ -48,6 +50,8 @@ const PORT = targetPort;
 
 const currentDir = process.env.APP_ROOT || process.cwd();
 const dataDir = process.env.USER_DATA_PATH || process.cwd();
+ensureApplicationLogs(dataDir);
+void initializeSessionAuthLog(dataDir);
 
 // ============================================
 // Import Routes
@@ -237,13 +241,31 @@ app.use(async (req, res, next) => {
           if (isTokenValid) {
             (req as any).user = user;
           } else {
+            const tokenIssuedAt = decoded.iat * 1000;
+            const userUpdatedAt = new Date(user.updatedAt).getTime();
+            await logSessionAuthFailure(req, 'token_invalidated_by_user_update', {
+              tokenIssuedAt: new Date(tokenIssuedAt).toISOString(),
+              accountUpdatedAt: new Date(userUpdatedAt).toISOString(),
+            });
             return res.status(401).json({ error: 'نشست شما به دلیل تغییر اطلاعات کاربری منقضی شده است. لطفاً دوباره وارد شوید.' });
           }
+        } else {
+          (req as any).authFailureReason = 'token_user_missing_or_inactive';
         }
+      } else {
+        (req as any).authFailureReason = 'jwt_subject_missing';
       }
     } catch (err: any) {
       if (err instanceof jwt.TokenExpiredError || err instanceof jwt.JsonWebTokenError) {
         if (!req.path.includes('/auth/')) {
+          const isExpired = err instanceof jwt.TokenExpiredError;
+          await logSessionAuthFailure(req, isExpired ? 'jwt_expired' : 'jwt_invalid', {
+            jwtError: err.name,
+            errorMessage: err.message,
+            ...(isExpired && err.expiredAt
+              ? { expiredAt: err.expiredAt.toISOString() }
+              : {}),
+          });
           return res.status(401).json({ error: 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.' });
         }
       } else {
@@ -368,6 +390,54 @@ const loginLimiter = rateLimit({
   skipSuccessfulRequests: true,
   message: { message: 'تعداد درخواست‌های ناموفق بیش از حد مجاز است. لطفاً ۱۵ دقیقه دیگر تلاش کنید.' },
   validate: { trustProxy: true, xForwardedForHeader: false }
+});
+
+const clientDiagnosticLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: false,
+  legacyHeaders: false,
+});
+
+app.post('/api/diagnostics/client', clientDiagnosticLimiter, (req, res) => {
+  const remoteAddress = req.socket.remoteAddress || '';
+  const isLoopback = remoteAddress === '::1'
+    || remoteAddress === '127.0.0.1'
+    || remoteAddress.startsWith('::ffff:127.');
+  if (!isLoopback) {
+    return res.status(403).end();
+  }
+
+  const origin = req.get('origin');
+  if (origin) {
+    try {
+      const hostname = new URL(origin).hostname;
+      if (!['localhost', '127.0.0.1', '[::1]', '::1'].includes(hostname)) {
+        return res.status(403).end();
+      }
+    } catch {
+      return res.status(403).end();
+    }
+  }
+
+  const { message, event, details } = req.body || {};
+  if (
+    typeof message !== 'string'
+    || !message.trim()
+    || message.length > 12000
+    || (event !== 'uncaught_error' && event !== 'unhandled_rejection' && event !== 'react_error_boundary')
+  ) {
+    return res.status(400).end();
+  }
+
+  writeApplicationDiagnostic({
+    level: 'error',
+    source: 'renderer',
+    event,
+    message,
+    details: details && typeof details === 'object' && !Array.isArray(details) ? details : {},
+  }, dataDir);
+  return res.status(204).end();
 });
 
 app.post('/api/auth/login', loginLimiter, async (req, res) => {

@@ -95,7 +95,7 @@
   --brand-gradient: linear-gradient(135deg, #047857 0%, #0f766e 100%);
 }
 
-/* ۳) بنفش سلطنتی (Royal Purple) */
+/* ۳) بنفش (Royal Purple) */
 [data-theme='royal'] {
   --brand-50:  #f5f3ff;  --brand-100: #ede9fe;  --brand-200: #ddd6fe;
   --brand-300: #c4b5fd;  --brand-400: #a78bfa;  --brand-500: #8b5cf6;
@@ -137,6 +137,17 @@
   --brand-action: #334155; --brand-text: #334155;
   --accent-500: #0ea5e9; --accent-600: #0284c7;
   --brand-gradient: linear-gradient(135deg, #334155 0%, #0f172a 100%);
+}
+
+/* ۷) مهِ نقره‌ای — تم طوسی خنثی با تأکید فولادی */
+[data-theme='mist'] {
+  --brand-50:  #f1f5f9;  --brand-100: #e2e8f0;  --brand-200: #cbd5e1;
+  --brand-300: #94a3b8;  --brand-400: #64748b;  --brand-500: #64748b;
+  --brand-600: #475569;  --brand-700: #334155;  --brand-800: #1e293b;
+  --brand-900: #0f172a;
+  --brand-action: #334155; --brand-text: #334155;
+  --accent-500: #94a3b8; --accent-600: #64748b;
+  --brand-gradient: linear-gradient(135deg, #475569 0%, #334155 100%);
 }
 
 /* ============================================
@@ -269,7 +280,14 @@
     border: 1px solid transparent;
   }
   .menu-item-idle:hover {
-    background-color: var(--surface-soft);
+    background-color: var(--brand-50);
+    color: var(--brand-text);
+    border-color: var(--brand-100);
+  }
+  .dark .menu-item-idle:hover {
+    background-color: color-mix(in srgb, var(--brand-700) 24%, var(--surface-soft));
+    color: var(--brand-300);
+    border-color: color-mix(in srgb, var(--brand-500) 30%, var(--border-main));
   }
 
   /* تاپبار شیشه‌ای */

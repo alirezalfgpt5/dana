@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '../store';
 import { useUserPreference } from '../utils/userPreferences';
 import { formatPersianDateTime } from '../utils/persianDate';
+import { PageToolbar } from '../components/ui/PageToolbar';
 
 interface FileItem {
   id: number;
@@ -548,53 +549,40 @@ export function FilesManagement() {
 
   return (
     <div className="space-y-6 p-4 max-w-7xl mx-auto">
-      {/* هدر صفحه */}
-      <div className="bg-gradient-to-l from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-3 py-1 bg-blue-500/20 text-blue-300 border border-blue-400/30 rounded-full text-xs font-medium">
-                سامانه مدیریت دانش و نظام مسائل (دانا)
-              </span>
-              <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded-full text-xs font-medium">
-                نسخه تبادل داده سازمانی ۳.۲
-              </span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              مدیریت فایل‌ها و تبادل داده سازمانی
-            </h1>
-            <p className="text-slate-300 text-sm mt-1 max-w-3xl leading-relaxed">
-              تولید و صدور قالب‌های خام اکسل برای یگان‌های سازمانی بر اساس دوره زمانی، دریافت اطلاعات تکمیل‌شده، اعتبارسنجی ساختار درختی و همگام‌سازی مستقیم با پایگاه داده.
-            </p>
-          </div>
-
-          {/* تب‌های اصلی */}
-          <div className="flex bg-slate-800/80 p-1.5 rounded-xl border border-slate-700/60 self-start md:self-auto">
+      <PageToolbar
+        title="مدیریت فایل‌ها و تبادل داده سازمانی"
+        subtitle="تولید و صدور قالب‌های اکسل، دریافت اطلاعات تکمیل‌شده، اعتبارسنجی ساختار و همگام‌سازی با پایگاه داده"
+        icon={FolderOpen}
+        extra={
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-faint rounded-full border border-[var(--border-main)] px-2.5 py-1 text-[11px]">
+              نسخه تبادل داده سازمانی ۳.۲
+            </span>
             <button
               onClick={() => setActiveMainTab('exchange')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 activeMainTab === 'exchange'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                  ? 'bg-brand text-white'
+                  : 'text-main hover:bg-brand-soft'
               }`}
             >
-              <FileSpreadsheet size={18} />
+              <FileSpreadsheet size={17} />
               تبادل داده و قالب‌های یگان
             </button>
             <button
               onClick={() => setActiveMainTab('storage')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 activeMainTab === 'storage'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                  ? 'bg-brand text-white'
+                  : 'text-main hover:bg-brand-soft'
               }`}
             >
-              <HardDrive size={18} />
+              <HardDrive size={17} />
               آرشیو فایل‌های پیوست ({files.length})
             </button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* ========================================================================= */}
       {/* تب ۱: تبادل داده و قالب‌های یگانی */}

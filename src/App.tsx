@@ -3,7 +3,7 @@ import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster, useToasterStore } from 'react-hot-toast';
 import toast from 'react-hot-toast';
-import { AlertCircle, CheckCircle2, Info, LoaderCircle, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Info, LoaderCircle, Network, X } from 'lucide-react';
 
 // محدودکننده تعداد پیام‌های همزمان روی صفحه (حداکثر ۳ پیام همزمان برای جلوگیری از شلوغی رابط کاربری)
 function ToastLimiter() {
@@ -117,7 +117,6 @@ export default function App() {
   const darkMode = useUIStore((state) => state.darkMode);
   const fetchSystemSettings = useUIStore((state) => state.fetchSystemSettings);
   const fetchMetadata = useUIStore((state) => state.fetchMetadata);
-  const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
 
@@ -148,18 +147,15 @@ export default function App() {
 
   useEffect(() => {
     const handleAuthError = (e: any) => {
-      // اگر کاربر در صفحه لاگین است یا اصلاً لاگین نکرده، پیام انقضا نمایش داده نشود
       const path = (window.location.pathname || '/') + (window.location.hash || '');
       const isLogin = path.includes('/login');
       const { user: curUser, token: curToken } = useAuthStore.getState();
-      
-      if (isLogin || !curUser || !curToken) {
-        logout();
-        return;
-      }
-      
-      toast.error(translateUiText(e.detail || 'نشست شما منقضی شده است. لطفا دوباره وارد شوید.'), { id: 'app-auth-expired' });
+
+      // پاسخ‌های 401 دیررس یا تکراری بعد از شروع قفل نباید کاربر را از نشست خارج کنند.
+      if (isLogin || !curUser || !curToken || (window as any)._sessionExpiredHandled) return;
+
       (window as any)._sessionExpiredHandled = true;
+      toast.error(translateUiText(e.detail || 'نشست شما منقضی شده است. لطفا دوباره وارد شوید.'), { id: 'app-auth-expired' });
       useSecurityStore.getState().setLocked(true);
       useAuthStore.setState({ token: null });
     };
@@ -175,7 +171,7 @@ export default function App() {
       window.removeEventListener('auth-error', handleAuthError);
       window.removeEventListener('network-error', handleNetworkError);
     };
-  }, [logout]);
+  }, []);
 
   return (
     <ErrorBoundary>
@@ -201,8 +197,20 @@ export default function App() {
           {(item) => <AppToast item={item} />}
         </Toaster>
         <Suspense fallback={
-          <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-500" role="status">
-            در حال بارگذاری صفحه...
+          <div className="surface-page flex min-h-screen items-center justify-center p-6" role="status" aria-live="polite">
+            <div className="theme-card flex w-full max-w-sm flex-col items-center gap-5 p-8 text-center shadow-xl">
+              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl brand-gradient shadow-lg">
+                <Network size={29} className="text-white" />
+                <LoaderCircle size={20} className="absolute -bottom-2 -left-2 animate-spin rounded-full bg-[var(--surface-main)] p-0.5 text-brand" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-strong">دانا</h2>
+                <p className="mt-1 text-sm text-muted">در حال آماده‌سازی صفحه</p>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-soft">
+                <div className="h-full w-1/3 animate-pulse rounded-full bg-brand" />
+              </div>
+            </div>
           </div>
         }>
         <Routes>

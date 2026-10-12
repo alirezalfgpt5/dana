@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { reportClientDiagnostic } from '../lib/clientLogger';
 
 interface Props {
   children?: ReactNode;
@@ -29,6 +30,10 @@ export class ErrorBoundary extends Component<Props, State> {
     }
     this.lastErrorMessage = error.message;
     this.lastErrorTime = now;
+    reportClientDiagnostic('react_error_boundary', error.message, {
+      stack: error.stack,
+      componentStack: errorInfo.componentStack?.slice(0, 12000),
+    });
     console.error('ErrorBoundary captured error:', error.message, errorInfo.componentStack?.slice(0, 300));
   }
 

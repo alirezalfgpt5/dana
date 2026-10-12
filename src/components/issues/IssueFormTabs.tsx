@@ -197,7 +197,7 @@ export function IssueFormTabs({
       setShowLookupLoader(false);
       return;
     }
-    const timer = window.setTimeout(() => setShowLookupLoader(true), 300);
+    const timer = window.setTimeout(() => setShowLookupLoader(true), 150);
     return () => window.clearTimeout(timer);
   }, [lookupsLoading]);
   
@@ -820,23 +820,23 @@ export function IssueFormTabs({
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 w-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b bg-gradient-to-r from-purple-50 to-indigo-50 flex items-center justify-between sticky top-0 z-10 flex-shrink-0">
+      <div className="theme-panel-header p-4 border-b border-white/15 flex items-center justify-between sticky top-0 z-10 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-purple-100 rounded-lg">
+          <div className="p-2 bg-white/15 rounded-lg text-white">
             {initialData ? '✏️' : '➕'}
           </div>
           <div>
-            <h3 className="font-bold text-gray-800 text-lg">
+            <h3 className="font-bold text-white text-lg">
               {initialData ? 'ویرایش مسئله' : 'ثبت مسئله جدید'}
             </h3>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-white/90 mt-1">
               {initialData ? `در حال ویرایش: ${initialData.title}` : 'ثبت مسئله در نظام مسائل'}
             </p>
           </div>
         </div>
         <button
           onClick={onCancel}
-          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+          className="p-1.5 text-white/80 hover:text-white hover:bg-white/15 rounded-lg transition-colors cursor-pointer"
         >
           <X size={20} />
         </button>

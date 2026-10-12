@@ -21,6 +21,7 @@ interface SearchableSelectProps {
   theme?: 'light' | 'dark';
   disabled?: boolean;
   required?: boolean;
+  dropdownMinWidth?: number;
 }
 
 export function SearchableSelect({
@@ -33,6 +34,7 @@ export function SearchableSelect({
   theme = 'light',
   disabled = false,
   required = false,
+  dropdownMinWidth = 0,
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -72,7 +74,7 @@ export function SearchableSelect({
         window.removeEventListener('resize', updateDropdownPosition);
       };
     }
-  }, [isOpen]);
+  }, [isOpen, dropdownMinWidth]);
 
   const updateDropdownPosition = () => {
     if (wrapperRef.current) {
@@ -83,12 +85,16 @@ export function SearchableSelect({
       // Default to dropping down, but if not enough space below and more space above, drop up
       const dropUp = spaceBelow < 250 && spaceAbove > spaceBelow;
 
+      const dropdownWidth = Math.min(
+        Math.max(rect.width, dropdownMinWidth),
+        window.innerWidth - 24,
+      );
       setDropdownStyle({
         position: 'fixed',
         top: dropUp ? 'auto' : rect.bottom + 4,
         bottom: dropUp ? window.innerHeight - rect.top + 4 : 'auto',
-        left: rect.left,
-        width: rect.width,
+        left: Math.max(12, Math.min(rect.right - dropdownWidth, window.innerWidth - dropdownWidth - 12)),
+        width: dropdownWidth,
         zIndex: 9999,
       });
     }
@@ -128,17 +134,11 @@ export function SearchableSelect({
     <div
       ref={dropdownRef}
       style={dropdownStyle}
-      className={`overflow-hidden shadow-2xl ${
-        isDark
-          ? 'bg-[#1e1e2f] border border-[#2d2d44] rounded-lg'
-          : 'bg-white border border-gray-200 rounded-xl'
-      }`}
+      className="overflow-hidden rounded-xl border border-[var(--border-main)] bg-[var(--surface-main)] shadow-2xl"
     >
       {/* جستجو */}
       <div
-        className={`p-2 border-b ${
-          isDark ? 'border-[#2d2d44] bg-[#2d2d44]/50' : 'border-gray-100 bg-gray-50/50'
-        }`}
+        className="border-b border-[var(--border-main)] bg-[var(--surface-soft)] p-2"
       >
         <div className="relative">
           <Search
@@ -148,11 +148,7 @@ export function SearchableSelect({
           <input
             ref={inputRef}
             type="text"
-            className={`w-full pl-8 pr-3 py-1.5 text-sm rounded outline-none transition-all ${
-              isDark
-                ? 'bg-[#2d2d44] text-white focus:ring-1 focus:ring-blue-500 placeholder-gray-500 border-none'
-                : 'bg-white text-gray-800 border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-            }`}
+            className="input-theme w-full rounded px-3 py-1.5 pl-8 text-sm outline-none"
             placeholder="جستجو..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -177,40 +173,38 @@ export function SearchableSelect({
             return (
               <div
                 key={opt.value}
-                className={`px-3 py-2 my-0.5 text-sm cursor-pointer rounded-lg flex items-center justify-between transition-colors ${
+                className={`flex cursor-pointer items-start justify-between rounded-lg px-3 py-2 my-0.5 text-sm transition-colors ${
                   isSelected
-                    ? isDark
-                      ? 'bg-blue-500/20 text-blue-400 font-medium'
-                      : 'bg-blue-50 text-blue-700 font-medium'
-                    : isDark
-                    ? 'text-gray-300 hover:bg-white/5'
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                      ? 'font-medium'
+                      : 'text-main hover:bg-brand-soft'
+                  }`}
+                  style={isSelected ? {
+                    backgroundColor: 'color-mix(in srgb, var(--brand-500) 14%, var(--surface-main))',
+                    color: 'var(--brand-text)',
+                  } : undefined}
                 onClick={() => handleSelect(opt)}
               >
                 <div className="flex flex-col text-right min-w-0 pr-1 flex-1">
-                  <span className="truncate leading-snug">{opt.label}</span>
+                  <span className="break-words leading-snug">{opt.label}</span>
                   {opt.sublabel && (
                     <span className={`text-[11px] truncate mt-0.5 font-normal ${
                       isSelected
-                        ? isDark ? 'text-blue-300/80' : 'text-blue-600/80'
-                        : isDark ? 'text-gray-400' : 'text-gray-400'
+                        ? 'opacity-80'
+                          : 'text-faint'
                     }`}>
                       {opt.sublabel}
                     </span>
                   )}
                 </div>
                 {isSelected && (
-                  <Check size={14} className={`shrink-0 mr-2 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                  <Check size={14} className="text-brand mr-2 shrink-0" />
                 )}
               </div>
             );
           })
         ) : (
           <div
-            className={`px-3 py-6 text-center text-xs ${
-              isDark ? 'text-gray-500' : 'text-gray-400'
-            }`}
+            className="text-faint px-3 py-6 text-center text-xs"
           >
             موردی یافت نشد
           </div>
@@ -225,27 +219,23 @@ export function SearchableSelect({
       <div
         className={`flex items-center justify-between w-full px-3 py-2 cursor-pointer transition-colors ${
           disabled ? 'cursor-not-allowed opacity-60' : ''
-        } ${
-          isDark
-            ? 'bg-[#2d2d44] border-transparent text-white hover:border-blue-500 rounded-md text-sm border'
-            : 'bg-white border-gray-200 text-gray-800 hover:border-blue-400 rounded-xl px-3 py-2 border'
-        }`}
+        } rounded-xl border border-[var(--border-main)] bg-[var(--surface-main)] px-3 py-2 text-[var(--text-main)] hover:border-[var(--brand-400)]`}
         onClick={() => !disabled && setIsOpen(!isOpen)}
       >
         <div className="flex-1 min-w-0 pr-2 text-right">
           {selectedOption ? (
             <div className="flex flex-col truncate">
-              <span className={`text-sm truncate font-medium leading-snug ${isDark ? 'text-white' : 'text-gray-800'}`}>
+              <span className="text-strong truncate text-sm font-medium leading-snug">
                 {selectedOption.label}
               </span>
               {selectedOption.sublabel && (
-                <span className={`text-[11px] truncate font-normal mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
+                <span className="text-muted mt-0.5 truncate text-[11px] font-normal">
                   {selectedOption.sublabel}
                 </span>
               )}
             </div>
           ) : (
-            <span className={`text-sm truncate ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
+            <span className="text-faint truncate text-sm">
               {placeholder}
             </span>
           )}

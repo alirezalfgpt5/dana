@@ -15,13 +15,12 @@ interface AnalysisTimelineProps {
 export function AnalysisTimeline({ events, running }: AnalysisTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const eventsRef = useRef(events);
-  const lastScrolledEventId = useRef<number | null>(null);
   const revealedRef = useRef(new Map<number, { title: string; wordsShown: number }>());
   const [renderVersion, setRenderVersion] = useState(0);
   eventsRef.current = events;
 
   useEffect(() => {
-    if (!events.length) return;
+    if (!events.length || !running) return;
     const timer = window.setInterval(() => {
       let allTerminalEventsRevealed = true;
       for (const event of eventsRef.current) {
@@ -62,16 +61,21 @@ export function AnalysisTimeline({ events, running }: AnalysisTimelineProps) {
 
   useEffect(() => {
     const element = scrollRef.current;
-    const latestEvent = events[events.length - 1];
-    if (!element || !latestEvent || lastScrolledEventId.current === latestEvent.id) return;
-    lastScrolledEventId.current = latestEvent.id;
-    element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
-  }, [events]);
+    if (!element || !running || !events.length) return;
+    const latestEvent = element.querySelector('li:last-child');
+    if (!latestEvent) return;
+    const overflow = latestEvent.getBoundingClientRect().bottom - element.getBoundingClientRect().bottom;
+    if (overflow > 0) element.scrollBy({ top: overflow, behavior: 'smooth' });
+  }, [events, renderVersion, running]);
 
   const visibleEvents = events.map(event => {
     const words = event.title.trim().split(/\s+/).filter(Boolean);
     const revealed = revealedRef.current.get(event.id);
-    const wordsShown = revealed?.title === event.title ? revealed.wordsShown : 0;
+    const wordsShown = !running
+      ? words.length
+      : revealed?.title === event.title
+        ? revealed.wordsShown
+        : 0;
     return {
       ...event,
       text: words.slice(0, wordsShown).join(' '),

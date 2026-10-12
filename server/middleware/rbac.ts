@@ -1,9 +1,14 @@
 import { AuthRequest } from '../types/AuthRequest.js';
 import { Request, Response, NextFunction } from 'express';
 import { db } from '../../src/db/index.js';
+import { logSessionAuthFailure } from '../utils/sessionAuthLog.js';
 
-export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   if (!(req as AuthRequest).user) {
+    const authFailureReason = (req as Request & { authFailureReason?: string }).authFailureReason;
+    await logSessionAuthFailure(req, authFailureReason || 'authentication_required_but_user_missing', {
+      authorizationHeaderPresent: Boolean(req.headers.authorization),
+    });
     return res.status(401).json({ error: 'Unauthorized: Please log in.' });
   }
   next();
@@ -14,6 +19,9 @@ export const requireRole = (roles: string[]) => {
     const user = (req as AuthRequest).user;
     
     if (!user) {
+      await logSessionAuthFailure(req, 'role_check_without_authenticated_user', {
+        authorizationHeaderPresent: Boolean(req.headers.authorization),
+      });
       return res.status(401).json({ error: 'Unauthorized: Please log in.' });
     }
     
@@ -24,6 +32,9 @@ export const requireRole = (roles: string[]) => {
       });
       
       if (!dbUser) {
+        await logSessionAuthFailure(req, 'authenticated_user_not_found', {
+          authorizationHeaderPresent: Boolean(req.headers.authorization),
+        });
         return res.status(401).json({ error: 'Unauthorized: User not found.' });
       }
 
@@ -45,10 +56,14 @@ export const requireRole = (roles: string[]) => {
 };
 
 export const requireOrgLevel = (levels: string[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const user = (req as AuthRequest).user;
     
     if (!user) {
+      const authFailureReason = (req as Request & { authFailureReason?: string }).authFailureReason;
+      await logSessionAuthFailure(req, authFailureReason || 'organization_check_without_authenticated_user', {
+        authorizationHeaderPresent: Boolean(req.headers.authorization),
+      });
       return res.status(401).json({ error: 'Unauthorized: Please log in.' });
     }
     

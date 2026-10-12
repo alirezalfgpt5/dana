@@ -5,6 +5,33 @@ let isClientLoggerInitialized = false;
 const recentClientErrors = new Map<string, { count: number; lastTime: number }>();
 const CLIENT_DEDUP_WINDOW = 4000;
 
+export function reportClientDiagnostic(
+  event: 'uncaught_error' | 'unhandled_rejection' | 'react_error_boundary',
+  message: string,
+  details: Record<string, unknown> = {}
+) {
+  if (!message.trim()) return;
+
+  try {
+    const payload = JSON.stringify({
+      event,
+      message: message.slice(0, 12000),
+      details,
+    });
+    const body = new Blob([payload], { type: 'application/json' });
+    if (!navigator.sendBeacon('/api/diagnostics/client', body)) {
+      void fetch('/api/diagnostics/client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
+      }).catch(() => undefined);
+    }
+  } catch {
+    // Diagnostics must never prevent the application from handling its original error.
+  }
+}
+
 export function initClientErrorHandling() {
   if (isClientLoggerInitialized) return;
   isClientLoggerInitialized = true;
@@ -23,6 +50,12 @@ export function initClientErrorHandling() {
     }
 
     recentClientErrors.set(errorMsg, { count: 1, lastTime: now });
+    reportClientDiagnostic('uncaught_error', errorMsg, {
+      filename: event.filename,
+      line: event.lineno,
+      column: event.colno,
+      stack: event.error instanceof Error ? event.error.stack : undefined,
+    });
     // پاکسازی از حافظه
     setTimeout(() => {
       recentClientErrors.delete(errorMsg);
@@ -55,6 +88,9 @@ export function initClientErrorHandling() {
     }
 
     recentClientErrors.set(reason, { count: 1, lastTime: now });
+    reportClientDiagnostic('unhandled_rejection', reason, {
+      stack: event.reason instanceof Error ? event.reason.stack : undefined,
+    });
     setTimeout(() => {
       recentClientErrors.delete(reason);
     }, CLIENT_DEDUP_WINDOW + 1000);

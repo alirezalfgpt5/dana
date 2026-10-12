@@ -7,6 +7,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { ArchitectureDoc } from '../components/ArchitectureDoc';
+import { PageToolbar } from '../components/ui/PageToolbar';
 import imgConcept from '../assets/img-concept.png';
 
 export function Guide() {
@@ -116,21 +117,11 @@ export function Guide() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-10">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
-        <div className="relative z-10 flex items-start gap-6">
-          <div className="p-4 bg-white/20 backdrop-blur-md rounded-2xl">
-            <BookOpen size={48} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold mb-3">راهنمای جامع سامانه مدیریت دانش (DANA)</h1>
-            <p className="text-blue-100 text-lg max-w-2xl leading-relaxed">
-              به سامانه جامع مدیریت دانش خوش آمدید. این راهنما شامل جریان کار (Workflow) سامانه و سند جامع معماری آن می‌باشد.
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageToolbar
+        title="راهنمای جامع سامانه مدیریت دانش (DANA)"
+        subtitle="جریان کار گام‌به‌گام سامانه و سند جامع معماری و عملکرد"
+        icon={BookOpen}
+      />
 
       {/* Tabs */}
       <div className="flex items-center gap-2 bg-gray-100 p-1.5 rounded-xl border border-gray-200">

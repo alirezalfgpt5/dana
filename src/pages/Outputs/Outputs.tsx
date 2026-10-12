@@ -23,7 +23,7 @@ import rawTransition from 'react-element-popper/animations/transition';
 import toast from 'react-hot-toast';
 import { TreeGraphView } from '../Trees/components/TreeGraphView';
 import { getTreeOrgText } from '../../utils/orgHelper';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, type YAxisTickContentProps } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { formatNumber, getDatePickerDigits } from '../../utils/numberFormat';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 
@@ -158,7 +158,7 @@ export function Outputs() {
   const treeOptions = trees.map(t => ({
     value: String(t.id),
     label: `${t.name} (${t.type === 'required' ? 'مورد نیاز' : t.type === 'produced' ? 'تولیدشده' : 'پژوهشی'})`,
-    sublabel: `ساختار سازمانی: ${getTreeOrgText(t)}`,
+    sublabel: `دوره: ${periods.find(period => String(period.id) === String(t.periodId))?.name || 'نامشخص'} • ساختار سازمانی: ${getTreeOrgText(t)}`,
   }));
 
   const outputTypeOptions = [
@@ -440,6 +440,9 @@ export function Outputs() {
               </button>
             </div>
           </div>
+          <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs leading-6 text-sky-800">
+            نمودار همهٔ گره‌های درختوارهٔ انتخاب‌شده را نشان می‌دهد و فیلترهای دوره، واحد متولی و بازهٔ تاریخ آن را محدود نمی‌کنند. اگر ساختار یک یگان در دوره‌ای دیگر تغییر کرده، درختوارهٔ مربوط به دوره و ساختار موردنظر را از فهرست انتخاب کنید؛ دوره و ساختار هر گزینه زیر نام آن نوشته شده است.
+          </div>
                     <div className="p-6 bg-gray-50/50">
             {graphLoading ? (
               <div className="flex items-center justify-center h-96">
@@ -506,21 +509,11 @@ export function Outputs() {
                           <YAxis
                             type="category"
                             dataKey="name"
-                            width={135}
+                            orientation="left"
+                            width={160}
                             tickMargin={8}
-                            tick={({ x, y, payload }: YAxisTickContentProps) => (
-                              <text
-                                x={Number(x) - 8}
-                                y={y}
-                                textAnchor="end"
-                                dominantBaseline="central"
-                                direction="rtl"
-                                fontSize={11}
-                                fill="var(--text-muted)"
-                              >
-                                {payload?.value}
-                              </text>
-                            )}
+                            tickLine={false}
+                            tick={{ fontSize: 11, textAnchor: 'end', direction: 'ltr', fill: 'var(--text-muted)' }}
                           />
                           <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                           <Bar dataKey="count" radius={[0, 4, 4, 0]}>

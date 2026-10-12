@@ -9,6 +9,45 @@ let mainWindow = null;
 let splashWindow = null;
 let serverProcess = null;
 let PORT = 3000;
+let isAppQuitting = false;
+
+function ensureLogDirectory() {
+  const logDirectory = path.join(app.getPath("userData"), "logs");
+  fs2.mkdirSync(logDirectory, { recursive: true });
+  for (const fileName of ["application-errors.jsonl", "session-expired.log"]) {
+    fs2.closeSync(fs2.openSync(path.join(logDirectory, fileName), "a"));
+  }
+  return logDirectory;
+}
+
+function writeElectronDiagnostic(event, error, details = {}) {
+  try {
+    const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    const sanitizedMessage = message
+      .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, "Bearer ***REDACTED***")
+      .replace(/((?:password|passwd|pwd|secret|token|authorization)\s*[:=]\s*["']?)([^"'\s,;]+)/gi, "$1***REDACTED***");
+    const entry = {
+      timestamp: new Date().toISOString(),
+      level: event.includes("crashed") || event.includes("gone") ? "fatal" : "error",
+      source: "electron",
+      event,
+      message: sanitizedMessage.slice(0, 12000),
+      ...(stack ? { stack: stack.slice(0, 12000) } : {}),
+      details,
+    };
+    const logPath = path.join(ensureLogDirectory(), "application-errors.jsonl");
+    fs2.appendFileSync(logPath, `${JSON.stringify(entry)}\n`, "utf8");
+  } catch (writeError) {
+    try {
+      fs2.writeSync(2, `Failed to write Electron diagnostic log: ${String(writeError)}\n`);
+    } catch {}
+  }
+}
+
+process.on("uncaughtExceptionMonitor", (error, origin) => {
+  writeElectronDiagnostic("uncaught_main_process_exception", error, { origin });
+});
 
 if (process.env.NODE_ENV !== "development") process.env.NODE_ENV = "production";
 const isDev = process.env.NODE_ENV === "development";
@@ -58,6 +97,11 @@ async function startServer() {
       serverProcess.stdout.on("data", (data) => console.log(`🖥️ ${data}`));
       serverProcess.stderr.on("data", (data) => console.error(`❌ ${data}`));
       serverProcess.on("error", reject);
+      serverProcess.on("exit", (code, signal) => {
+        if (!isAppQuitting) {
+          writeElectronDiagnostic("server_process_exited_unexpectedly", `Server exited with code ${code}`, { code, signal });
+        }
+      });
 
       const checkServer = () => {
         const req = http.get(`http://localhost:${PORT}/api/health`, (res) => {
@@ -164,6 +208,7 @@ async function createWindow() {
     }
     await startServer();
   } catch (err) {
+    writeElectronDiagnostic("server_startup_failed", err);
     console.error("❌ Failed to start server:", err);
     if (splashWindow) splashWindow.close();
     dialog.showErrorBox("خطا در راه‌اندازی", "متأسفانه سرور داخلی سامانه با مشکل مواجه شد.\n\nتوضیحات خطا:\n" + err.message);
@@ -183,6 +228,18 @@ async function createWindow() {
     icon: path.join(__dirname, "public", "favicon.ico"),
     show: false,
   });
+
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    writeElectronDiagnostic("renderer_process_gone", "Electron renderer process exited unexpectedly.", details);
+  });
+  mainWindow.webContents.on("unresponsive", () => {
+    writeElectronDiagnostic("renderer_unresponsive", "Electron renderer stopped responding.");
+  });
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (isMainFrame) {
+      writeElectronDiagnostic("renderer_load_failed", errorDescription, { errorCode, validatedURL });
+    }
+  });
   
 
   try {
@@ -194,6 +251,7 @@ async function createWindow() {
       await mainWindow.loadURL(`http://localhost:${PORT}`);
     }
   } catch (err) {
+    writeElectronDiagnostic("renderer_navigation_failed", err);
     console.error("Failed to load URL:", err);
   }
 
@@ -223,12 +281,20 @@ async function createWindow() {
 }
 
 app.whenReady().then(() => {
+  ensureLogDirectory();
   Menu.setApplicationMenu(null);
   return createWindow();
-}).catch(console.error);
+}).catch((error) => {
+  writeElectronDiagnostic("application_startup_failed", error);
+  console.error(error);
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  isAppQuitting = true;
 });
 
 app.on("will-quit", () => {

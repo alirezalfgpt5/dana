@@ -2,7 +2,7 @@
 // نوار بالایی برنامه — با پشتیبانی از سیستم تم
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore, useUIStore, THEMES } from '../../store';
-import { Search, X, LogOut, Info, Mail, Phone, LayoutDashboard, Maximize2, Minimize2, Menu, Moon, Sun, Network, Palette, Check, Map as MapIcon, Landmark } from 'lucide-react';
+import { Search, X, LogOut, Info, Mail, Phone, LayoutDashboard, Maximize2, Minimize2, Menu, Moon, Sun, Network, Palette, Check, Map as MapIcon } from 'lucide-react';
 import { formatPersianDate, formatPersianDateTime } from '../../utils/persianDate';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -153,7 +153,8 @@ export function Topbar() {
                     setDataScope(String(p.id), dataScopeBaseId || null);
                   }
                 }}
-                theme="dark"
+                theme={darkMode ? 'dark' : 'light'}
+                dropdownMinWidth={300}
                 className="min-w-0"
               />
             </div>
@@ -162,7 +163,6 @@ export function Topbar() {
 
         {periods.length > 0 && bases.length > 0 && (
           <div className="flex min-w-0 items-center gap-1 sm:gap-2" title="ساختار فعال">
-            <Landmark size={15} className="hidden sm:block shrink-0 text-gray-400" />
             <div className="w-[clamp(5rem,22vw,8rem)] sm:w-32 lg:w-44 min-w-0">
               <SearchableSelect
                 options={[
@@ -174,7 +174,8 @@ export function Topbar() {
                   dataScopePeriodId || (activePeriod?.id ? String(activePeriod.id) : null),
                   value ? String(value) : null
                 )}
-                theme="dark"
+                theme={darkMode ? 'dark' : 'light'}
+                dropdownMinWidth={300}
                 className="min-w-0"
                 placeholder="انتخاب ساختار"
               />

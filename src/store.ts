@@ -8,7 +8,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 // Theme System — تعریف تم‌های برنامه
 // ============================================
 
-export type ThemeId = 'ocean' | 'emerald' | 'royal' | 'sunset' | 'amber' | 'graphite';
+export type ThemeId = 'ocean' | 'emerald' | 'royal' | 'sunset' | 'amber' | 'graphite' | 'mist';
 
 export interface ThemeMeta {
   id: ThemeId;
@@ -20,10 +20,11 @@ export interface ThemeMeta {
 export const THEMES: ThemeMeta[] = [
   { id: 'ocean',    name: 'اقیانوس آبی',  desc: 'آبی و نیلی — پیش‌فرض حرفه‌ای',   swatch: ['#2563eb', '#4f46e5'] },
   { id: 'emerald',  name: 'زمرد سبز',     desc: 'سبز و فیروزه‌ای — آرام و شفاف',  swatch: ['#059669', '#0d9488'] },
-  { id: 'royal',    name: 'بنفش سلطنتی',  desc: 'بنفش و سرخابی — مدرن و متمایز',  swatch: ['#7c3aed', '#c026d3'] },
+  { id: 'royal',    name: 'بنفش',  desc: 'بنفش و سرخابی — مدرن و متمایز',  swatch: ['#7c3aed', '#c026d3'] },
   { id: 'sunset',   name: 'غروب سرخ',     desc: 'قرمز و نارنجی — پرانرژی',        swatch: ['#dc2626', '#ea580c'] },
   { id: 'amber',    name: 'کهربای طلایی', desc: 'طلایی و نارنجی — گرم و کلاسیک',  swatch: ['#b45309', '#d97706'] },
   { id: 'graphite', name: 'گرافیت مدرن',  desc: 'خاکستری و آبی سرد — رسمی و مینیمال', swatch: ['#334155', '#0ea5e9'] },
+  { id: 'mist',     name: 'مهِ نقره‌ای',  desc: 'طوسی سنگی و نقره‌ای — آرام و متعادل', swatch: ['#475569', '#cbd5e1'] },
 ];
 
 // ============================================

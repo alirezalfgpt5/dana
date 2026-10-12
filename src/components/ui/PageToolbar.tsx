@@ -145,14 +145,17 @@ export function PageToolbar({
     <div
       data-page-toolbar="true"
       className={twMerge(
-        'w-full bg-white dark:bg-[#1e1e2f] border border-gray-200/80 dark:border-gray-800 rounded-2xl p-4 shadow-sm transition-all duration-200',
+        'theme-card relative w-full rounded-2xl p-4 shadow-sm transition-all duration-200',
         className
       )}
     >
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         {/* بخش عنوان و آیکون صفحه */}
         {(title || Icon) && (
-          <div className="flex items-center gap-3.5 min-w-0">
+          <div
+            className="flex min-w-0 items-center gap-3.5 rounded-xl border border-[var(--brand-200)] px-3 py-2.5"
+            style={{ backgroundColor: 'color-mix(in srgb, var(--brand-500) 8%, var(--surface-main))' }}
+          >
             {Icon && (
               <div
                 className={clsx(
@@ -165,7 +168,7 @@ export function PageToolbar({
             )}
             <div className="min-w-0">
               {typeof title === 'string' ? (
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+                <h1 className="text-strong truncate text-xl font-bold">
                   {title}
                 </h1>
               ) : (
@@ -173,7 +176,7 @@ export function PageToolbar({
               )}
               {subtitle && (
                 typeof subtitle === 'string' ? (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate font-medium">
+                  <p className="text-muted mt-0.5 truncate text-xs font-medium">
                     {subtitle}
                   </p>
                 ) : (

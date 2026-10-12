@@ -15,6 +15,7 @@ import { formatNumber } from '../utils/numberFormat';
 import { setUserNumberSettings } from '../utils/numberFormat';
 import { getUserPreference, migrateLegacyNumberPreferences } from '../utils/userPreferences';
 import toast from 'react-hot-toast';
+import { PageToolbar } from '../components/ui/PageToolbar';
 
 type TabType = 'general' | 'appearance' | 'gapConfig' | 'security';
 
@@ -695,38 +696,63 @@ export function Settings() {
       </div>
 
       {/* توضیحات کامل روش تحلیل */}
-      <div className="theme-card p-5">
-        <h3 className="font-bold text-strong mb-3">توضیحات کامل روش تحلیل شکاف</h3>
-        <div className="space-y-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-          <div className="flex gap-3">
-            <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۱</span>
-            <p><strong className="text-strong">جمع‌آوری گره‌ها:</strong> تمامی برگ‌های درختواره مورد نیاز و درختواره تولیدشده استخراج می‌شوند.</p>
-          </div>
-          <div className="flex gap-3">
-            <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۲</span>
-            <p><strong className="text-strong">نرمال‌سازی متن:</strong> عنوان گره‌ها با حذف اعراب، یکسان‌سازی یا/ک عربی و نیم‌فاصله‌ها، برای مقایسه آماده می‌شوند.</p>
-          </div>
-          <div className="flex gap-3">
-            <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۳</span>
-            <div>
-              <p><strong className="text-strong">تطابق چندلایه — ۵ روش مستقل:</strong></p>
-              <ul className="mt-2 space-y-2 pr-4" style={{ listStyle: 'disc' }}>
-                <li><strong className="text-strong">لوانشتاین (فاصله ویرایشی):</strong> می‌شمارد حداقل چند حرف باید حذف، اضافه یا جایگزین شود تا یک عنوان به عنوان دیگر تبدیل شود؛ سپس نرمال می‌شود (۱ − فاصله ÷ طولانی‌تر). برای تغییرات کوچک تایپی و غلط املایی عالی است؛ به طول رشته حساس است.</li>
-                <li><strong className="text-strong">بای‌گرام (شاخص سایرنسن‑دایس):</strong> عنوان را به جفت‌حرف‌های مجاور می‌شکند (مثل «دات‌ا» → «دا»، «ات»، «تا») و نسبت بای‌گرام‌های مشترک به مجموع را می‌سنجد. در برابر جابجایی ترتیب حروف مقاوم‌تر از لوانشتاین است و ساخت واژگانی مشترک فارسی را خوب می‌گیرد.</li>
-                <li><strong className="text-strong">توکن فازی:</strong> عنوان‌ها را به کلمه‌های جدا می‌کند و هر کلمه با نزدیک‌ترین کلمه عنوان مقابل تطبیق داده می‌شود (تطبیق یک‌به‌یک حریصانه با آستانه ۶۰٪). تفاوت‌های تصریفی و نگارشی کلمات را می‌بخشد؛ مناسب عناوین چندکلمه‌ای.</li>
-                <li><strong className="text-strong">اشتراک واژگان:</strong> تعداد کلمات دقیقاً مشترک تقسیم بر میانگین تعداد کلمات دو عنوان. وقتی هر دو عنوان از واژگان استاندارد سازمانی استفاده کنند، قوی‌ترین سیگنال تطابق است؛ اما مترادف‌ها را تشخیص نمی‌دهد و به همین دلیل به‌تنهایی کافی نیست.</li>
-                <li><strong className="text-strong">امتیاز ساختاری:</strong> مسیر والد‌ها (از ریشه تا برگ) دو گره با همان معیار اشتراک واژگان مقایسه می‌شود. وقتی دو گره در شاخه‌های هم‌نام ساختاری قرار گرفته باشند امتیاز می‌گیرد حتی اگر عنوان‌شان متفاوت باشد — مثلاً «تربیت نیروی انسانی» در دو درخت با شاخه «منابع انسانی ← آموزش».</li>
-              </ul>
-              <p className="mt-2"><strong className="text-strong">ترکیب نهایی:</strong> میانگین وزن‌دار ۳۰٪ شامل‌بودن/توکن + ۲۵٪ اشتراک واژگان + ۲۰٪ توکن فازی + ۱۵٪ بای‌گرام + ۱۰٪ لوانشتاین ← سپس ترکیب با ۶۰٪ شباهت عنوان + ۲۰٪ جایگاه ساختاری + ۲۰٪ قالب‌های مشترک. بالای آستانه (پیش‌فرض ۴۵٪) = پوشش، زیر آن = گپ باز.</p>
+      <div className="theme-card flex h-[min(34rem,75vh)] min-h-80 flex-col overflow-hidden p-5">
+        <h3 className="mb-3 shrink-0 font-bold text-strong">توضیحات کامل روش تحلیل شکاف</h3>
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain pl-2"
+          tabIndex={0}
+          aria-label="توضیحات گام‌به‌گام روش تحلیل شکاف"
+        >
+          <div className="space-y-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+            <div className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۱</span>
+              <p><strong className="text-strong">ورودی تحلیل:</strong> موتور، گره‌های برگ و پرسش (سطح‌های L و Q) درختوارهٔ مورد نیاز را با گره‌های برگ و پرسش درختوارهٔ تولیدشده مقایسه می‌کند. اگر درختوارهٔ تولیدشده انتخاب نشود، تطبیق تولیدشده‌ای انجام نمی‌شود و نیازها گپ باز می‌مانند.</p>
             </div>
-          </div>
-          <div className="flex gap-3">
-            <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۴</span>
-            <p><strong className="text-strong">طبقه‌بندی وضعیت:</strong> شباهت بالای ۸۰٪ = پر شده | بین ۴۵-۸۰٪ = نیمه‌پر | کمتر از آستانه = باز (گپ).</p>
-          </div>
-          <div className="flex gap-3">
-            <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۵</span>
-            <p><strong className="text-strong">تولید گزارش:</strong> خلاصه فارسی، پوشش وزن‌دار کلی و به تفکیک سطح، و لیست گپ‌ها با شرح توضیحی تولید می‌شود.</p>
+            <div className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۲</span>
+              <p><strong className="text-strong">نرمال‌سازی فارسی:</strong> حروف عربی و فارسی (از جمله «ي/ی» و «ك/ک») و رقم‌ها یکسان می‌شوند؛ اعراب، کشیده و نویسه‌های کنترلی حذف، نیم‌فاصله و نشانه‌گذاری به فاصله تبدیل و فاصله‌های تکراری فشرده می‌شوند. در مقایسهٔ واژگانی، ایست‌واژه‌های رایجی مانند «و»، «از» و «برای» نیز کنار گذاشته می‌شوند.</p>
+            </div>
+            <div className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۳</span>
+              <p><strong className="text-strong">تطبیق دستی:</strong> اگر گرهٔ تولیدشده با علامت بررسی دستی مشخص شده باشد، همان گره با امتیاز کامل تطبیق داده می‌شود و این نتیجه از تطبیق خودکار اولویت دارد.</p>
+            </div>
+            <div className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۴</span>
+              <div>
+                <p><strong className="text-strong">کنترل قالب‌های الزامی:</strong> قالب‌های مورد نیاز از خود گرهٔ مورد نیاز خوانده می‌شوند. قالب‌های موجود در هر گرهٔ تولیدشده از سه منبع جمع می‌شوند: قالب‌های مستقیم گره، قالبِ نمونه‌های ثبت‌شده و قالبِ دارایی‌های دانشی پیوست‌شده به آن گره.</p>
+                <ul className="mt-2 space-y-1.5 pr-4" style={{ listStyle: 'disc' }}>
+                  <li>پیدا شدن همهٔ قالب‌های الزامی در یک گرهٔ تولیدشده، «پوشش کامل قالبی» است.</li>
+                  <li>اگر همه پیدا نشوند، نسبت قالب‌های پیدا‌شده به قالب‌های لازم محاسبه می‌شود. رسیدن این نسبت به آستانهٔ پوشش جزئی فعلی ({gapConfig.partialMatchThreshold}٪) نتیجهٔ «نیمه‌پوشش قالبی» می‌دهد.</li>
+                  <li>اگر نسبت از آستانه کمتر باشد، نیاز گپ باز می‌ماند. وقتی قالب الزامی تعریف شده، شباهت عنوان به‌تنهایی نمی‌تواند قالب مفقود را جبران کند و مسیر تطبیق فازی عنوان برای آن نیاز اجرا نمی‌شود.</li>
+                </ul>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۵</span>
+              <div>
+                <p><strong className="text-strong">شباهت عنوان با پنج سیگنال:</strong> این محاسبه برای نیازهایی انجام می‌شود که قالب الزامی ندارند. امتیاز عنوان از ترکیب زیر ساخته می‌شود:</p>
+                <ul className="mt-2 space-y-1.5 pr-4" style={{ listStyle: 'disc' }}>
+                  <li><strong className="text-strong">شمول عنوان (۳۰٪):</strong> اگر یک عنوان در دیگری قرار داشته باشد، امتیاز آن از ۷۵٪ به‌علاوهٔ ۲۵٪ نسبت طول عنوان کوتاه‌تر به بلندتر به دست می‌آید؛ سپس با امتیاز اشتراک سادهٔ واژه‌ها مقایسه و مقدار بزرگ‌تر استفاده می‌شود.</li>
+                  <li><strong className="text-strong">هم‌پوشانی واژگان (۲۵٪):</strong> واژه‌های معنادار پس از حذف ایست‌واژه‌ها سنجیده می‌شوند؛ تعداد واژه‌های مشترک بر تعداد واژه‌های عنوانی که توکن بیشتری دارد تقسیم می‌شود. این امتیاز نیز با اشتراک سادهٔ واژه‌ها مقایسه و مقدار بزرگ‌تر وارد ترکیب می‌شود.</li>
+                  <li><strong className="text-strong">توکن فازی (۲۰٪):</strong> هر واژه با نزدیک‌ترین واژهٔ استفاده‌نشده در عنوان دیگر، با فاصلهٔ ویرایشی نرمال‌شده مقایسه می‌شود. جفت‌هایی با شباهت حداقل ۸۰٪ پذیرفته می‌شوند و هر واژه حداکثر یک‌بار استفاده می‌شود.</li>
+                  <li><strong className="text-strong">بای‌گرام (۱۵٪):</strong> هم‌پوشانی جفت‌نویسه‌های مجاور با ضریب سایرنسن–دایس محاسبه می‌شود.</li>
+                  <li><strong className="text-strong">لوانشتاین (۱۰٪):</strong> فاصلهٔ ویرایشیِ حذف، اضافه یا جایگزینی نویسه‌ها به شباهت بین صفر و یک تبدیل می‌شود: یک منهای فاصله تقسیم بر طول عنوان بلندتر.</li>
+                </ul>
+                <p className="mt-2">ترکیب عنوان دقیقاً برابر است با: ۳۰٪ × بیشینهٔ شمول و اشتراک ساده + ۲۵٪ × بیشینهٔ هم‌پوشانی و اشتراک ساده + ۲۰٪ × توکن فازی + ۱۵٪ × بای‌گرام + ۱۰٪ × لوانشتاین. امتیاز نهایی از صفر تا یک محدود می‌شود و اگر ۹۵٪ امتیاز اشتراک سادهٔ واژه‌ها از امتیاز ترکیبی بیشتر باشد، همان مقدار بالاتر انتخاب می‌شود.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۶</span>
+              <div>
+                <p><strong className="text-strong">شباهت ساختاری و امتیاز فازی:</strong> مسیر عنوان والدها در دو درخت، از سطح‌های بالاتر به پایین‌تر مقایسه می‌شود؛ سطح‌های بالاتر وزن بیشتری دارند و شباهت هر سطح فقط از ۷۰٪ به بالا در امتیاز ساختار اثر می‌گذارد.</p>
+                <p className="mt-2">امتیاز پایهٔ فازی برابر است با ({Math.max(0, 100 - gapConfig.structuralWeight - gapConfig.templateWeight)}٪ × شباهت عنوان) + ({gapConfig.structuralWeight}٪ × شباهت ساختار). اگر نمونهٔ دانشی یکسانی مشترک باشد، به اندازهٔ ۱٫۵ برابر وزن قالب/نمونه ({gapConfig.templateWeight}٪) امتیاز افزوده می‌شود؛ امتیاز از ۱۰۰٪ بیشتر نمی‌شود. در این شاخه قالب الزامی وجود ندارد؛ قالب‌های الزامی در مرحلهٔ جداگانهٔ قبل بررسی می‌شوند.</p>
+                <p className="mt-2"><strong className="text-strong">آستانه و وضعیت:</strong> امتیاز کمتر از آستانهٔ فازی فعلی ({gapConfig.fuzzyThreshold}٪) پذیرفته نمی‌شود. امتیاز ۹۰٪ به بالا، یا عنوان تقریباً یکسان (حداقل ۹۹٪) همراه با شباهت ساختاری حداقل ۵۰٪، «پوشش کامل» است؛ سایر امتیازهای پذیرفته‌شده «نیمه‌پوشش» محسوب می‌شوند. موردی که هیچ تطبیق پذیرفته‌شده‌ای نداشته باشد «گپ باز» است.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>۷</span>
+              <p><strong className="text-strong">گزارش نهایی:</strong> نتیجهٔ تطبیق، گرهٔ متناظر، امتیاز و دلیل فارسی ثبت می‌شود. بازبینی دستی حفظ و بر نتیجهٔ خودکار اولویت داده می‌شود؛ سپس تعداد کامل، نیمه‌پوشش و گپ‌های باز، پوشش کلی و پوشش به تفکیک سطح و خلاصهٔ گزارش محاسبه می‌شوند.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1275,18 +1301,11 @@ export function Settings() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="mb-6 flex flex-col items-start justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-colors duration-200 dark:border-gray-800 dark:bg-[#1e1e2f] md:flex-row md:items-center">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 brand-gradient rounded-xl shadow-lg">
-            <SettingsIcon size={24} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-strong">تنظیمات سیستم</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>مدیریت تنظیمات عمومی، ظاهر و تم، و امنیت</p>
-          </div>
-        </div>
-      </div>
+      <PageToolbar
+        title="تنظیمات سیستم"
+        subtitle="مدیریت تنظیمات عمومی، ظاهر و تم، و امنیت"
+        icon={SettingsIcon}
+      />
 
       {/* Tabs */}
       <div className="theme-card shadow-sm overflow-hidden rounded-xl">

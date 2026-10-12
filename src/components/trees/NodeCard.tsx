@@ -44,6 +44,15 @@ const DEPTH_COLORS = [
   'from-white to-slate-100 border-slate-200',
 ];
 
+const LEVEL_BADGE_COLORS: Record<string, string> = {
+  R: '#3b82f6',
+  T: '#8b5cf6',
+  B: '#10b981',
+  SB: '#f59e0b',
+  L: '#6366f1',
+  Q: '#ec4899',
+};
+
 export function NodeCard({
   node,
   depth,
@@ -72,6 +81,7 @@ export function NodeCard({
   const isLight = depth >= 6;
   
   const customColor = levelColors ? levelColors[node.level] : undefined;
+  const levelBadgeColor = customColor || LEVEL_BADGE_COLORS[node.level] || LEVEL_BADGE_COLORS.L;
   const customBorder = customColor ? { borderColor: customColor } : {};
   const customBg = customColor ? { background: `linear-gradient(0deg, ${customColor}1A, ${customColor}1A), #ffffff` } : {};
   const customText = customColor ? { color: customColor } : {};
@@ -216,7 +226,12 @@ export function NodeCard({
       onClick={() => onSelect?.(node)}
       style={{ fontSize: `${fontSizeScale}rem`, opacity, ...customGradientBg, ...(customColor ? { borderColor: customColor, color: '#fff' } : {}) }}
     >
-      <div className={`absolute top-2 left-2 font-bold px-2 py-0.5 rounded-full ${!customColor ? (isLight ? 'bg-black/10 text-slate-700' : 'bg-white/20 text-white') : 'bg-black/20 text-white'}`} style={{ fontSize: '0.65em' }}>
+      <div
+        className="absolute left-2 top-2 z-10 flex h-7 min-w-7 items-center justify-center rounded-full border-2 px-1.5 font-black text-white shadow-md"
+        style={{ backgroundColor: levelBadgeColor, borderColor: `${levelBadgeColor}99`, fontSize: '0.65em' }}
+        title={`سطح ${node.level}`}
+        aria-label={`سطح ${node.level}`}
+      >
         {node.level}
       </div>
 

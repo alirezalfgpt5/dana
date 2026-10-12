@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, RotateCcw, Save, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Languages, RotateCcw, Save, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DEFAULT_UI_TEXTS, DEFAULT_UI_TEXT_CATEGORY } from 'virtual:dana-ui-text-catalog';
 import { getUiTextOverrides, loadUiTextOverrides, saveUiTextOverrides } from '../utils/uiText';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { useUIStore } from '../store';
+import { PageToolbar } from '../components/ui/PageToolbar';
 
 const PAGE_SIZE = 25;
 
@@ -84,12 +85,11 @@ export function UiTextSettings() {
 
   return (
     <div className="space-y-5 pb-10" dir="rtl">
-      <header className="theme-card p-5">
-        <h1 className="text-xl font-bold text-strong">تنظیم ادبیات و عنوان‌های برنامه</h1>
-        <p className="mt-2 text-sm leading-7" style={{ color: 'var(--text-muted)' }}>
-          متن پیش‌فرض در ستون اول ثابت است؛ عنوان دلخواه را در ستون دوم وارد کنید. متن‌های سفارشی در همین نصب آفلاین ذخیره و در منوها، صفحه‌ها، پیام‌های داخلی و برچسب‌های ثابت اعمال می‌شوند. نام‌ها و محتوای ثبت‌شده توسط کاربران تغییر نمی‌کنند.
-        </p>
-      </header>
+      <PageToolbar
+        title="تنظیم ادبیات و عنوان‌های برنامه"
+        subtitle="ویرایش عبارت‌های ثابت رابط کاربری؛ متن پیش‌فرض در ستون اول و عنوان سفارشی در ستون دوم"
+        icon={Languages}
+      />
 
       <section className="theme-card space-y-4 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
