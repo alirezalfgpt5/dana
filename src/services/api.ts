@@ -9,10 +9,13 @@ export const api = axios.create({
 
 import { dispatchAuthError, useAuthStore } from '../store';
 
+const requestTokens = new WeakMap<object, string | null>();
+
 // Interceptor برای افزودن توکن
 api.interceptors.request.use((config) => {
   try {
     const token = useAuthStore.getState().token;
+    requestTokens.set(config, token);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -38,7 +41,8 @@ api.interceptors.response.use(
       const currentPath = (window.location.pathname || '/') + (window.location.hash || '');
       const onPublicRoute = currentPath.includes('/login');
       const { user, token } = useAuthStore.getState();
-      const hasSession = !!(user && token);
+      const requestToken = error.config ? requestTokens.get(error.config) : null;
+      const hasSession = !!(user && token && requestToken && token === requestToken);
       if (hasSession && !onPublicRoute) {
         dispatchAuthError('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
       }

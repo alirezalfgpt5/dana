@@ -84,9 +84,10 @@ export async function apiClient<T = any>(
         const currentPath = (window.location.pathname || '/') + (window.location.hash || '');
         const onPublicRoute = currentPath.includes('/login');
         const { user, token } = useAuthStore.getState();
-        
-        // فقط اگر کاربر قبلاً وارد شده بود و در صفحه لاگین نیست
-        if (user && token && !onPublicRoute) {
+        const requestToken = finalHeaders['Authorization']?.replace(/^Bearer\s+/i, '') || null;
+
+        // پاسخ یک درخواست قدیمی نباید نشست جدید را قفل کند.
+        if (user && token && token === requestToken && !onPublicRoute) {
           // ⚠️ Dedup: فقط اولین ۴۰۱ پیام می‌دهد و قفل می‌کند — نه ۵۰ بار پیام پشت هم
           if (!(window as any)._sessionExpiredHandled) {
             (window as any)._sessionExpiredHandled = true;
