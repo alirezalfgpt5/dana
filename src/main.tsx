@@ -63,8 +63,15 @@ window.customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const res = await originalFetch(input, options);
       
       if (res.status === 401 && isApiRequest) {
-        // برای روت لاگین یا تنظیمات عمومی نیازی به پرتاب رویداد انقضای نشست نیست
-        if (!urlString.includes('/api/auth/login') && !urlString.includes('/api/metadata/system-settings')) {
+        const currentAuth = useAuthStore.getState();
+        // پاسخ دیررسِ درخواست بدون نشست نباید ورود تازه یا خروج کاربر را دوباره قفل کند.
+        if (
+          token
+          && currentAuth.user
+          && currentAuth.token === token
+          && !urlString.includes('/api/auth/login')
+          && !urlString.includes('/api/metadata/system-settings')
+        ) {
           dispatchAuthError('نشست شما منقضی شده است. لطفا دوباره وارد شوید.');
         }
       }
