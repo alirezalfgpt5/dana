@@ -179,8 +179,11 @@ export default function App() {
 
   useEffect(() => {
     if (!user || !token) return;
+    const controller = new AbortController();
+    const requestToken = token;
     (window.customFetch || window.fetch)('/api/auth/permissions', {
       headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
     })
       .then(async response => {
         if (!response.ok) throw new Error('Could not refresh role permissions');
@@ -193,12 +196,22 @@ export default function App() {
           && result.permissions.every(permission => typeof permission === 'string')
         ) {
           const permissions = result.permissions as string[];
-          if (JSON.stringify(user.permissions || []) !== JSON.stringify(permissions)) {
-            updateUser({ ...user, permissions });
+          const currentUser = useAuthStore.getState().user;
+          if (
+            useAuthStore.getState().token === requestToken
+            && currentUser
+            && JSON.stringify(currentUser.permissions || []) !== JSON.stringify(permissions)
+          ) {
+            updateUser({ ...currentUser, permissions });
           }
         }
       })
-      .catch(error => console.error('Could not refresh current role permissions:', error));
+      .catch(error => {
+        if (error.name !== 'AbortError') {
+          console.error('Could not refresh current role permissions:', error);
+        }
+      });
+    return () => controller.abort();
   }, [user, token, updateUser]);
 
   useEffect(() => {

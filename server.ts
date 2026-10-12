@@ -294,8 +294,11 @@ app.use(async (req, res, next) => {
       }
     } catch (err: any) {
       if (err instanceof jwt.TokenExpiredError || err instanceof jwt.JsonWebTokenError) {
-        if (!req.path.includes('/auth/')) {
+        const isPublicAuthEndpoint = req.path === '/api/auth/login'
+          || req.path === '/api/auth/reset-password-offline';
+        if (!isPublicAuthEndpoint) {
           const isExpired = err instanceof jwt.TokenExpiredError;
+          (req as any).authFailureReason = isExpired ? 'jwt_expired' : 'jwt_invalid';
           await logSessionAuthFailure(req, isExpired ? 'jwt_expired' : 'jwt_invalid', {
             jwtError: err.name,
             errorMessage: err.message,
