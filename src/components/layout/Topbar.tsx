@@ -285,37 +285,39 @@ export function Topbar() {
         </div>
 
         {/* اطلاعات توسعه‌دهنده */}
-        <div
-          className="hidden lg:flex items-center gap-2"
-          onMouseEnter={() => setShowDevInfo(true)}
-          onMouseLeave={() => setShowDevInfo(false)}
-        >
-          <div className="relative group cursor-default">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 hover:border-blue-400/30 transition-colors">
-              <Info size={15} className="text-blue-500" />
-            </div>
-            {/* Tooltip */}
-            {showDevInfo && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-[#1a1a2e] border border-[#2d2d44] rounded-xl shadow-2xl p-3 z-50">
-                <div className="space-y-1.5">
-                  <p className="text-[11px] font-medium text-white">توسعه‌دهنده</p>
-                  <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                    <span className="text-blue-400">👨</span>
-                    <span>علیرضا لباف</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] text-gray-400" dir="ltr">
-                    <Phone size={10} className="text-gray-500" />
-                    <span>۰۹۱۹۶۶۰۰۵۴۵</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] text-gray-400" dir="ltr">
-                    <Mail size={10} className="text-gray-500" />
-                    <span>alirezalf@gmail.com</span>
+        {user?.role === 'superadmin' && (
+          <div
+            className="hidden lg:flex items-center gap-2"
+            onMouseEnter={() => setShowDevInfo(true)}
+            onMouseLeave={() => setShowDevInfo(false)}
+          >
+              <div className="relative group cursor-default">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 hover:border-blue-400/30 transition-colors">
+                  <Info size={15} className="text-blue-500" />
+                </div>
+                {/* Tooltip */}
+                {showDevInfo && (
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-[#1a1a2e] border border-[#2d2d44] rounded-xl shadow-2xl p-3 z-50">
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-medium text-white">توسعه‌دهنده</p>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                        <span className="text-blue-400">👨</span>
+                        <span>علیرضا لباف</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-400" dir="ltr">
+                        <Phone size={10} className="text-gray-500" />
+                        <span>۰۹۱۹۶۶۰۰۵۴۵</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-400" dir="ltr">
+                        <Mail size={10} className="text-gray-500" />
+                        <span>alirezalf@gmail.com</span>
+                      </div>
                   </div>
                 </div>
+                )}
               </div>
-            )}
           </div>
-        </div>
+        )}
 
         {/* خروج */}
         <div className="flex items-center border-r divider-main pr-2 sm:pr-4">

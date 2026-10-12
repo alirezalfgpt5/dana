@@ -43,7 +43,7 @@ export function ProcessWizard() {
           <div className="min-w-0">
             <h1 className="flex items-center gap-2 text-lg font-bold text-gray-800">
               <Waypoints className="text-purple-600" size={21} />
-              مسیریاب یکپارچه دانش
+              مسیر یکپارچه دانش
             </h1>
             <p className="mt-1 text-xs text-gray-500">
               اجرای گام‌به‌گام فرآیند حکمرانی دانشی حوزه علوم و فناوری های نرم و شناختی آجا

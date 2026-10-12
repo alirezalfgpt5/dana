@@ -56,7 +56,7 @@ export const MENU_CONFIG: MenuGroup[] = [
         color: 'text-blue-500' 
       },
       { 
-        label: 'راهنمای گام‌به‌گام',
+        label: 'مسیر یکپارچه دانش',
         path: '/wizard', 
         icon: Waypoints, 
         color: 'text-purple-500' 

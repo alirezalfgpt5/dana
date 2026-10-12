@@ -13,6 +13,11 @@ export interface DiagnosticEntry {
 }
 
 const SECRET_KEY_PATTERN = /^(authorization|password|passwd|pwd|token|secret|cookie|accessToken|refreshToken)$/i;
+let applicationDiagnosticsEnabled = true;
+
+export function setApplicationDiagnosticsEnabled(enabled: boolean) {
+  applicationDiagnosticsEnabled = enabled;
+}
 
 function sanitizeString(value: string) {
   return value
@@ -48,6 +53,8 @@ export function ensureApplicationLogs(dataDir: string) {
 }
 
 export function writeApplicationDiagnostic(entry: DiagnosticEntry, dataDir = process.env.USER_DATA_PATH || process.cwd()) {
+  if (!applicationDiagnosticsEnabled) return;
+
   const normalizedEntry = sanitizeValue({
     timestamp: entry.timestamp || new Date().toISOString(),
     level: entry.level,

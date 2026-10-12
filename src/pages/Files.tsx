@@ -12,10 +12,11 @@ import {
   FileCheck, ShieldAlert, Sparkles, HelpCircle, History, GitMerge, FileDiff, ShieldCheck, Undo2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useAuthStore } from '../store';
+import { useAuthStore, useUIStore } from '../store';
 import { useUserPreference } from '../utils/userPreferences';
 import { formatPersianDateTime } from '../utils/persianDate';
 import { PageToolbar } from '../components/ui/PageToolbar';
+import { SearchableSelect } from '../components/ui/SearchableSelect';
 
 interface FileItem {
   id: number;
@@ -59,6 +60,7 @@ interface UnitStat {
 
 export function FilesManagement() {
   const { user } = useAuthStore();
+  const { darkMode } = useUIStore();
   const [activeMainTab, setActiveMainTab] = useState<'exchange' | 'storage'>('exchange');
 
   // -------------------------------------------------------------
@@ -599,17 +601,19 @@ export function FilesManagement() {
                     <Calendar size={14} className="text-blue-500" />
                     دوره زمانی ارزیابی
                   </label>
-                  <select
-                    value={selectedPeriodId}
-                    onChange={(e) => setSelectedPeriodId(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    {periods.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} {p.is_active ? '(فعال)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={selectedPeriodId || null}
+                    onChange={value => setSelectedPeriodId(value == null ? '' : String(value))}
+                    options={periods.map(period => ({
+                      value: String(period.id),
+                      label: period.name,
+                      sublabel: period.is_active ? 'فعال' : undefined,
+                    }))}
+                    placeholder="جستجو و انتخاب دوره..."
+                    theme={darkMode ? 'dark' : 'light'}
+                    className="w-full"
+                    disabled={periods.length === 0}
+                  />
                 </div>
 
                 {/* انتخاب نیرو / پایگاه */}
@@ -618,15 +622,15 @@ export function FilesManagement() {
                     <Landmark size={14} className="text-indigo-500" />
                     نیرو / رده بالادست
                   </label>
-                  <select
-                    value={selectedBaseId}
-                    onChange={(e) => setSelectedBaseId(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    {bases.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={selectedBaseId || null}
+                    onChange={value => setSelectedBaseId(value == null ? '' : String(value))}
+                    options={bases.map(base => ({ value: String(base.id), label: base.name }))}
+                    placeholder="جستجو و انتخاب نیرو..."
+                    theme={darkMode ? 'dark' : 'light'}
+                    className="w-full"
+                    disabled={bases.length === 0}
+                  />
                 </div>
 
                 {/* انتخاب یگان سازمانی */}
@@ -635,19 +639,15 @@ export function FilesManagement() {
                     <Layers size={14} className="text-emerald-500" />
                     یگان سازمانی مجری
                   </label>
-                  <select
-                    value={selectedUnitId}
-                    onChange={(e) => setSelectedUnitId(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    {filteredUnits.length === 0 ? (
-                      <option value="">هیچ یگانی یافت نشد</option>
-                    ) : (
-                      filteredUnits.map(u => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
-                      ))
-                    )}
-                  </select>
+                  <SearchableSelect
+                    value={selectedUnitId || null}
+                    onChange={value => setSelectedUnitId(value == null ? '' : String(value))}
+                    options={filteredUnits.map(unit => ({ value: String(unit.id), label: unit.name }))}
+                    placeholder={filteredUnits.length ? 'جستجو و انتخاب یگان...' : 'هیچ یگانی یافت نشد'}
+                    theme={darkMode ? 'dark' : 'light'}
+                    className="w-full"
+                    disabled={filteredUnits.length === 0}
+                  />
                 </div>
               </div>
 
@@ -1029,17 +1029,19 @@ export function FilesManagement() {
                                           )}
                                         </td>
                                         <td className="p-2 text-center">
-                                          <select
+                                          <SearchableSelect
                                             value={conflictResolutions[conflict.key] || 'incoming'}
-                                            onChange={(e) => setConflictResolutions(prev => ({
-                                              ...prev,
-                                              [conflict.key]: e.target.value as 'incoming' | 'existing'
+                                            onChange={value => setConflictResolutions(previous => ({
+                                              ...previous,
+                                              [conflict.key]: value === 'existing' ? 'existing' : 'incoming',
                                             }))}
-                                            className="p-1 border border-slate-300 rounded text-[10px] bg-white dark:bg-slate-800"
-                                          >
-                                            <option value="incoming">پذیرش فایل ارسالی</option>
-                                            <option value="existing">حفظ دیتابیس فعلی</option>
-                                          </select>
+                                            options={[
+                                              { value: 'incoming', label: 'پذیرش فایل ارسالی' },
+                                              { value: 'existing', label: 'حفظ دیتابیس فعلی' },
+                                            ]}
+                                            theme={darkMode ? 'dark' : 'light'}
+                                            className="min-w-[165px]"
+                                          />
                                         </td>
                                       </tr>
                                     ))
@@ -1356,40 +1358,46 @@ export function FilesManagement() {
                 />
               </div>
 
-              <select
+              <SearchableSelect
                 value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                aria-label="فیلتر نوع فایل"
-                className="min-w-0 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm focus:outline-none"
-              >
-                <option value="all">همه فرمت‌ها</option>
-                <option value="image">تصاویر</option>
-                <option value="application">اسناد و داکیومنت‌ها</option>
-                <option value="archive">فایل‌های فشرده</option>
-              </select>
+                onChange={value => setFilterType(value == null ? 'all' : String(value))}
+                options={[
+                  { value: 'all', label: 'همه فرمت‌ها' },
+                  { value: 'image', label: 'تصاویر' },
+                  { value: 'application', label: 'اسناد و داکیومنت‌ها' },
+                  { value: 'archive', label: 'فایل‌های فشرده' },
+                ]}
+                placeholder="فیلتر نوع فایل"
+                theme={darkMode ? 'dark' : 'light'}
+                className="min-w-0"
+              />
 
-              <select
+              <SearchableSelect
                 value={filterModule}
-                onChange={(e) => setFilterModule(e.target.value)}
-                aria-label="فیلتر بخش فایل"
-                className="min-w-0 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm focus:outline-none"
-              >
-                <option value="all">همه بخش‌ها</option>
-                <option value="issues">نظام مسائل</option>
-                <option value="trees">درختواره‌ها</option>
-                <option value="assets">دارایی‌های دانشی</option>
-                <option value="exports">خروجی‌ها</option>
-              </select>
-              <select
+                onChange={value => setFilterModule(value == null ? 'all' : String(value))}
+                options={[
+                  { value: 'all', label: 'همه بخش‌ها' },
+                  { value: 'issues', label: 'نظام مسائل' },
+                  { value: 'trees', label: 'درختواره‌ها' },
+                  { value: 'assets', label: 'دارایی‌های دانشی' },
+                  { value: 'exports', label: 'خروجی‌ها' },
+                ]}
+                placeholder="فیلتر بخش فایل"
+                theme={darkMode ? 'dark' : 'light'}
+                className="min-w-0"
+              />
+              <SearchableSelect
                 value={sortBy}
-                onChange={event => setSortBy(event.target.value as 'name' | 'size' | 'date')}
-                aria-label="مرتب‌سازی فایل‌ها بر اساس"
-                className="min-w-0 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm focus:outline-none"
-              >
-                <option value="date">مرتب‌سازی: تاریخ بارگذاری</option>
-                <option value="name">مرتب‌سازی: نام فایل</option>
-                <option value="size">مرتب‌سازی: حجم فایل</option>
-              </select>
+                onChange={value => setSortBy(value === 'name' || value === 'size' ? value : 'date')}
+                options={[
+                  { value: 'date', label: 'مرتب‌سازی: تاریخ بارگذاری' },
+                  { value: 'name', label: 'مرتب‌سازی: نام فایل' },
+                  { value: 'size', label: 'مرتب‌سازی: حجم فایل' },
+                ]}
+                placeholder="مرتب‌سازی فایل‌ها"
+                theme={darkMode ? 'dark' : 'light'}
+                className="min-w-0"
+              />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 md:justify-end">

@@ -5,8 +5,30 @@ import { roles, users } from '../../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middleware/rbac.js';
 import { logAudit } from '../utils/audit.js';
+import { APPLICATION_PERMISSIONS, normalizePermissions } from '../../src/config/permissions.js';
 
 export const roleRoutes = express.Router();
+
+const knownPermissionIds = new Set<string>(APPLICATION_PERMISSIONS.map(permission => permission.id));
+
+function validateRolePermissions(value: unknown): string[] | null {
+  let permissions: unknown = value;
+  if (typeof permissions === 'string') {
+    try {
+      permissions = JSON.parse(permissions);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(permissions) || permissions.some(permission => typeof permission !== 'string')) {
+    return null;
+  }
+  if (permissions.includes('all')) return null;
+
+  const normalized = normalizePermissions(permissions);
+  if (normalized.some(permission => !knownPermissionIds.has(permission))) return null;
+  return normalized;
+}
 
 // Get all roles
 roleRoutes.get('/', requireAuth, async (req, res) => {
@@ -22,11 +44,18 @@ roleRoutes.get('/', requireAuth, async (req, res) => {
 roleRoutes.post('/', requireAuth, requireRole(['admin', 'superadmin']), async (req, res) => {
   try {
     const { name, label, permissions } = req.body;
+    if (name === 'superadmin') {
+      return res.status(400).json({ error: 'نقش مدیر کل فقط توسط سامانه مدیریت می‌شود' });
+    }
+    const validatedPermissions = validateRolePermissions(permissions || []);
+    if (!validatedPermissions) {
+      return res.status(400).json({ error: 'فهرست دسترسی‌های نقش معتبر نیست' });
+    }
     
     const newRole = await db.insert(roles).values({
       name,
       label,
-      permissions: JSON.stringify(permissions || []),
+      permissions: JSON.stringify(validatedPermissions),
       isSystem: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -62,15 +91,22 @@ roleRoutes.put('/:id', requireAuth, requireRole(['admin', 'superadmin']), async 
       return res.status(404).json({ error: 'نقش یافت نشد' });
     }
     
-    if (existing.isSystem && existing.name === 'superadmin' && req.body.permissions) {
-       // do not change superadmin permissions
-       req.body.permissions = existing.permissions;
+    const validatedPermissions = existing.name === 'superadmin'
+      ? existing.permissions
+      : permissions === undefined
+        ? existing.permissions
+        : (() => {
+          const parsed = validateRolePermissions(permissions);
+          return parsed ? JSON.stringify(parsed) : null;
+        })();
+    if (validatedPermissions === null) {
+      return res.status(400).json({ error: 'فهرست دسترسی‌های نقش معتبر نیست' });
     }
     
     const updated = await db.update(roles).set({
       name: existing.isSystem ? existing.name : name, // can't change system role names
       label: label || existing.label,
-      permissions: typeof permissions === 'string' ? permissions : JSON.stringify(permissions || []),
+      permissions: validatedPermissions,
       updatedAt: new Date().toISOString()
     }).where(eq(roles.id, Number(id))).returning();
     
@@ -133,4 +169,3 @@ roleRoutes.delete('/:id', requireAuth, requireRole(['admin', 'superadmin']), asy
     res.status(500).json({ error: 'خطای سرور' });
   }
 });
-

@@ -6,6 +6,55 @@
 
 @import "tailwindcss";
 
+@media print {
+  body.technical-doc-printing * {
+    visibility: hidden !important;
+  }
+
+  body.technical-doc-printing .technical-doc-print-area,
+  body.technical-doc-printing .technical-doc-print-area * {
+    visibility: visible !important;
+  }
+
+  body.technical-doc-printing .technical-doc-print-controls {
+    display: none !important;
+  }
+
+  body.technical-doc-printing .technical-doc-print-area {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    margin: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  body.technical-doc-printing .technical-doc-print-area article {
+    border: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body.technical-doc-printing .technical-doc-content h1,
+  body.technical-doc-printing .technical-doc-content h2,
+  body.technical-doc-printing .technical-doc-content h3 {
+    break-after: avoid;
+    color: #000 !important;
+  }
+
+  body.technical-doc-printing .technical-doc-content tr,
+  body.technical-doc-printing .technical-doc-content pre {
+    break-inside: avoid;
+  }
+
+  body.technical-doc-printing .technical-doc-content pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+
 /* ============================================
    🎨 سیستم تم (Theme System)
    هر تم، متغیرهای CSS سراسری را بازنویسی می‌کند.

@@ -3,7 +3,17 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import packageInfo from '../../package.json';
 
-const fileGroups = [
+export const programMapFileGroups = [
+  {
+    title: 'مستندات فنی، معماری و داده',
+    icon: FileText,
+    files: [
+      ['AJA_KNOWLEDGE_GOVERNANCE_SYSTEM.md', 'سند راهبردی و مرجع معماری؛ فصل پانزدهم وضعیت اجرایی فناوری، ساختار مخزن، امنیت، داده، محدودیت‌های SQLite/MySQL و نگهداری را مستند می‌کند.'],
+      ['DATABASE_SCHEMA.md', 'مرجع کامل جدول‌ها، فیلدها، نوع داده، مقدارهای پیش‌فرض و روابط SQLite؛ تغییرات این سند باید با src/db/schema.ts تطبیق داده شود.'],
+      ['MYSQL_SUPPORT.md', 'وضعیت واقعی پشتیبانی و چک‌لیست مهاجرت آتی MySQL/MariaDB؛ موتور عملیاتی فعلی سامانه SQLite است.'],
+      ['src/components/TechnicalDocumentation.tsx', 'نمایش اسناد Markdown در راهنما با فهرست موضوعی، جستجوی زندهٔ بین‌سندی و چاپ؛ تب آن برای نقش admin و superadmin نمایش داده می‌شود.'],
+    ],
+  },
   {
     title: 'نقطهٔ شروع، ساخت و بسته‌بندی',
     icon: Code2,
@@ -18,6 +28,7 @@ const fileGroups = [
       ['src/main.tsx', 'نقطهٔ ورود React؛ راه‌اندازی مدیریت خطا/پیام‌ها، افزودن نشست به درخواست‌های API محلی و نمایش نسخهٔ واقعی بسته در کنسول توسعه.'],
       ['src/App.tsx', 'تعریف مسیریابی، محافظت نشست، بارگذاری تنظیمات عمومی و اتصال صفحات برنامه.'],
       ['src/config/appConfig.ts', 'تنظیمات محلی برنامه مانند مسیر پیش‌فرض خروجی اکسل و حالت مستقل.'],
+      ['src/config/permissions.ts', 'شناسه‌های یکپارچهٔ دسترسی صفحات، مجوزهای اولیهٔ نقش‌ها و نگاشت شناسه‌های قدیمی.'],
     ],
   },
   {
@@ -25,14 +36,14 @@ const fileGroups = [
     icon: Layers3,
     files: [
       ['src/components/layout/Topbar.tsx', 'نوار بالایی، جستجو، انتخاب دوره، تم، تاریخ و میانبرهای برنامه؛ نقشهٔ برنامه فقط برای superadmin.'],
-      ['src/components/layout/Sidebar.tsx و src/config/menuConfig.ts', 'ساخت منوی کناری، گروه‌بندی صفحه‌ها و فیلتر گزینه‌ها بر اساس نقش و مجوز.'],
+      ['src/components/layout/Sidebar.tsx و src/config/menuConfig.ts', 'ساخت منوی کناری، گروه‌بندی صفحه‌ها و فیلتر گزینه‌ها بر اساس نقش و مجوز؛ دسترسی مستقیم صفحه نیز در RoutePermissionGuard بررسی می‌شود.'],
       ['src/components/layout/MainLayout.tsx و src/components/layout/Breadcrumbs.tsx', 'قالب مشترک صفحات واردشده، چیدمان سایدبار/محتوا، یادآوری غیرمزاحم پیش‌نیازهای ساختار/دوره و مسیر راهنمای صفحه.'],
       ['src/components/layout/AuthGuard.tsx', 'جلوگیری از دسترسی بدون نشست و کنترل قفل خودکار صفحه.'],
       ['src/pages/Login.tsx', 'ورود کاربر، کپچای محلی و نمایش درخواست بازنشانی رمز.'],
       ['src/components/auth/ResetPasswordModal.tsx', 'بازنشانی آفلاین رمز با کلید بازیابی؛ پنجره با ارتفاع محدود به صفحه و محتوای قابل پیمایش.'],
       ['src/components/auth/OfflineCaptcha.tsx', 'تولید و بررسی کپچا در مرورگر، بدون سرویس بیرونی.'],
       ['src/pages/ProgramMap.tsx', 'همین راهنمای فنی: فهرست فایل‌ها، مسئولیت‌ها، نسخه و نکات امن برای توسعه و انتشار.'],
-      ['src/pages/Guide.tsx و src/components/ArchitectureDoc.tsx', 'راهنمای کاربری، گردش‌کارها و معرفی کلی معماری و قابلیت‌ها.'],
+      ['src/pages/Guide.tsx و src/components/ArchitectureDoc.tsx', 'راهنمای کاربری و گردش‌کارها؛ تب مستندات فنی مدیریتی اسناد معماری، فیلدهای پایگاه داده و وضعیت MySQL را با جستجو و چاپ نشان می‌دهد.'],
       ['src/pages/Dashboard.tsx', 'داشبورد و شاخص‌های کلی سامانه.'],
       ['src/pages/Trees/RequiredTree.tsx و src/pages/Trees/ProducedTree.tsx', 'مدیریت درختوارهٔ نیازمندی‌ها و درختوارهٔ دانش/دارایی‌های تولیدشده.'],
       ['src/pages/Gaps/GapAnalysis.tsx', 'گردش‌کار انتخاب درخت‌ها، اجرای تحلیل، مشاهده/بازبینی/تکمیل شکاف و خروجی‌گیری.'],
@@ -43,10 +54,10 @@ const fileGroups = [
       ['src/pages/Issues/IssueSystem.tsx', 'صفحهٔ اصلی فهرست مسائل و دسترسی به جزئیات/عملیات هر مسئله.'],
       ['src/pages/Outputs/Outputs.tsx و src/pages/DynamicReports.tsx', 'تهیهٔ خروجی‌ها و گزارش‌های قابل تنظیم.'],
       ['src/pages/Users.tsx و src/pages/Roles.tsx', 'مدیریت کاربران، نقش‌ها و دسترسی‌ها.'],
-      ['src/pages/Settings.tsx و src/pages/Definitions.tsx', 'تنظیمات سامانه و مدیریت تعاریف پایه.'],
+      ['src/pages/Settings.tsx و src/pages/Definitions.tsx', 'تنظیمات سامانه، کنترل مدیریتی ثبت خطاهای داخلی و مدیریت تعاریف پایه.'],
       ['src/pages/UiTextSettings.tsx و src/utils/uiText.ts', 'جستجو، صفحه‌بندی، ذخیره و بازگردانی عنوان‌های ثابت رابط؛ متن‌های سفارشی به‌صورت محلی در همین نصب نگهداری می‌شوند.'],
       ['src/pages/OrgStructure.tsx و src/pages/Periods.tsx', 'مدیریت ساختار سازمانی و دوره‌های زمانی.'],
-      ['src/pages/Files.tsx و src/components/ImportPreviewModal.tsx', 'مدیریت فایل‌ها و پیش‌نمایش امن داده‌های ورودی پیش از ثبت.'],
+      ['src/pages/Files.tsx و src/components/ImportPreviewModal.tsx', 'مدیریت فایل‌ها، انتخاب‌های جستجوپذیر و پیش‌نمایش داده‌های ورودی پیش از ثبت.'],
       ['src/pages/Profile.tsx و src/pages/AuditLog.tsx', 'پروفایل کاربر و مشاهدهٔ سوابق ممیزی.'],
       ['src/pages/Templates.tsx و src/components/DynamicMetadataManager.tsx', 'مدیریت قالب‌های دانشی و فراداده‌های پویا.'],
       ['src/pages/Wizard/ProcessWizard.tsx', 'راهنمای مرحله‌ای اجرای فرایندهای تعریف‌شده در برنامه.'],
@@ -114,7 +125,7 @@ const fileGroups = [
       ['src/db/sqlite-adapter.ts', 'آداپتور اتصال SQLite که Drizzle از طریق آن به دیتابیس محلی متصل می‌شود.'],
       ['src/store.ts', 'وضعیت مشترک نشست، تنظیمات ظاهری، داده‌های پایه و تعامل با API در Zustand.'],
       ['src/lib/apiClient.ts و src/services/api.ts', 'لایهٔ درخواست‌های محلی API، مدیریت نشست و خطاهای HTTP.'],
-      ['server/middleware/rbac.ts', 'میان‌افزار کنترل نقش و مجوز روی درخواست‌های API؛ کنترل رابط جایگزین این لایه نیست.'],
+      ['server/middleware/rbac.ts و server/routes/roles.ts', 'میان‌افزار کنترل نقش و مجوز روی API و اعتبارسنجی امن فهرست دسترسی نقش‌ها؛ کنترل رابط جایگزین این لایه نیست.'],
       ['server/utils/orgAccess.ts و src/utils/orgHelper.ts', 'قواعد دسترسی سازمانی سرور و نمایش/تبدیل مسیرهای سازمانی.'],
       ['server/utils/backup.ts', 'پشتیبان‌گیری از پایگاه دادهٔ محلی.'],
       ['server/utils/portManager.ts', 'مدیریت انتخاب/بررسی پورت برای سرور داخلی برنامه.'],
@@ -149,7 +160,7 @@ const fileGroups = [
       ['server/routes/outputRoutes.ts و researchRoutes.ts', 'API خروجی‌ها و اقلام پژوهشی.'],
       ['server/routes/roles.ts و templateRoutes.ts', 'API نقش‌ها/مجوزها و قالب‌ها.'],
       ['server/routes/searchRoutes.ts و treeRoutes.ts', 'API جستجو و مدیریت درخت/گره‌ها.'],
-      ['server/routes/unitDataExchangeRoutes.ts', 'ورود/خروج دادهٔ سازمانی در سطح یگان.'],
+      ['server/routes/unitDataExchangeRoutes.ts', 'ورود/خروج دادهٔ یگان با ردیف‌های پایگاه داده و فهرست‌های Excel مبتنی بر تعاریف فعال برنامه.'],
       ['server/routes/dynamicFieldsRoutes.ts و notificationRoutes.ts', 'API فیلدهای پویا و اعلان‌ها.'],
       ['server/routes/mergeRoutes.ts', 'عملیات ادغام داده‌های دامنه‌ای.'],
       ['server/routes/issueRoutes.ts و issues/index.ts', 'ثبت روت‌های نظام مسائل و تجمیع endpointهای مسئله.'],
@@ -193,7 +204,7 @@ export function ProgramMap() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeEntry, setActiveEntry] = useState<string | null>(null);
   const entries = useMemo(
-    () => fileGroups.flatMap((group, groupIndex) => group.files.map(([file, description], fileIndex) => ({
+    () => programMapFileGroups.flatMap((group, groupIndex) => group.files.map(([file, description], fileIndex) => ({
       id: `program-map-entry-${groupIndex}-${fileIndex}`,
       group: group.title,
       file,
@@ -291,7 +302,7 @@ export function ProgramMap() {
         </ul>
       </section>
 
-      {fileGroups.map(({ title, icon: Icon, files }, groupIndex) => (
+      {programMapFileGroups.map(({ title, icon: Icon, files }, groupIndex) => (
         <section key={title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <h2 className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-5 py-4 font-bold text-slate-800">
             <Icon size={19} className="text-blue-600" />

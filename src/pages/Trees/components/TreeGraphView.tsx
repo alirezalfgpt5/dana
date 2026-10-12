@@ -1,5 +1,6 @@
 // src/pages/Trees/components/TreeGraphView.tsx
 import React, { useEffect, useRef, useState } from 'react';
+import { downloadSvg } from '../../../utils/svgExport';
 import * as d3 from 'd3';
 import { ZoomIn, ZoomOut, Maximize, Move, Network, Settings, X, Download, Maximize2, Minimize2 } from 'lucide-react';
 import { LEVELS, LEVEL_ORDER } from '../constants/treeLevels';
@@ -260,32 +261,7 @@ export function TreeGraphView({
   
   const handleDownloadSVG = () => {
     if (!svgRef.current) return;
-    const svgElement = svgRef.current;
-    
-    // Copy the SVG
-    const clonedSvg = svgElement.cloneNode(true) as SVGElement;
-    
-    // Set appropriate namespaces if missing
-    if (!clonedSvg.getAttribute('xmlns')) {
-      clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    }
-    
-    const serializer = new XMLSerializer();
-    let svgString = serializer.serializeToString(clonedSvg);
-    
-    // Add XML declaration
-    svgString = '<?xml version="1.0" standalone="no"?>\r\n' + svgString;
-    
-    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${treeName || 'tree-graph'}.svg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadSvg(svgRef.current, treeName || 'tree-graph');
   };
 
   if (!treeData) {

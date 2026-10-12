@@ -8,7 +8,7 @@ import { bases, units, organizationalLevels } from '../../src/db/schema.js';
 import { eq, and, isNull } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
 
-import { requireRole } from '../middleware/rbac.js';
+import { requirePermission, requireRole } from '../middleware/rbac.js';
 export const orgRoutes = Router();
 
 // ============================================
@@ -90,7 +90,7 @@ orgRoutes.get('/bases/:id/tree', async (req, res) => {
   }
 });
 
-orgRoutes.post('/bases', requireRole(['admin']), async (req, res) => {
+orgRoutes.post('/bases', requireRole(['admin']), requirePermission('org-structure'), async (req, res) => {
   try {
     const { name, location, level, parentId, description } = req.body;
     const now = new Date().toISOString();
@@ -226,7 +226,7 @@ orgRoutes.post('/bases', requireRole(['admin']), async (req, res) => {
   }
 });
 
-orgRoutes.put('/bases/:id', requireRole(['admin']), async (req, res) => {
+orgRoutes.put('/bases/:id', requireRole(['admin']), requirePermission('org-structure'), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, location, level, parentId, description, isActive } = req.body;
@@ -345,7 +345,7 @@ orgRoutes.put('/bases/:id', requireRole(['admin']), async (req, res) => {
   }
 });
 
-orgRoutes.delete('/bases/:id', requireRole(['admin']), async (req, res) => {
+orgRoutes.delete('/bases/:id', requireRole(['admin']), requirePermission('org-structure'), async (req, res) => {
   try {
     const { id } = req.params;
     const baseId = parseInt(id);
@@ -459,7 +459,7 @@ orgRoutes.get('/units/by-base/:baseId', async (req, res) => {
   }
 });
 
-orgRoutes.post('/units', requireRole(['admin']), async (req, res) => {
+orgRoutes.post('/units', requireRole(['admin']), requirePermission('org-structure'), async (req, res) => {
   try {
     const { baseId, name, level, parentId, description } = req.body;
     const now = new Date().toISOString();
@@ -537,7 +537,7 @@ orgRoutes.post('/units', requireRole(['admin']), async (req, res) => {
   }
 });
 
-orgRoutes.put('/units/:id', requireRole(['admin']), async (req, res) => {
+orgRoutes.put('/units/:id', requireRole(['admin']), requirePermission('org-structure'), async (req, res) => {
   try {
     const { id } = req.params;
     const { baseId, name, level, parentId, description, isActive } = req.body;
@@ -629,7 +629,7 @@ orgRoutes.put('/units/:id', requireRole(['admin']), async (req, res) => {
   }
 });
 
-orgRoutes.delete('/units/:id', requireRole(['admin']), async (req, res) => {
+orgRoutes.delete('/units/:id', requireRole(['admin']), requirePermission('org-structure'), async (req, res) => {
   try {
     const { id } = req.params;
     const unitId = parseInt(id);

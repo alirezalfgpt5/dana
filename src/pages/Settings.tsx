@@ -20,6 +20,7 @@ import { PageToolbar } from '../components/ui/PageToolbar';
 type TabType = 'general' | 'appearance' | 'gapConfig' | 'security';
 
 export function Settings() {
+  const { user } = useAuthStore();
   // تنظیمات تحلیل شکاف (ذخیره در localStorage)
   const GAP_CONFIG_KEY = 'dana_gap_config';
   const [gapConfig, setGapConfig] = useState({
@@ -124,6 +125,8 @@ export function Settings() {
   const [masterRecoveryKey, setMasterRecoveryKey] = useState('');
   const [savingMasterKey, setSavingMasterKey] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
+  const [applicationErrorLoggingEnabled, setApplicationErrorLoggingEnabled] = useState(true);
+  const [savingErrorLogging, setSavingErrorLogging] = useState(false);
 
   // ============================================
   // بارگذاری داده‌ها
@@ -161,6 +164,9 @@ export function Settings() {
       .then((data: any) => {
         if (data?.master_recovery_key) {
           setMasterRecoveryKey(data.master_recovery_key);
+        }
+        if (typeof data?.application_error_logging_enabled === 'string') {
+          setApplicationErrorLoggingEnabled(data.application_error_logging_enabled === 'true');
         }
       })
       .catch(console.error);
@@ -1136,6 +1142,59 @@ export function Settings() {
           <li>تغییرات پس از ذخیره، بلافاصله اعمال می‌شوند</li>
         </ul>
       </div>
+
+      {(user?.role === 'admin' || user?.role === 'superadmin') && (
+      <div className="theme-card rounded-xl border border-gray-200 dark:border-[#2d2d44] p-4 space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100">ثبت خطاهای داخلی برنامه</h4>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              ذخیرهٔ خطاهای سرور و خطاهای JavaScript مرورگر در فایل گزارش داخلی را کنترل می‌کند.
+            </p>
+          </div>
+          <label className="inline-flex shrink-0 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={applicationErrorLoggingEnabled}
+              onChange={event => setApplicationErrorLoggingEnabled(event.target.checked)}
+              className="h-4 w-4 accent-blue-600"
+            />
+            <span>{applicationErrorLoggingEnabled ? 'فعال' : 'غیرفعال'}</span>
+          </label>
+        </div>
+        <button
+          type="button"
+          disabled={savingErrorLogging}
+          onClick={async () => {
+            setSavingErrorLogging(true);
+            try {
+              const token = useAuthStore.getState().token;
+              const response = await (window.customFetch || window.fetch)('/api/metadata/system-settings', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ application_error_logging_enabled: applicationErrorLoggingEnabled }),
+              });
+              if (!response.ok) {
+                const result = await response.json().catch(() => ({}));
+                throw new Error(result.error || 'خطا در ذخیره تنظیم ثبت خطا');
+              }
+              toast.success(`ثبت خطاهای داخلی ${applicationErrorLoggingEnabled ? 'فعال' : 'غیرفعال'} شد`);
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : 'خطا در ذخیره تنظیم ثبت خطا');
+            } finally {
+              setSavingErrorLogging(false);
+            }
+          }}
+          className="btn-primary px-4 py-2 text-xs flex items-center gap-1.5 disabled:opacity-50"
+        >
+          <Save size={14} />
+          {savingErrorLogging ? 'در حال ذخیره...' : 'ذخیره تنظیم ثبت خطا'}
+        </button>
+      </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">

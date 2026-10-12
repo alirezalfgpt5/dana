@@ -7,6 +7,7 @@ import { db, sqlite } from '../../src/db/index.js';
 import { periods, knowledgeTrees, issues, gaps } from '../../src/db/schema.js';
 import { eq, and, ne } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
+import { requirePermission, requireRole } from '../middleware/rbac.js';
 
 export const periodRoutes = Router();
 
@@ -66,7 +67,7 @@ periodRoutes.get('/:id', async (req, res) => {
 // ۳. ایجاد دوره جدید
 // ============================================
 
-periodRoutes.post('/', async (req, res) => {
+periodRoutes.post('/', requireRole(['admin', 'superadmin']), requirePermission('periods'), async (req, res) => {
   try {
     const { name, startDate, endDate, description } = req.body;
     const now = new Date().toISOString();
@@ -107,7 +108,7 @@ periodRoutes.post('/', async (req, res) => {
 // ۴. ویرایش دوره
 // ============================================
 
-periodRoutes.put('/:id', async (req, res) => {
+periodRoutes.put('/:id', requireRole(['admin', 'superadmin']), requirePermission('periods'), async (req, res) => {
   try {
     const { id } = req.params;
     const periodId = parseInt(id);
@@ -172,7 +173,7 @@ periodRoutes.put('/:id', async (req, res) => {
 // ۵. حذف دوره
 // ============================================
 
-periodRoutes.delete('/:id', async (req, res) => {
+periodRoutes.delete('/:id', requireRole(['admin', 'superadmin']), requirePermission('periods'), async (req, res) => {
   try {
     const { id } = req.params;
     const periodId = parseInt(id);

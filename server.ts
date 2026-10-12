@@ -22,9 +22,10 @@ app.set('trust proxy', 1); // Trust first proxy for express-rate-limit
 // سیستم لاگینگ هوشمند، جلوگیری از تکرار لاگ‌ها و مدیریت استثناها
 // ============================================
 import { logger, setupProcessExceptionHandlers } from './server/utils/logger.js';
-import { ensureApplicationLogs, writeApplicationDiagnostic } from './server/utils/diagnostics.js';
+import { ensureApplicationLogs, setApplicationDiagnosticsEnabled, writeApplicationDiagnostic } from './server/utils/diagnostics.js';
 import { initializeSessionAuthLog, logSessionAuthFailure } from './server/utils/sessionAuthLog.js';
 import { freePort, listenWithAutoPortRecovery, setupGracefulShutdown } from './server/utils/portManager.js';
+import { normalizePermissions } from './src/config/permissions.js';
 logger.patchConsole();
 setupProcessExceptionHandlers();
 
@@ -79,7 +80,13 @@ import { reportRoutes } from './server/routes/reportRoutes.js';
 import { dynamicFieldsRoutes } from './server/routes/dynamicFieldsRoutes.js';
 import { exportRoutes } from './server/routes/exportRoutes.js';
 import { logAudit } from './server/utils/audit.js';
-import { requireAuth } from './server/middleware/rbac.js';
+import {
+  requireAuth,
+  requirePermission,
+  requireTreePermission,
+  requireOutputPermission,
+  requireMergePermission,
+} from './server/middleware/rbac.js';
 
 // ============================================
 // Middleware
@@ -155,6 +162,12 @@ async function setupAdmin() {
     const masterKeySetting = await db.query.systemSettings.findFirst({
       where: (settings, { eq }) => eq(settings.key, 'master_recovery_key')
     });
+    const diagnosticsSetting = await db.query.systemSettings.findFirst({
+      where: (settings, { eq }) => eq(settings.key, 'application_error_logging_enabled')
+    });
+    if (diagnosticsSetting) {
+      setApplicationDiagnosticsEnabled(diagnosticsSetting.value === 'true');
+    }
 
     if (!masterKeySetting) {
       await db.insert(systemSettings).values({
@@ -182,6 +195,30 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', version: process.env.APP_VERSION || '3.0.0' });
 });
 
+app.get('/api/auth/permissions', requireAuth, async (req: any, res) => {
+  try {
+    if (req.user?.role === 'superadmin') {
+      return res.json({ permissions: ['all'] });
+    }
+    const role = await db.query.roles.findFirst({
+      where: (roles, { eq }) => eq(roles.name, req.user.role),
+    });
+    if (!role) return res.status(403).json({ error: 'نقش کاربر در سامانه یافت نشد' });
+    let permissions: unknown;
+    try {
+      permissions = JSON.parse(role.permissions);
+    } catch {
+      return res.status(500).json({ error: 'تنظیم دسترسی نقش معتبر نیست' });
+    }
+    const normalized = normalizePermissions(
+      Array.isArray(permissions) ? permissions.filter((permission): permission is string => typeof permission === 'string') : [],
+    ).filter(permission => permission !== 'all');
+    return res.json({ permissions: normalized });
+  } catch (error) {
+    console.error('Could not load current role permissions:', error);
+    return res.status(500).json({ error: 'خطا در دریافت دسترسی‌های نقش' });
+  }
+});
 
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
@@ -327,7 +364,7 @@ app.get('/api/metadata/system-settings', async (req: any, res: any) => {
     const isAdmin = req.user && ['admin', 'superadmin'].includes(req.user.role);
     settings.forEach(s => {
       // کلید حساس master_recovery_key هرگز نباید به کاربران عمومی یا غیرمدیر افشا شود
-      if (s.key === 'master_recovery_key' && !isAdmin) {
+      if (['master_recovery_key', 'application_error_logging_enabled'].includes(s.key) && !isAdmin) {
         return;
       }
       settingsObj[s.key] = s.value;
@@ -345,32 +382,34 @@ app.get('/api/docs/swagger.json', (_req, res) => {
 });
 
 app.use('/api/metadata', requireAuth, metadataRoutes);
-app.use('/api/trees', requireAuth, treeRoutes);
-app.use('/api/templates', requireAuth, templateRoutes);
-app.use('/api/roles', requireAuth, roleRoutes);
+app.use('/api/trees', requireAuth, requireTreePermission, treeRoutes);
+app.use('/api/templates', requireAuth, requirePermission([
+  'templates', 'required-tree', 'produced-tree', 'gaps', 'research', 'issues',
+]), templateRoutes);
+app.use('/api/roles', requireAuth, requirePermission('roles'), roleRoutes);
 app.use('/api/levels', requireAuth, levelRoutes);
 app.use('/api/assets', requireAuth, assetRoutes);
-app.use('/api/gaps', requireAuth, gapRoutes);
-app.use('/api/merge', requireAuth, mergeRoutes);
-app.use('/api/research', requireAuth, researchRoutes);
-app.use('/api/issues', requireAuth, issueRoutes);
-app.use('/api/outputs', requireAuth, outputRoutes);
+app.use('/api/gaps', requireAuth, requirePermission('gaps'), gapRoutes);
+app.use('/api/merge', requireAuth, requireMergePermission, mergeRoutes);
+app.use('/api/research', requireAuth, requirePermission('research'), researchRoutes);
+app.use('/api/issues', requireAuth, requirePermission('issues'), issueRoutes);
+app.use('/api/outputs', requireAuth, requireOutputPermission, outputRoutes);
 app.use('/api/org', requireAuth, orgRoutes);
-app.use('/api/users', requireAuth, userRoutes);
+app.use('/api/users', requireAuth, requirePermission('users'), userRoutes);
 app.use('/api/periods', requireAuth, periodRoutes);
 // مسیر تبادل اطلاعات یگان‌ها (بدون تداخل با روت فایل‌ها)
-app.use('/api/data-exchange', unitDataExchangeRoutes);
+app.use('/api/data-exchange', requireAuth, requirePermission('files'), unitDataExchangeRoutes);
 // روت‌های سازگاری به عقب برای فراخوانی‌های احتمالی قدیمی اکسل یگان
-app.use('/api/files/template', unitDataExchangeRoutes);
-app.use('/api/files/unit-stats', unitDataExchangeRoutes);
+app.use('/api/files/template', requireAuth, requirePermission('files'), unitDataExchangeRoutes);
+app.use('/api/files/unit-stats', requireAuth, requirePermission('files'), unitDataExchangeRoutes);
 // روت اصلی مدیریت فایل‌ها و پیوست‌ها
-app.use('/api/files', fileRoutes);
-app.use('/api/audit', requireAuth, auditRoutes);
-app.use('/api/search', requireAuth, searchRoutes);
-app.use('/api/reports', requireAuth, reportRoutes);
-app.use('/api/dynamic-fields', requireAuth, dynamicFieldsRoutes);
-app.use('/api/export', requireAuth, exportRoutes);
-app.use('/api/exports', requireAuth, exportRoutes);
+app.use('/api/files', requireAuth, requirePermission('files'), fileRoutes);
+app.use('/api/audit', requireAuth, requirePermission('audit'), auditRoutes);
+app.use('/api/search', requireAuth, requirePermission('search'), searchRoutes);
+app.use('/api/reports', requireAuth, requirePermission(['dynamic-reports', 'issues']), reportRoutes);
+app.use('/api/dynamic-fields', requireAuth, requirePermission(['dynamic-reports', 'definitions']), dynamicFieldsRoutes);
+app.use('/api/export', requireAuth, requirePermission('issues'), exportRoutes);
+app.use('/api/exports', requireAuth, requirePermission('issues'), exportRoutes);
 
 // ============================================
 // Login

@@ -186,6 +186,11 @@ treeRoutes.get('/', async (req, res) => {
 
     if (type) {
       conditions.push(eq(knowledgeTrees.type, type as string));
+    } else {
+      const allowedTreeTypes = (req as typeof req & { allowedTreeTypes?: string[] }).allowedTreeTypes;
+      if (allowedTreeTypes?.length) {
+        conditions.push(inArray(knowledgeTrees.type, allowedTreeTypes));
+      }
     }
     if (periodId) {
       conditions.push(eq(knowledgeTrees.periodId, parseInt(periodId as string)));

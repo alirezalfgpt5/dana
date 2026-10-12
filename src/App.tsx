@@ -1,6 +1,6 @@
 // src/App.tsx
 import React, { lazy, Suspense, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster, useToasterStore } from 'react-hot-toast';
 import toast from 'react-hot-toast';
 import { AlertCircle, CheckCircle2, Info, LoaderCircle, Network, X } from 'lucide-react';
@@ -111,6 +111,45 @@ import { loadUiTextOverrides, translateUiText, UI_TEXT_UPDATED_EVENT } from './u
 
 
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { normalizePermissions } from './config/permissions';
+
+function RoutePermissionGuard({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  const normalizedPath = pathname.replace(/\/+$/, '').toLowerCase() || '/';
+  const user = useAuthStore(state => state.user);
+  const routePermissions: Record<string, string> = {
+    '/wizard': 'wizard',
+    '/guide': 'guide',
+    '/trees/required': 'required-tree',
+    '/trees/produced': 'produced-tree',
+    '/gaps': 'gaps',
+    '/research': 'research',
+    '/issues': 'issues',
+    '/outputs': 'outputs',
+    '/search': 'search',
+    '/dynamic-reports': 'dynamic-reports',
+    '/users': 'users',
+    '/roles': 'roles',
+    '/profile': 'profile',
+    '/org-structure': 'org-structure',
+    '/periods': 'periods',
+    '/files': 'files',
+    '/settings': 'settings',
+    '/definitions': 'definitions',
+    '/templates': 'templates',
+    '/audit': 'audit',
+  };
+  if (normalizedPath === '/program-map' || normalizedPath === '/settings/text') {
+    return user?.role === 'superadmin' ? children : <Navigate to="/" replace />;
+  }
+  const permission = routePermissions[normalizedPath];
+  const assigned = normalizePermissions(user?.permissions || []);
+  return user?.role === 'superadmin'
+    || !permission
+    || assigned.includes(permission)
+    ? children
+    : <Navigate to="/" replace />;
+}
 
 export default function App() {
   const [, setUiTextRevision] = useState(0);
@@ -119,6 +158,7 @@ export default function App() {
   const fetchMetadata = useUIStore((state) => state.fetchMetadata);
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
+  const updateUser = useAuthStore((state) => state.updateUser);
 
   useEffect(() => {
     const handleUiTextUpdate = () => setUiTextRevision(revision => revision + 1);
@@ -136,6 +176,30 @@ export default function App() {
       fetchMetadata();
     }
   }, [fetchSystemSettings, fetchMetadata, user, token]);
+
+  useEffect(() => {
+    if (!user || !token) return;
+    (window.customFetch || window.fetch)('/api/auth/permissions', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async response => {
+        if (!response.ok) throw new Error('Could not refresh role permissions');
+        const result: unknown = await response.json();
+        if (
+          result
+          && typeof result === 'object'
+          && 'permissions' in result
+          && Array.isArray(result.permissions)
+          && result.permissions.every(permission => typeof permission === 'string')
+        ) {
+          const permissions = result.permissions as string[];
+          if (JSON.stringify(user.permissions || []) !== JSON.stringify(permissions)) {
+            updateUser({ ...user, permissions });
+          }
+        }
+      })
+      .catch(error => console.error('Could not refresh current role permissions:', error));
+  }, [user, token, updateUser]);
 
   useEffect(() => {
     if (darkMode) {
@@ -216,7 +280,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           
-          <Route path="/" element={<AuthGuard><MainLayout /></AuthGuard>}>
+          <Route path="/" element={<AuthGuard><RoutePermissionGuard><MainLayout /></RoutePermissionGuard></AuthGuard>}>
             <Route index element={<Dashboard />} />
             <Route path="guide" element={<Guide />} />
             <Route path="program-map" element={user?.role === 'superadmin' ? <ProgramMap /> : <Navigate to="/" replace />} />

@@ -4,28 +4,9 @@ import { Shield, Plus, Edit2, Trash2, CheckSquare, Square, Save, X, RefreshCw, H
 import toast from 'react-hot-toast';
 import { PageToolbar, PageToolbarAction } from '../components/ui/PageToolbar';
 import { useNavigate } from 'react-router-dom';
+import { APPLICATION_PERMISSIONS, normalizePermissions } from '../config/permissions';
 
-// For simplicity, we define a list of permissions:
-const ALL_PERMISSIONS = [
-  { id: 'dashboard', label: 'داشبورد' },
-  { id: 'trees/required', label: 'درختواره مورد نیاز' },
-  { id: 'trees/produced', label: 'درختواره تولیدشده' },
-  { id: 'gaps', label: 'تحلیل شکاف' },
-  { id: 'research', label: 'درختواره پژوهشی' },
-  { id: 'issues', label: 'نظام مسائل' },
-  { id: 'outputs', label: 'خروجی‌ها' },
-  { id: 'search', label: 'جستجوی عمیق' },
-  { id: 'dynamic-reports', label: 'گزارش‌ساز پویا' },
-  { id: 'files', label: 'مدیریت فایل‌ها' },
-  { id: 'users', label: 'مدیریت کاربران' },
-  { id: 'roles', label: 'نقش‌ها و دسترسی‌ها' },
-  { id: 'settings', label: 'تنظیمات عمومی' },
-  { id: 'org-structure', label: 'ساختار سازمانی' },
-  { id: 'periods', label: 'دوره‌های زمانی' },
-  { id: 'audit', label: 'تاریخچه تغییرات' },
-  { id: 'definitions', label: 'تعاریف' },
-  { id: 'templates', label: 'مدیریت قالب‌ها' }
-];
+const ALL_PERMISSIONS = APPLICATION_PERMISSIONS;
 
 export function RolesManagement() {
   const { user } = useAuthStore();
@@ -85,6 +66,11 @@ export function RolesManagement() {
       
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'خطا در ذخیره نقش');
+      const currentUser = useAuthStore.getState().user;
+      if (editingRole && currentUser && currentUser.role === editingRole.name && typeof data.permissions === 'string') {
+        const updatedPermissions = normalizePermissions(JSON.parse(data.permissions));
+        useAuthStore.getState().updateUser({ ...currentUser, permissions: updatedPermissions });
+      }
       
       toast.success(editingRole ? 'نقش به‌روزرسانی شد' : 'نقش با موفقیت ایجاد شد');
       setShowModal(false);
@@ -128,7 +114,10 @@ export function RolesManagement() {
       try {
         perms = JSON.parse(role.permissions || '[]');
       } catch (e) {}
-      setFormData({ name: role.name, label: role.label, permissions: perms });
+      if (role.name !== 'superadmin') {
+        perms = perms.filter((permission: string) => permission !== 'all');
+      }
+      setFormData({ name: role.name, label: role.label, permissions: normalizePermissions(perms) });
     } else {
       setEditingRole(null);
       setFormData({ name: '', label: '', permissions: [] });

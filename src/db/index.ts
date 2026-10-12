@@ -7,6 +7,7 @@ import * as schema from './schema.js';
 import path from 'path';
 import fs from 'fs';
 import { runComprehensiveSeed } from './seeds.js';
+import { DEFAULT_ROLE_PERMISSIONS } from '../config/permissions.js';
 
 // ============================================
 // ۱. اتصال به پایگاه داده
@@ -753,10 +754,10 @@ export function initDb() {
   // کاربر ادمین
   const defaultRoles = [
     { name: 'superadmin', label: 'مدیر کل سیستم', permissions: JSON.stringify(['all']) },
-    { name: 'admin', label: 'مدیر', permissions: JSON.stringify(['manage_users', 'manage_trees']) },
-    { name: 'knowledge_manager', label: 'مدیر دانش', permissions: JSON.stringify(['manage_trees']) },
-    { name: 'expert', label: 'کارشناس', permissions: JSON.stringify(['view_trees']) },
-    { name: 'user', label: 'کاربر عادی', permissions: JSON.stringify([]) }
+    { name: 'admin', label: 'مدیر', permissions: JSON.stringify(DEFAULT_ROLE_PERMISSIONS.admin) },
+    { name: 'knowledge_manager', label: 'مدیر دانش', permissions: JSON.stringify(DEFAULT_ROLE_PERMISSIONS.knowledge_manager) },
+    { name: 'expert', label: 'کارشناس', permissions: JSON.stringify(DEFAULT_ROLE_PERMISSIONS.expert) },
+    { name: 'user', label: 'کاربر عادی', permissions: JSON.stringify(DEFAULT_ROLE_PERMISSIONS.user) }
   ];
 
   for (const role of defaultRoles) {
@@ -772,6 +773,43 @@ export function initDb() {
         new Date().toISOString(),
         new Date().toISOString()
       );
+    }
+  }
+
+  const legacyRolePermissions: Record<string, string[]> = {
+    admin: ['manage_users', 'manage_trees'],
+    knowledge_manager: ['manage_trees'],
+    expert: ['view_trees'],
+    user: [],
+  };
+  for (const [roleName, legacyPermissions] of Object.entries(legacyRolePermissions)) {
+    sqlite.prepare('UPDATE roles SET permissions = ?, updated_at = ? WHERE name = ? AND is_system = 1 AND permissions = ?')
+      .run(
+        JSON.stringify(DEFAULT_ROLE_PERMISSIONS[roleName]),
+        new Date().toISOString(),
+        roleName,
+        JSON.stringify(legacyPermissions),
+      );
+  }
+  const nonSuperadminRoles = sqlite.prepare("SELECT id, permissions FROM roles WHERE name <> 'superadmin'").all() as Array<{
+    id: number;
+    permissions: string;
+  }>;
+  for (const role of nonSuperadminRoles) {
+    let permissions: unknown;
+    try {
+      permissions = JSON.parse(role.permissions);
+    } catch (error) {
+      console.error(`Unable to migrate permissions for role ${role.id}:`, error);
+      continue;
+    }
+    if (Array.isArray(permissions) && permissions.includes('all')) {
+      sqlite.prepare('UPDATE roles SET permissions = ?, updated_at = ? WHERE id = ?')
+        .run(
+          JSON.stringify(permissions.filter(permission => permission !== 'all')),
+          new Date().toISOString(),
+          role.id,
+        );
     }
   }
 

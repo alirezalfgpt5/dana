@@ -7,13 +7,17 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { ArchitectureDoc } from '../components/ArchitectureDoc';
+import { TechnicalDocumentation } from '../components/TechnicalDocumentation';
 import { PageToolbar } from '../components/ui/PageToolbar';
 import imgConcept from '../assets/img-concept.png';
+import { useAuthStore } from '../store';
 
 export function Guide() {
   const navigate = useNavigate();
+  const user = useAuthStore(state => state.user);
+  const canViewTechnicalDocumentation = user?.role === 'admin' || user?.role === 'superadmin';
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'workflow' | 'architecture'>('workflow');
+  const [activeTab, setActiveTab] = useState<'workflow' | 'architecture' | 'technical'>('workflow');
 
   const steps = [
     {
@@ -116,15 +120,15 @@ export function Guide() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-10">
+    <div className={`${activeTab === 'technical' && canViewTechnicalDocumentation ? 'max-w-7xl' : 'max-w-4xl'} mx-auto space-y-8 pb-10`}>
       <PageToolbar
         title="راهنمای جامع سامانه مدیریت دانش (DANA)"
-        subtitle="جریان کار گام‌به‌گام سامانه و سند جامع معماری و عملکرد"
+        subtitle="راهنمای گام‌به‌گام، معماری سامانه و مستندات فنی ویژهٔ مدیران"
         icon={BookOpen}
       />
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 bg-gray-100 p-1.5 rounded-xl border border-gray-200">
+      <div className="flex flex-wrap items-center gap-2 bg-gray-100 p-1.5 rounded-xl border border-gray-200">
         <button
           onClick={() => setActiveTab('workflow')}
           className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all duration-300 ${
@@ -138,7 +142,7 @@ export function Guide() {
         </button>
         <button
           onClick={() => setActiveTab('architecture')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all duration-300 ${
+          className={`min-w-48 flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all duration-300 ${
             activeTab === 'architecture'
               ? 'bg-white text-indigo-700 shadow-sm'
               : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
@@ -147,9 +151,26 @@ export function Guide() {
           <Box size={18} />
           سند جامع معماری و عملکرد
         </button>
+        {canViewTechnicalDocumentation && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('technical')}
+            aria-pressed={activeTab === 'technical'}
+            className={`min-w-48 flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all duration-300 ${
+              activeTab === 'technical'
+                ? 'bg-white text-emerald-700 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+            }`}
+          >
+            <Database size={18} />
+            مستندات فنی سامانه
+          </button>
+        )}
       </div>
 
-      {activeTab === 'architecture' ? (
+      {activeTab === 'technical' && canViewTechnicalDocumentation ? (
+        <TechnicalDocumentation />
+      ) : activeTab === 'architecture' ? (
         <ArchitectureDoc />
       ) : (
         <div className="space-y-8 animate-fade-in">

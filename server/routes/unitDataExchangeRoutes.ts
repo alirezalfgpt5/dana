@@ -168,13 +168,17 @@ async function generateUnitExchangeWorkbook({
   `).get(unitId, periodId) as { created_at: string } | undefined;
 
   // ۲. استخراج مقادیر پایه‌ای سیستم جهت پر کردن دراپ‌دان‌ها (Dropdown Lookups)
-  const getLookupNames = (tableName: string): string[] => {
-    try {
-      const rows = sqlite.prepare(`SELECT name FROM ${tableName} WHERE is_active = 1 ORDER BY sort_order ASC, id ASC`).all() as any[];
-      return rows.map(r => String(r.name).trim()).filter(Boolean);
-    } catch {
-      return [];
-    }
+  const getLookupNames = (tableName:
+    | 'knowledge_types'
+    | 'action_priorities'
+    | 'project_levels'
+    | 'confidentiality_levels'
+    | 'approval_authorities'
+    | 'knowledge_project_types'
+    | 'research_project_types'
+    | 'program_coverages'): string[] => {
+    const rows = sqlite.prepare(`SELECT name FROM ${tableName} WHERE is_active = 1 ORDER BY sort_order ASC, id ASC`).all() as Array<{ name: string }>;
+    return rows.map(row => String(row.name).trim()).filter(Boolean);
   };
 
   const knowledgeTypesList = getLookupNames('knowledge_types');
@@ -184,16 +188,13 @@ async function generateUnitExchangeWorkbook({
   const approvalAuthoritiesList = getLookupNames('approval_authorities');
   const knowledgeProjectTypesList = getLookupNames('knowledge_project_types');
   const researchProjectTypesList = getLookupNames('research_project_types');
-  const programCoveragesList = getLookupNames('program_coverages');
+  const programCoverageRows = sqlite.prepare(
+    'SELECT id, name FROM program_coverages WHERE is_active = 1 ORDER BY sort_order ASC, id ASC',
+  ).all() as Array<{ id: number; name: string }>;
+  const programCoveragesList = programCoverageRows.map(row => String(row.name).trim()).filter(Boolean);
+  const programCoverageNamesById = new Map(programCoverageRows.map(row => [row.id, String(row.name).trim()]));
 
-  const ktOptions = knowledgeTypesList.length > 0 ? knowledgeTypesList : ['نظریه', 'الگو', 'راهبرد', 'راه‌کار و توصیه', 'دانش نوظهور', 'معماری', 'دانش فنی', 'نقشه‌راه', 'ایده و ابتکار', 'سناریو', 'خلاقیت و نوآوری', 'درس‌آموخته و تجربیات', 'آیین‌نامه و دستورالعمل', 'مستند فنی و تخصصی'];
-  const apOptions = actionPrioritiesList.length > 0 ? actionPrioritiesList : ['بحرانی', 'خیلی زیاد', 'زیاد', 'متوسط', 'پایین'];
-  const plOptions = projectLevelsList.length > 0 ? projectLevelsList : ['راهبردی', 'سطح ۱', 'سطح ۲', 'تاکتیکی', 'عملیاتی'];
-  const clOptions = confidentialityLevelsList.length > 0 ? confidentialityLevelsList : ['عادی', 'محرمانه', 'خیلی محرمانه', 'سری', 'به‌کلی سری'];
-  const aaOptions = approvalAuthoritiesList.length > 0 ? approvalAuthoritiesList : ['شورای عالی دانش و پژوهش', 'فرماندهی نیرو', 'معاونت دانش و پژوهش', 'شورای پژوهشی پایگاه / یگان'];
-  const kpOptions = knowledgeProjectTypesList.length > 0 ? knowledgeProjectTypesList : ['مستندسازی و تدوین دانش', 'تجربه‌نگاری و ثبت خاطرات عملیاتی', 'تاریخ شفاهی', 'تدوین درس‌آموخته', 'استانداردسازی و الگوبرداری', 'شناسایی و اکتساب دانش نوین'];
-  const rpOptions = researchProjectTypesList.length > 0 ? researchProjectTypesList : ['آینده‌پژوهی و سناریوپردازی', 'نقد، مناظره و کرسی نظریه‌پردازی', 'طرح پژوهشی راهبردی', 'مطالعات تطبیقی و الگوبرداری', 'طرح ارتقا و بهینه‌سازی فنی'];
-  const pcOptions = programCoveragesList.length > 0 ? programCoveragesList : ['برنامه پنج ساله', 'برنامه سالیانه', 'ابلاغیات', 'تجربیات جنگ'];
+
 
   // ۳. استخراج داده‌های موجود یگان برای این دوره
   const trees = sqlite.prepare(`
@@ -241,7 +242,8 @@ async function generateUnitExchangeWorkbook({
     const nodeIds = existingNodes.map(n => n.id);
     const placeholders = nodeIds.map(() => '?').join(',');
     existingResearch = sqlite.prepare(`
-      SELECT r.*, n.title as node_title, i.title as linked_issue_title
+      SELECT r.*, n.title as node_title, i.title as linked_issue_title,
+             i.research_project_type as linked_research_project_type
       FROM research_items r
       JOIN tree_nodes n ON r.node_id = n.id
       LEFT JOIN issues i ON i.research_item_id = r.id OR i.id = r.issue_id
@@ -255,10 +257,37 @@ async function generateUnitExchangeWorkbook({
   workbook.lastModifiedBy = user?.fullName || user?.username || 'کاربر سامانه دانا';
   workbook.created = new Date();
 
+  const metaSheet = workbook.addWorksheet('شناسنامه سازمانی', { views: [{ rightToLeft: true }] });
+  const lookupSheet = workbook.addWorksheet('فهرست‌های تنظیمات');
+  lookupSheet.state = 'veryHidden';
+  let lookupColumn = 1;
+  const addLookupList = (name: string, values: string[]) => {
+    if (values.length === 0) {
+      throw new Error(`برای تولید فایل اکسل، ابتدا گزینه‌های فعال «${name}» را در تعاریف برنامه ثبت کنید.`);
+    }
+    const column = lookupColumn++;
+    values.forEach((value, index) => {
+      lookupSheet.getCell(index + 1, column).value = value;
+    });
+    const columnLetter = lookupSheet.getColumn(column).letter;
+    workbook.definedNames.add(
+      `'${lookupSheet.name}'!$${columnLetter}$1:$${columnLetter}$${values.length}`,
+      name,
+    );
+    return `=${name}`;
+  };
+  const ktDropdownFormula = addLookupList('انواع دانش', knowledgeTypesList);
+  const apDropdownFormula = addLookupList('اولویت‌های اقدام', actionPrioritiesList);
+  const plDropdownFormula = addLookupList('سطوح پروژه', projectLevelsList);
+  const clDropdownFormula = addLookupList('سطوح محرمانگی', confidentialityLevelsList);
+  const aaDropdownFormula = addLookupList('مراجع تصویب', approvalAuthoritiesList);
+  const kpDropdownFormula = addLookupList('انواع پروژه دانشی', knowledgeProjectTypesList);
+  const rpDropdownFormula = addLookupList('انواع پروژه پژوهشی', researchProjectTypesList);
+  const pcDropdownFormula = addLookupList('پوشش‌های برنامه‌ای', programCoveragesList);
+
   // -------------------------------------------------------------
   // شیت ۱: شناسنامه سازمانی و امنیتی (تغییر ناپذیر و محافظت شده)
   // -------------------------------------------------------------
-  const metaSheet = workbook.addWorksheet('شناسنامه سازمانی', { views: [{ rightToLeft: true }] });
   metaSheet.columns = [
     { key: 'prop', width: 30 },
     { key: 'val', width: 45 },
@@ -381,8 +410,6 @@ async function generateUnitExchangeWorkbook({
   const levelDropdownFormula = '"R,T,B,SB,L,Q"';
   const isGapDropdownFormula = '"بله,خیر"';
   const gapStatusDropdownFormula = '"باز,پر شده,نیمه‌پر"';
-  const ktDropdownFormula = `"${ktOptions.slice(0, 15).join(',')}"`;
-
   for (let rowIdx = 3; rowIdx <= Math.max(existingNodes.length + 50, 100); rowIdx++) {
     const row = treeSheet.getRow(rowIdx);
     row.getCell(2).dataValidation = { type: 'list', allowBlank: false, formulae: [treeTypeDropdownFormula] };
@@ -459,20 +486,20 @@ async function generateUnitExchangeWorkbook({
         issue.title,
         issue.solution_direction || '',
         issue.need_statement || '',
-        issue.action_priority || 'متوسط',
-        issue.project_level || 'عملیاتی',
-        issue.confidentiality_level || 'عادی',
-        issue.knowledge_type || 'دانش فنی',
+        issue.action_priority || '',
+        issue.project_level || '',
+        issue.confidentiality_level || '',
+        issue.knowledge_type || '',
         issue.knowledge_project_type || '',
         issue.research_project_type || '',
         issue.approval_authority || '',
         node?.title || issue.domain_node_title || '',
-        issue.required_budget || 0,
-        issue.approved_budget || 0,
-        issue.completion_percent || 0,
+        issue.required_budget ?? '',
+        issue.approved_budget ?? '',
+        issue.completion_percent ?? '',
         issue.bottlenecks || '',
         issue.actions_taken || '',
-        issue.status || 'پیش‌نویس',
+        issue.status || '',
       ]);
       r.font = { name: FONT_NAME, size: 10 };
       r.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -481,12 +508,6 @@ async function generateUnitExchangeWorkbook({
   }
 
   // اعتبارسنجی دراپ‌دان برای شیت نظام مسائل
-  const apDropdownFormula = `"${apOptions.slice(0, 10).join(',')}"`;
-  const plDropdownFormula = `"${plOptions.slice(0, 10).join(',')}"`;
-  const clDropdownFormula = `"${clOptions.slice(0, 10).join(',')}"`;
-  const kpDropdownFormula = `"${kpOptions.slice(0, 10).join(',')}"`;
-  const rpDropdownFormula = `"${rpOptions.slice(0, 10).join(',')}"`;
-  const aaDropdownFormula = `"${aaOptions.slice(0, 10).join(',')}"`;
   const issueStatusDropdownFormula = '"پیش‌نویس,در حال بررسی,تصویب شده,در حال اجرا,خاتمه یافته"';
 
   for (let rowIdx = 3; rowIdx <= Math.max(existingIssues.length + 50, 100); rowIdx++) {
@@ -534,7 +555,7 @@ async function generateUnitExchangeWorkbook({
     'گره دانشی مرتبط (عنوان گره)',
     'اهمیت پژوهش *',
     'تاثیر در رزم (۱ تا ۵) *',
-    'هزینه به فایده (۱ تا ۵) *',
+    'هزینه به فایده (۱ تا ۱۰) *',
     'اولویت نهایی پژوهش',
     'افق زمانی اجرا',
     'پوشش برنامه‌ای *',
@@ -553,22 +574,31 @@ async function generateUnitExchangeWorkbook({
       let pcText = '';
       try {
         const parsed = typeof item.program_coverages === 'string' ? JSON.parse(item.program_coverages) : item.program_coverages;
-        if (Array.isArray(parsed)) pcText = parsed.join(', ');
-      } catch {}
+        if (Array.isArray(parsed)) {
+          pcText = parsed.map(value => {
+            const coverageId = Number(value);
+            return Number.isInteger(coverageId)
+              ? programCoverageNamesById.get(coverageId) || String(value)
+              : String(value);
+          }).join(', ');
+        }
+      } catch (error) {
+        console.warn(`Could not read program coverage data for research item ${item.id}:`, error);
+      }
 
       const r = researchSheet.addRow([
         item.id,
-        item.node_title ? `پژوهش مرتبط با: ${item.node_title}` : 'طرح پژوهشی یگان',
+        item.node_title ? `پژوهش مرتبط با: ${item.node_title}` : '',
         item.node_title || '',
-        item.importance || 'کاربردی',
-        item.combat_impact || 4,
-        item.cost_benefit || 4,
-        item.priority || 'الف - اولویت یک',
-        item.time_frame || 'میان‌مدت',
-        pcText || 'برنامه پنج ساله',
-        'طرح پژوهشی راهبردی',
+        item.importance ?? '',
+        item.combat_impact ?? '',
+        item.cost_benefit ?? '',
+        item.priority || '',
+        item.time_frame || '',
+        pcText,
+        item.linked_research_project_type || '',
         item.linked_issue_title || '',
-        'توسعه قابلیت‌های فنی و دانشی یگان در چارچوب اولویت‌های مصوب',
+        '',
       ]);
       r.font = { name: FONT_NAME, size: 10 };
       r.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -577,18 +607,15 @@ async function generateUnitExchangeWorkbook({
   }
 
   // اعتبارسنجی دراپ‌دان برای شیت پژوهش
-  const importanceDropdownFormula = '"راهبردی,توسعه‌ای,بنیادی,کاربردی"';
-  const combatDropdownFormula = '"۵ - بسیار حیاتی,۴ - زیاد,۳ - متوسط,۲ - کم,۱ - ناچیز"';
-  const costDropdownFormula = '"۵ - بسیار مطلوب,۴ - مطلوب,۳ - متوسط,۲ - پایین,۱ - نامطلوب"';
-  const priorityDropdownFormula = '"الف - اولویت یک,ب - اولویت دو,ج - اولویت سه"';
-  const timeFrameDropdownFormula = '"کوتاه‌مدت,میان‌مدت,بلندمدت"';
-  const pcDropdownFormula = `"${pcOptions.slice(0, 10).join(',')}"`;
+  const importanceDropdownFormula = plDropdownFormula;
+  const priorityDropdownFormula = apDropdownFormula;
+  const timeFrameDropdownFormula = '"کوتاه‌مدت,میان‌مدت,بلند‌مدت"';
 
   for (let rowIdx = 3; rowIdx <= Math.max(existingResearch.length + 50, 100); rowIdx++) {
     const row = researchSheet.getRow(rowIdx);
     row.getCell(4).dataValidation = { type: 'list', allowBlank: false, formulae: [importanceDropdownFormula] };
-    row.getCell(5).dataValidation = { type: 'list', allowBlank: false, formulae: [combatDropdownFormula] };
-    row.getCell(6).dataValidation = { type: 'list', allowBlank: false, formulae: [costDropdownFormula] };
+    row.getCell(5).dataValidation = { type: 'whole', operator: 'between', allowBlank: false, formulae: ['1', '5'] };
+    row.getCell(6).dataValidation = { type: 'whole', operator: 'between', allowBlank: false, formulae: ['1', '10'] };
     row.getCell(7).dataValidation = { type: 'list', allowBlank: true, formulae: [priorityDropdownFormula] };
     row.getCell(8).dataValidation = { type: 'list', allowBlank: true, formulae: [timeFrameDropdownFormula] };
     row.getCell(9).dataValidation = { type: 'list', allowBlank: false, formulae: [pcDropdownFormula] };

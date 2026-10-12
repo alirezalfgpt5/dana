@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { normalizePermissions } from '../../config/permissions';
 
 // ============================================
 // منوها
@@ -54,7 +55,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'wizard',
-    label: 'راهنمای گام‌به‌گام',
+    label: 'مسیر یکپارچه دانش',
     icon: Waypoints,
     path: '/wizard',
   },
@@ -105,7 +106,6 @@ const MENU_ITEMS: MenuItem[] = [
     id: 'admin',
     label: 'تعاریف / پیش نیازها',
     icon: Settings,
-    roles: ['superadmin'],
     children: [
       {
         id: 'org-structure',
@@ -173,7 +173,6 @@ const MENU_ITEMS: MenuItem[] = [
         label: 'تنظیم ادبیات برنامه',
         icon: FileText,
         path: '/settings/text',
-        roles: ['superadmin'],
       },
       {
         id: 'audit',
@@ -190,11 +189,12 @@ const MENU_ITEMS: MenuItem[] = [
 // ============================================
 
 const filterMenuByRole = (items: MenuItem[], role: string | null, permissions: string[] = []): MenuItem[] => {
+  const effectivePermissions = normalizePermissions(permissions);
   return items
     .filter(item => {
-      if (permissions.includes('all')) return true;
+      if (effectivePermissions.includes('all')) return true;
       if (item.path && item.id !== 'dashboard') {
-        return permissions.includes(item.id);
+        return effectivePermissions.includes(item.id);
       }
       if (item.roles && !item.roles.includes(role || '')) {
         return false;
@@ -203,7 +203,7 @@ const filterMenuByRole = (items: MenuItem[], role: string | null, permissions: s
     })
     .map(item => ({
       ...item,
-      children: item.children ? filterMenuByRole(item.children, role, permissions) : undefined,
+      children: item.children ? filterMenuByRole(item.children, role, effectivePermissions) : undefined,
     }))
     .filter(item => {
       if (item.children && item.children.length === 0 && !item.path) return false;
@@ -343,10 +343,9 @@ export function Sidebar() {
 
   const filteredMenu = useMemo(() => {
     const userRole = user?.role || 'user';
-    const permissions = user?.permissions || [];
-    if (userRole === 'superadmin' && !permissions.includes('all')) {
-      permissions.push('all');
-    }
+    const permissions = userRole === 'superadmin'
+      ? ['all']
+      : (user?.permissions || []).filter(permission => permission !== 'all');
     return filterMenuByRole(MENU_ITEMS, userRole, permissions);
   }, [user]);
 

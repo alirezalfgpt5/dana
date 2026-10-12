@@ -1,7 +1,7 @@
 {
   "name": "DANA",
   "private": true,
-  "version": "1.0.0",
+  "version": "10.0.0",
   "description": "سامانه جامع مدیریت دانش، نظام مسائل، درخت دانش و ارزیابی پژوهش (DANA)",
   "type": "module",
   "main": "electron-main.cjs",

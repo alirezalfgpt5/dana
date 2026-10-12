@@ -15,7 +15,8 @@ import {
 import { db, sqlite } from '../../src/db/index.js';
 import { eq, and, like, desc, isNull } from 'drizzle-orm';
 import { logAudit } from '../utils/audit.js';
-import { requireRole } from "../middleware/rbac.js";
+import { requirePermission, requireRole } from "../middleware/rbac.js";
+import { setApplicationDiagnosticsEnabled } from '../utils/diagnostics.js';
 
 export const metadataRoutes = Router();
 
@@ -44,7 +45,7 @@ metadataRoutes.get('/templates', async (req: any, res: any) => {
   }
 });
 
-metadataRoutes.post('/templates', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.post('/templates', requireRole(['admin', 'superadmin']), requirePermission('templates'), async (req: any, res: any) => {
   try {
     const { type, title, parentId, description, metadata } = req.body;
     const now = new Date().toISOString();
@@ -60,7 +61,7 @@ metadataRoutes.post('/templates', requireRole(['admin', 'superadmin']), async (r
   }
 });
 
-metadataRoutes.put('/templates/:id', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.put('/templates/:id', requireRole(['admin', 'superadmin']), requirePermission('templates'), async (req: any, res: any) => {
   try {
     const { id } = req.params;
     const { type, title, parentId, description, isActive, sortOrder, metadata } = req.body;
@@ -76,7 +77,7 @@ metadataRoutes.put('/templates/:id', requireRole(['admin', 'superadmin']), async
   }
 });
 
-metadataRoutes.delete('/templates/:id', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.delete('/templates/:id', requireRole(['admin', 'superadmin']), requirePermission('templates'), async (req: any, res: any) => {
   try {
     const idNum = Number(req.params.id);
     const allNodes = await db.query.treeNodes.findMany();
@@ -113,7 +114,7 @@ metadataRoutes.get('/levels', async (req: any, res: any) => {
   }
 });
 
-metadataRoutes.post('/levels', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.post('/levels', requireRole(['admin', 'superadmin']), requirePermission('definitions'), async (req: any, res: any) => {
   try {
     const { name, description, parentId, metadata } = req.body;
     const now = new Date().toISOString();
@@ -129,7 +130,7 @@ metadataRoutes.post('/levels', requireRole(['admin', 'superadmin']), async (req:
   }
 });
 
-metadataRoutes.put('/levels/:id', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.put('/levels/:id', requireRole(['admin', 'superadmin']), requirePermission('definitions'), async (req: any, res: any) => {
   try {
     const { id } = req.params;
     const { name, description, parentId, isActive, sortOrder, metadata } = req.body;
@@ -145,7 +146,7 @@ metadataRoutes.put('/levels/:id', requireRole(['admin', 'superadmin']), async (r
   }
 });
 
-metadataRoutes.delete('/levels/:id', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.delete('/levels/:id', requireRole(['admin', 'superadmin']), requirePermission('definitions'), async (req: any, res: any) => {
   try {
     await db.delete(knowledgeLevels).where(eq(knowledgeLevels.id, Number(req.params.id)));
     res.json({ success: true });
@@ -172,7 +173,7 @@ metadataRoutes.get('/knowledge-types', async (req: any, res: any) => {
   }
 });
 
-metadataRoutes.post('/knowledge-types', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.post('/knowledge-types', requireRole(['admin', 'superadmin']), requirePermission('definitions'), async (req: any, res: any) => {
   try {
     const { name, category, description } = req.body;
     const now = new Date().toISOString();
@@ -187,7 +188,7 @@ metadataRoutes.post('/knowledge-types', requireRole(['admin', 'superadmin']), as
   }
 });
 
-metadataRoutes.put('/knowledge-types/:id', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.put('/knowledge-types/:id', requireRole(['admin', 'superadmin']), requirePermission('definitions'), async (req: any, res: any) => {
   try {
     const { name, category, description } = req.body;
     const now = new Date().toISOString();
@@ -202,7 +203,7 @@ metadataRoutes.put('/knowledge-types/:id', requireRole(['admin', 'superadmin']),
   }
 });
 
-metadataRoutes.delete('/knowledge-types/:id', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.delete('/knowledge-types/:id', requireRole(['admin', 'superadmin']), requirePermission('definitions'), async (req: any, res: any) => {
   try {
     await db.delete(knowledgeTypes).where(eq(knowledgeTypes.id, Number(req.params.id)));
     res.json({ success: true });
@@ -229,7 +230,7 @@ metadataRoutes.get('/org-levels', async (req: any, res: any) => {
   }
 });
 
-metadataRoutes.post('/org-levels', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.post('/org-levels', requireRole(['admin', 'superadmin']), requirePermission('definitions'), async (req: any, res: any) => {
   try {
     const { name, description, parentId } = req.body;
     const now = new Date().toISOString();
@@ -244,7 +245,7 @@ metadataRoutes.post('/org-levels', requireRole(['admin', 'superadmin']), async (
   }
 });
 
-metadataRoutes.put('/org-levels/:id', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.put('/org-levels/:id', requireRole(['admin', 'superadmin']), requirePermission('definitions'), async (req: any, res: any) => {
   try {
     const { name, description, parentId } = req.body;
     const now = new Date().toISOString();
@@ -259,7 +260,7 @@ metadataRoutes.put('/org-levels/:id', requireRole(['admin', 'superadmin']), asyn
   }
 });
 
-metadataRoutes.delete('/org-levels/:id', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.delete('/org-levels/:id', requireRole(['admin', 'superadmin']), requirePermission('definitions'), async (req: any, res: any) => {
   try {
     await db.delete(organizationalLevels).where(eq(organizationalLevels.id, Number(req.params.id)));
     res.json({ success: true });
@@ -298,7 +299,7 @@ function createMetadataEndpoints(router: any, path: string, table: any) {
   });
 
   // POST
-  router.post(path, requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+  router.post(path, requireRole(['admin', 'superadmin']), requirePermission('definitions'), async (req: any, res: any) => {
     try {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: 'نام الزامی است' });
@@ -317,7 +318,7 @@ function createMetadataEndpoints(router: any, path: string, table: any) {
   });
 
   // DELETE
-  router.delete(path + '/:id', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+  router.delete(path + '/:id', requireRole(['admin', 'superadmin']), requirePermission('definitions'), async (req: any, res: any) => {
     try {
       await db.delete(table).where(eq(table.id, Number(req.params.id)));
       res.json({ success: true });
@@ -349,7 +350,7 @@ metadataRoutes.get('/system-settings', async (req: any, res: any) => {
     const settingsObj: Record<string, string> = {};
     const isAdmin = req.user && ['admin', 'superadmin'].includes(req.user.role);
     settings.forEach(s => {
-      if (s.key === 'master_recovery_key' && !isAdmin) {
+      if (['master_recovery_key', 'application_error_logging_enabled'].includes(s.key) && !isAdmin) {
         return;
       }
       settingsObj[s.key] = s.value;
@@ -361,9 +362,18 @@ metadataRoutes.get('/system-settings', async (req: any, res: any) => {
   }
 });
 
-metadataRoutes.post('/system-settings', requireRole(['admin', 'superadmin']), async (req: any, res: any) => {
+metadataRoutes.post('/system-settings', requireRole(['admin', 'superadmin']), requirePermission('settings'), async (req: any, res: any) => {
   try {
     const settingsObj = req.body;
+    if (
+      Object.prototype.hasOwnProperty.call(settingsObj, 'application_error_logging_enabled')
+      && settingsObj.application_error_logging_enabled !== true
+      && settingsObj.application_error_logging_enabled !== false
+      && settingsObj.application_error_logging_enabled !== 'true'
+      && settingsObj.application_error_logging_enabled !== 'false'
+    ) {
+      return res.status(400).json({ error: 'مقدار فعال‌سازی ثبت خطا باید درست یا نادرست باشد' });
+    }
     const now = new Date().toISOString();
     for (const [key, value] of Object.entries(settingsObj)) {
       if (value !== undefined && value !== null) {
@@ -387,6 +397,9 @@ metadataRoutes.post('/system-settings', requireRole(['admin', 'superadmin']), as
             target: systemSettings.key,
             set: { value: String(value), updatedAt: now }
           });
+        if (key === 'application_error_logging_enabled') {
+          setApplicationDiagnosticsEnabled(value === true || value === 'true');
+        }
       }
     }
     const settings = await db.select().from(systemSettings);
