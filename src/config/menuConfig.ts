@@ -56,7 +56,7 @@ export const MENU_CONFIG: MenuGroup[] = [
         color: 'text-blue-500' 
       },
       { 
-        label: 'دستیار یکپارچه', 
+        label: 'راهنمای گام‌به‌گام',
         path: '/wizard', 
         icon: Waypoints, 
         color: 'text-purple-500' 
@@ -134,6 +134,13 @@ export const MENU_CONFIG: MenuGroup[] = [
         path: '/settings', 
         icon: Settings,
         color: 'text-gray-600'
+      },
+      {
+        label: 'تنظیم ادبیات برنامه',
+        path: '/settings/text',
+        icon: FileText,
+        color: 'text-gray-600',
+        roles: ['superadmin'],
       },
     ]
   },

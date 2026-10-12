@@ -2,7 +2,7 @@ import { AuthRequest } from '../types/AuthRequest.js';
 // server/routes/files.ts
 // مدیریت فایل‌ها - با ساختار ذخیره‌سازی جدید
 
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
@@ -164,15 +164,9 @@ fileRoutes.get('/', requireAuth, (req, res) => {
 });
 
 // GET download file (با احراز هویت، کنترل سطح دسترسی و حفاظت در برابر Path Traversal)
-fileRoutes.get('/download/:filename', requireAuth, (req, res) => {
-  try {
+const downloadFileRecord = (req: Request, res: Response, file: any) => {
     const user = (req as AuthRequest).user;
-    if (!user) {
-      return res.status(401).json({ error: 'احراز هویت الزامی است' });
-    }
-
-    const filename = path.basename(req.params.filename);
-    const file = sqlite.prepare(`SELECT * FROM files WHERE name = ?`).get(filename) as any;
+    if (!user) return res.status(401).json({ error: 'احراز هویت الزامی است' });
     if (!file) return res.status(404).json({ error: 'فایل یافت نشد' });
 
     // کنترل سطح دسترسی (Access Control)
@@ -186,33 +180,47 @@ fileRoutes.get('/download/:filename', requireAuth, (req, res) => {
       return res.status(403).json({ error: 'دسترسی غیرمجاز: شما اجازه دانلود این سند را ندارید' });
     }
 
-    const cleanPath = String(file.path).replace(/^\/+/, '');
+    const cleanPath = String(file.path).replace(/^[/\\]+/, '');
     const filePath = path.resolve(process.cwd(), cleanPath);
-    const allowedBase = path.resolve(process.cwd());
-
-    if (!filePath.startsWith(allowedBase)) {
+    const relativePath = path.relative(process.cwd(), filePath);
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
       return res.status(403).json({ error: 'مسیر فایل غیرمجاز است' });
     }
 
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'فایل یافت نشد' });
 
-    res.download(filePath, filename);
+    return res.download(filePath, String(file.name));
+};
+
+fileRoutes.get('/download/id/:fileId', requireAuth, (req, res) => {
+  try {
+    const fileId = Number(req.params.fileId);
+    if (!Number.isSafeInteger(fileId) || fileId <= 0) {
+      return res.status(400).json({ error: 'شناسه فایل نامعتبر است' });
+    }
+    const file = sqlite.prepare(`SELECT * FROM files WHERE id = ?`).get(fileId) as any;
+    return downloadFileRecord(req, res, file);
+  } catch (error) {
+    console.error('Error downloading file by id:', error);
+    return res.status(500).json({ error: 'خطا در دانلود فایل' });
+  }
+});
+
+fileRoutes.get('/download/:filename', requireAuth, (req, res) => {
+  try {
+    const filename = path.basename(req.params.filename);
+    const file = sqlite.prepare(`SELECT * FROM files WHERE name = ?`).get(filename) as any;
+    return downloadFileRecord(req, res, file);
   } catch (error) {
     console.error('Error downloading file:', error);
-    res.status(500).json({ error: 'خطا در دانلود فایل' });
+    return res.status(500).json({ error: 'خطا در دانلود فایل' });
   }
 });
 
 // DELETE file
-fileRoutes.delete('/:filename', requireAuth, (req, res) => {
-  try {
+const deleteFileRecord = (req: Request, res: Response, file: any) => {
     const user = (req as AuthRequest).user;
-    if (!user) {
-      return res.status(401).json({ error: 'احراز هویت الزامی است' });
-    }
-
-    const filename = path.basename(req.params.filename);
-    const file = sqlite.prepare(`SELECT * FROM files WHERE name = ?`).get(filename) as any;
+    if (!user) return res.status(401).json({ error: 'احراز هویت الزامی است' });
     if (!file) return res.status(404).json({ error: 'فایل یافت نشد' });
 
     const role = user.role || '';
@@ -223,19 +231,41 @@ fileRoutes.delete('/:filename', requireAuth, (req, res) => {
       return res.status(403).json({ error: 'شما دسترسی لازم برای حذف این فایل را ندارید' });
     }
 
-    const cleanPath = String(file.path).replace(/^\/+/, '');
+    const cleanPath = String(file.path).replace(/^[/\\]+/, '');
     const filePath = path.resolve(process.cwd(), cleanPath);
-    if (filePath.startsWith(path.resolve(process.cwd())) && fs.existsSync(filePath)) {
+    const relativePath = path.relative(process.cwd(), filePath);
+    if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath) && fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
 
-    sqlite.prepare(`DELETE FROM files WHERE name = ?`).run(filename);
+    sqlite.prepare(`DELETE FROM files WHERE id = ?`).run(file.id);
 
-    logAudit({ userId: user.id, action: 'DELETE', entityName: 'فایل', entityId: Number(file.id || 0), changes: { name: filename }, ip: req.ip, userAgent: req.headers['user-agent'] });
+    logAudit({ userId: user.id, action: 'DELETE', entityName: 'فایل', entityId: Number(file.id || 0), changes: { name: file.name }, ip: req.ip, userAgent: req.headers['user-agent'] });
 
-    res.json({ success: true, message: 'فایل با موفقیت حذف شد' });
+    return res.json({ success: true, message: 'فایل با موفقیت حذف شد' });
+};
+
+fileRoutes.delete('/id/:fileId', requireAuth, (req, res) => {
+  try {
+    const fileId = Number(req.params.fileId);
+    if (!Number.isSafeInteger(fileId) || fileId <= 0) {
+      return res.status(400).json({ error: 'شناسه فایل نامعتبر است' });
+    }
+    const file = sqlite.prepare(`SELECT * FROM files WHERE id = ?`).get(fileId) as any;
+    return deleteFileRecord(req, res, file);
+  } catch (error) {
+    console.error('Error deleting file by id:', error);
+    return res.status(500).json({ error: 'خطا در حذف فایل' });
+  }
+});
+
+fileRoutes.delete('/:filename', requireAuth, (req, res) => {
+  try {
+    const filename = path.basename(req.params.filename);
+    const file = sqlite.prepare(`SELECT * FROM files WHERE name = ?`).get(filename) as any;
+    return deleteFileRecord(req, res, file);
   } catch (error) {
     console.error('Error deleting file:', error);
-    res.status(500).json({ error: 'خطا در حذف فایل' });
+    return res.status(500).json({ error: 'خطا در حذف فایل' });
   }
 });

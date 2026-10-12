@@ -8,7 +8,7 @@ import {
   FileJson, FileSpreadsheet, FileCode, Music, Video, Package,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Clock, Calendar, Filter, X, Eye, UploadCloud, CheckCircle2,
-  AlertTriangle, Building2, Layers, GitBranch, ArrowDownToLine,
+  AlertTriangle, Landmark, Layers, GitBranch, ArrowDownToLine,
   FileCheck, ShieldAlert, Sparkles, HelpCircle, History, GitMerge, FileDiff, ShieldCheck, Undo2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -248,6 +248,27 @@ export function FilesManagement() {
     }
   };
 
+  const handleDownloadImportedWorkbook = async (versionId: number, originalName?: string) => {
+    try {
+      const response = await (window.customFetch || window.fetch)(`/api/data-exchange/versions/${versionId}/workbook`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'خطا در دریافت فایل ثبت‌شده');
+      }
+      const url = window.URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${(originalName || 'بسته_یگان').replace(/\.(xlsx|xls)$/i, '')}_با_تاریخ_ورود.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (error: any) {
+      console.error('Imported workbook download error:', error);
+      toast.error(error.message || 'خطا در دریافت فایل اکسل ثبت‌شده');
+    }
+  };
+
   // -------------------------------------------------------------
   // متدهای بخش قالب و همگام‌سازی اکسل
   // -------------------------------------------------------------
@@ -419,7 +440,11 @@ export function FilesManagement() {
         throw new Error(data.error || 'خطا در همگام‌سازی اطلاعات یگان');
       }
 
-      setSyncSummary(data.summary);
+      setSyncSummary({
+        ...data.summary,
+        versionId: data.version?.id,
+        sourceFileName: selectedFile.name,
+      });
       setPreviewData(null);
       setSelectedFile(null);
       setManualConfirmChecked(false);
@@ -456,10 +481,10 @@ export function FilesManagement() {
     }
   };
 
-  const handleDeleteStorageFile = async (name: string) => {
+  const handleDeleteStorageFile = async (fileId: number, name: string) => {
     if (!confirm(`آیا از حذف فایل "${name}" اطمینان دارید؟`)) return;
     try {
-      const res = await (window.customFetch || window.fetch)(`/api/files/${name}`, { method: 'DELETE' });
+      const res = await (window.customFetch || window.fetch)(`/api/files/id/${fileId}`, { method: 'DELETE' });
       if (res.ok) {
         toast.success('فایل با موفقیت حذف شد');
         fetchFiles();
@@ -472,10 +497,10 @@ export function FilesManagement() {
     }
   };
 
-  const handleDownloadStorageFile = (name: string) => {
+  const handleDownloadStorageFile = (fileId: number) => {
     const token = useAuthStore.getState().token;
     const query = token ? `?token=${encodeURIComponent(token)}` : '';
-    window.open(`/api/files/download/${encodeURIComponent(name)}${query}`, '_blank');
+    window.open(`/api/files/download/id/${fileId}${query}`, '_blank');
   };
 
   const getFileIcon = (type: string, name: string) => {
@@ -498,6 +523,24 @@ export function FilesManagement() {
       return matchesSearch && matchesType && matchesModule;
     });
   }, [files, searchTerm, filterType, filterModule]);
+  const sortedFiles = useMemo(() => {
+    return [...filteredFiles].sort((left, right) => {
+      const direction = sortOrder === 'asc' ? 1 : -1;
+      if (sortBy === 'name') return left.name.localeCompare(right.name, 'fa') * direction;
+      if (sortBy === 'size') return (left.size - right.size) * direction;
+      return (new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()) * direction;
+    });
+  }, [filteredFiles, sortBy, sortOrder]);
+  const totalPages = Math.max(1, Math.ceil(sortedFiles.length / pageSize));
+  const paginatedFiles = sortedFiles.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType, filterModule]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const selectedUnitObj = units.find(u => String(u.id) === selectedUnitId);
   const selectedBaseObj = bases.find(b => String(b.id) === selectedBaseId);
@@ -584,7 +627,7 @@ export function FilesManagement() {
                 {/* انتخاب نیرو / پایگاه */}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                    <Building2 size={14} className="text-indigo-500" />
+                    <Landmark size={14} className="text-indigo-500" />
                     نیرو / رده بالادست
                   </label>
                   <select
@@ -1043,8 +1086,20 @@ export function FilesManagement() {
                         <CheckCircle2 size={16} />
                         همگام‌سازی و ثبت نسخه با موفقیت انجام شد:
                       </div>
+                      <div>ساختار: <b>{syncSummary.unitName}</b> • دوره: <b>{syncSummary.periodName}</b></div>
+                      <div>تاریخ و زمان ورود: <b>{syncSummary.importTimestamp}</b></div>
                       <div>درخت دانشی یگان: <b>{syncSummary.totalNodes || (syncSummary.nodesCreated + syncSummary.nodesUpdated)}</b> گره ({syncSummary.nodesCreated} جدید، {syncSummary.nodesUpdated} به‌روزرسانی با ثبت لاگ، {syncSummary.nodesKept || 0} حفظ نسخه قبلی)</div>
                       <div>نظام مسائل: <b>{syncSummary.totalIssues || (syncSummary.issuesCreated + syncSummary.issuesUpdated)}</b> مسئله ({syncSummary.issuesCreated} جدید، {syncSummary.issuesUpdated} به‌روزرسانی با ثبت لاگ، {syncSummary.issuesKept || 0} حفظ نسخه قبلی)</div>
+                      {syncSummary.versionId && (
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadImportedWorkbook(syncSummary.versionId, syncSummary.sourceFileName)}
+                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-2 font-semibold text-white hover:bg-blue-800"
+                        >
+                          <Download size={14} />
+                          دریافت فایل ثبت‌شده با تاریخ ورود
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1178,6 +1233,16 @@ export function FilesManagement() {
                                   Rollback
                                 </button>
                               )}
+                              {ver.summary?.importedWorkbookFile && (
+                                <button
+                                  onClick={() => handleDownloadImportedWorkbook(ver.id, ver.file_name)}
+                                  className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                                  title={`دانلود نسخه اکسل ثبت‌شده در ${ver.summary.importTimestamp || ver.created_at}`}
+                                >
+                                  <Download size={13} />
+                                  اکسل ثبت‌شده
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1291,8 +1356,8 @@ export function FilesManagement() {
         <div className="space-y-6">
           {/* نوار جستجو و فیلترهای پیوست‌ها */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex flex-1 items-center gap-3">
-              <div className="relative flex-1">
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
                 <Search size={18} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -1306,7 +1371,8 @@ export function FilesManagement() {
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm focus:outline-none"
+                aria-label="فیلتر نوع فایل"
+                className="min-w-0 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm focus:outline-none"
               >
                 <option value="all">همه فرمت‌ها</option>
                 <option value="image">تصاویر</option>
@@ -1317,7 +1383,8 @@ export function FilesManagement() {
               <select
                 value={filterModule}
                 onChange={(e) => setFilterModule(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm focus:outline-none"
+                aria-label="فیلتر بخش فایل"
+                className="min-w-0 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm focus:outline-none"
               >
                 <option value="all">همه بخش‌ها</option>
                 <option value="issues">نظام مسائل</option>
@@ -1325,11 +1392,53 @@ export function FilesManagement() {
                 <option value="assets">دارایی‌های دانشی</option>
                 <option value="exports">خروجی‌ها</option>
               </select>
+              <select
+                value={sortBy}
+                onChange={event => setSortBy(event.target.value as 'name' | 'size' | 'date')}
+                aria-label="مرتب‌سازی فایل‌ها بر اساس"
+                className="min-w-0 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm focus:outline-none"
+              >
+                <option value="date">مرتب‌سازی: تاریخ بارگذاری</option>
+                <option value="name">مرتب‌سازی: نام فایل</option>
+                <option value="size">مرتب‌سازی: حجم فایل</option>
+              </select>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 md:justify-end">
+              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-900" aria-label="نحوه نمایش فایل‌ها">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  aria-label="نمایش فهرستی"
+                  aria-pressed={viewMode === 'list'}
+                  className={`rounded-lg p-2 ${viewMode === 'list' ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-300' : 'text-slate-500'}`}
+                >
+                  <List size={17} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  aria-label="نمایش کارتی"
+                  aria-pressed={viewMode === 'grid'}
+                  className={`rounded-lg p-2 ${viewMode === 'grid' ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-300' : 'text-slate-500'}`}
+                >
+                  <Grid3x3 size={17} />
+                </button>
+              </div>
+              <span className="text-xs text-slate-500" aria-live="polite">
+                {sortedFiles.length.toLocaleString('fa-IR')} فایل · {(totalSize / (1024 * 1024)).toFixed(1)} مگابایت
+              </span>
+              <button
+                type="button"
+                onClick={() => setSortOrder(order => order === 'asc' ? 'desc' : 'asc')}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
+                title={sortOrder === 'asc' ? 'تغییر به ترتیب نزولی' : 'تغییر به ترتیب صعودی'}
+              >
+                {sortOrder === 'asc' ? 'صعودی' : 'نزولی'}
+              </button>
               <button
                 onClick={fetchFiles}
+                aria-label="تازه‌سازی فهرست فایل‌ها"
                 className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
                 title="تازه‌سازی"
               >
@@ -1338,11 +1447,10 @@ export function FilesManagement() {
             </div>
           </div>
 
-          {/* جدول یا شبکه فایل‌های پیوست */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
+          {viewMode === 'list' ? (
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
               <table className="w-full text-right text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 border-b border-slate-200 dark:border-slate-700">
+                <thead className="border-b border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-900/60">
                   <tr>
                     <th className="py-3 px-4">نوع</th>
                     <th className="py-3 px-4">نام فایل</th>
@@ -1353,57 +1461,90 @@ export function FilesManagement() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredFiles.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-8 text-slate-400">
-                        {loadingFiles ? 'در حال بارگذاری فایل‌ها...' : 'هیچ فایلی یافت نشد.'}
+                  {paginatedFiles.map(file => (
+                    <tr key={file.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
+                      <td className="py-3 px-4">{getFileIcon(file.type, file.name)}</td>
+                      <td className="max-w-xs truncate py-3 px-4 font-medium text-slate-800 dark:text-slate-200" title={file.name}>{file.name}</td>
+                      <td className="py-3 px-4"><span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 dark:bg-slate-700 dark:text-slate-300">{file.module}</span></td>
+                      <td className="py-3 px-4 font-mono text-slate-500">{(file.size / 1024).toFixed(1)} KB</td>
+                      <td className="py-3 px-4 text-slate-400">{file.createdAt ? formatPersianDateTime(file.createdAt) : '-'}</td>
+                      <td className="py-3 px-4 text-center">
+                        <button type="button" onClick={() => handleDownloadStorageFile(file.id)} aria-label={`دانلود ${file.name}`} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30" title="دانلود فایل">
+                          <Download size={15} /><span>دانلود</span>
+                        </button>
+                        <button type="button" onClick={() => handleDeleteStorageFile(file.id, file.name)} aria-label={`حذف ${file.name}`} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30" title="حذف فایل">
+                          <Trash2 size={15} /><span>حذف</span>
+                        </button>
                       </td>
                     </tr>
-                  ) : (
-                    filteredFiles.map((file) => (
-                      <tr key={file.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/30 transition-colors">
-                        <td className="py-3 px-4">
-                          {getFileIcon(file.type, file.name)}
-                        </td>
-                        <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200 max-w-xs truncate" title={file.name}>
-                          {file.name}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs">
-                            {file.module}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-slate-500 font-mono">
-                          {(file.size / 1024).toFixed(1)} KB
-                        </td>
-                        <td className="py-3 px-4 text-slate-400">
-                          {file.createdAt ? formatPersianDateTime(file.createdAt) : '-'}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => handleDownloadStorageFile(file.name)}
-                              className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-                              title="دانلود فایل"
-                            >
-                              <Download size={15} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteStorageFile(file.name)}
-                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-                              title="حذف فایل"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                  ))}
+                  {paginatedFiles.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        {loadingFiles ? 'در حال بارگذاری فایل‌ها...' : sortedFiles.length === 0 && files.length > 0 ? 'با فیلترهای فعلی فایلی پیدا نشد؛ فیلترها را تغییر دهید.' : 'هنوز فایلی در آرشیو ثبت نشده است.'}
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {paginatedFiles.map(file => (
+                <article key={file.id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-900">{getFileIcon(file.type, file.name)}</div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="break-words text-sm font-bold text-slate-800 dark:text-slate-100" title={file.name}>{file.name}</h3>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                        <span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-700">{file.module}</span>
+                        <span>{(file.size / 1024).toFixed(1)} کیلوبایت</span>
+                      </div>
+                      <p className="mt-2 text-[11px] text-slate-400">بارگذاری: {file.createdAt ? formatPersianDateTime(file.createdAt) : 'نامشخص'}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-700">
+                    <button type="button" onClick={() => handleDownloadStorageFile(file.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300">
+                      <Download size={14} /> دانلود
+                    </button>
+                    <button type="button" onClick={() => handleDeleteStorageFile(file.id, file.name)} className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300">
+                      <Trash2 size={14} /> حذف
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {paginatedFiles.length === 0 && (
+                <div className="col-span-full rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800">
+                  {loadingFiles ? 'در حال بارگذاری فایل‌ها...' : sortedFiles.length === 0 && files.length > 0 ? 'با فیلترهای فعلی فایلی پیدا نشد؛ فیلترها را تغییر دهید.' : 'هنوز فایلی در آرشیو ثبت نشده است.'}
+                </div>
+              )}
+            </div>
+          )}
+
+                          {sortedFiles.length > 0 && (
+                            <nav className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800" aria-label="صفحه‌بندی آرشیو فایل‌ها">
+                              <span className="text-xs text-slate-500">
+                                نمایش {((currentPage - 1) * pageSize + 1).toLocaleString('fa-IR')} تا {Math.min(currentPage * pageSize, sortedFiles.length).toLocaleString('fa-IR')} از {sortedFiles.length.toLocaleString('fa-IR')} فایل
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button type="button" aria-label="صفحه قبل" disabled={currentPage <= 1} onClick={() => setCurrentPage(1)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-700">
+                                  <ChevronsRight size={16} />
+                                </button>
+                                <button type="button" aria-label="صفحه قبلی" disabled={currentPage <= 1} onClick={() => setCurrentPage(page => page - 1)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-700">
+                                  <ChevronRight size={16} />
+                                </button>
+                                <span className="px-3 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                  {currentPage.toLocaleString('fa-IR')} / {totalPages.toLocaleString('fa-IR')}
+                                </span>
+                                <button type="button" aria-label="صفحه بعدی" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(page => page + 1)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-700">
+                                  <ChevronLeft size={16} />
+                                </button>
+                                <button type="button" aria-label="صفحه آخر" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(totalPages)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-700">
+                                  <ChevronsLeft size={16} />
+                                </button>
+                              </div>
+                            </nav>
+                          )}
         </div>
       )}
     </div>

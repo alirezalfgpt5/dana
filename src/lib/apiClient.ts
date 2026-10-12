@@ -3,6 +3,7 @@
 
 import toast from 'react-hot-toast';
 import { useAuthStore, useSecurityStore } from '../store';
+import { translateUiText } from '../utils/uiText';
 
 interface ApiOptions extends RequestInit {
   showErrorToast?: boolean;
@@ -103,7 +104,7 @@ export async function apiClient<T = any>(
         throw new Error('Unauthorized');
       }
       
-      const message = data.message || data.error || 'خطا در ارتباط با سرور';
+      const message = translateUiText(data.message || data.error || 'خطا در ارتباط با سرور');
       if (showErrorToast) {
         toast.error(message, { id: `api-err-${message}` });
       }
@@ -115,7 +116,7 @@ export async function apiClient<T = any>(
 
     // موفقیت
     if (showSuccessToast) {
-      toast.success(successMessage || 'عملیات با موفقیت انجام شد');
+      toast.success(translateUiText(successMessage || 'عملیات با موفقیت انجام شد'));
     }
 
     return data;
@@ -134,7 +135,7 @@ export async function apiClient<T = any>(
 
     // اگر خطا از قبل toast داشته باشد، دوباره نمایش نده
     if (!error._toastShown && showErrorToast && error.message && error.message !== 'Unauthorized' && error.message !== 'Session locked') {
-      toast.error(error.message, { id: `api-err-${error.message}` });
+      toast.error(translateUiText(error.message), { id: `api-err-${error.message}` });
       error._toastShown = true;
     }
 

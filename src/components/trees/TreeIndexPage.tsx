@@ -16,7 +16,7 @@ import {
   ChevronRight, 
   ChevronLeft, 
   Calendar, 
-  Building2, 
+  Landmark,
   GitBranch, 
   Layers, 
   AlertTriangle,
@@ -63,6 +63,9 @@ interface TreeIndexPageProps {
   trees: TreeItem[];
   periods: any[];
   bases?: any[];
+  selectedPeriodId: string;
+  selectedBaseId: string;
+  onScopeChange: (periodId: string, baseId: string) => void;
   loading?: boolean;
   onRefresh: () => Promise<void> | void;
   onSelectTree: (treeId: number) => void;
@@ -89,6 +92,9 @@ export function TreeIndexPage({
   trees = [],
   periods = [],
   bases = [],
+  selectedPeriodId,
+  selectedBaseId,
+  onScopeChange,
   loading = false,
   onRefresh,
   onSelectTree,
@@ -101,8 +107,6 @@ export function TreeIndexPage({
 }: TreeIndexPageProps) {
   // فیلترها و وضعیت
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('all');
-  const [selectedBase, setSelectedBase] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'active' | 'trash'>('active');
   const [showHelp, setShowHelp] = useState(false);
 
@@ -156,12 +160,12 @@ export function TreeIndexPage({
       }
 
       // فیلتر دوره
-      if (selectedPeriod !== 'all' && String(tree.periodId) !== selectedPeriod) {
+      if (selectedPeriodId && String(tree.periodId) !== selectedPeriodId) {
         return false;
       }
 
       // فیلتر پایگاه/یگان
-      if (selectedBase !== 'all' && String(tree.baseId) !== selectedBase) {
+      if (selectedBaseId && String(tree.baseId) !== selectedBaseId) {
         return false;
       }
 
@@ -174,7 +178,7 @@ export function TreeIndexPage({
       trashCount: trshCount,
       totalNodesCount: nodesSum,
     };
-  }, [trees, activeTab, searchTerm, selectedPeriod, selectedBase]);
+  }, [trees, activeTab, searchTerm, selectedPeriodId, selectedBaseId]);
 
   // موارد صفحه جاری
   const totalPages = Math.max(1, Math.ceil(filteredList.length / pageSize));
@@ -249,6 +253,10 @@ export function TreeIndexPage({
       icon: RefreshCw,
       variant: 'secondary',
       onClick: async () => {
+        if (!selectedPeriodId || !selectedBaseId) {
+          toast.error('برای بروزرسانی، ابتدا دورهٔ زمانی و ساختار سازمانی را انتخاب کنید');
+          return;
+        }
         await onRefresh();
         toast.success('فهرست درختواره‌ها بروزرسانی شد');
       },
@@ -372,14 +380,14 @@ export function TreeIndexPage({
           {/* فیلتر دوره */}
           <div>
             <select
-              value={selectedPeriod}
+              value={selectedPeriodId}
               onChange={(e) => {
-                setSelectedPeriod(e.target.value);
+                onScopeChange(e.target.value, selectedBaseId);
                 setCurrentPage(1);
               }}
               className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-800 dark:text-gray-100"
             >
-              <option value="all">همه دوره‌های زمانی</option>
+              <option value="">انتخاب دوره زمانی</option>
               {periods.map((p) => (
                 <option key={p.id} value={String(p.id)}>
                   {p.name} {p.year ? `(${p.year})` : ''}
@@ -391,14 +399,14 @@ export function TreeIndexPage({
           {/* فیلتر یگان / پایگاه */}
           <div>
             <select
-              value={selectedBase}
+              value={selectedBaseId}
               onChange={(e) => {
-                setSelectedBase(e.target.value);
+                onScopeChange(selectedPeriodId, e.target.value);
                 setCurrentPage(1);
               }}
               className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-800 dark:text-gray-100"
             >
-              <option value="all">همه ساختارهای سازمانی</option>
+              <option value="">انتخاب ساختار سازمانی</option>
               {bases.map((b) => (
                 <option key={b.id} value={String(b.id)}>
                   {b.name}
@@ -408,6 +416,11 @@ export function TreeIndexPage({
           </div>
         </div>
 
+        {(!selectedPeriodId || !selectedBaseId) && (
+          <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs leading-6 text-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+            برای مشاهدهٔ فهرست، ابتدا دورهٔ زمانی و ساختار سازمانی را انتخاب کنید.
+          </p>
+        )}
         {/* هشدار وضعیت سطل بازیافت */}
         {activeTab === 'trash' && (
           <div className="mt-3.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
@@ -517,7 +530,7 @@ export function TreeIndexPage({
                       {/* مالک و ساختار سازمانی */}
                       <td className="py-4 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
-                          <Building2 size={14} className="text-gray-400 flex-shrink-0" />
+                          <Landmark size={14} className="text-gray-400 flex-shrink-0" />
                           <span className="truncate max-w-[200px]" title={tree.orgStructure || ''}>
                             {tree.orgStructure || 'ستاد کل آجا'}
                           </span>

@@ -2,14 +2,17 @@
 // نوار بالایی برنامه — با پشتیبانی از سیستم تم
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore, useUIStore, THEMES } from '../../store';
-import { Search, X, LogOut, Info, Mail, Phone, LayoutDashboard, Maximize2, Minimize2, Menu, Moon, Sun, Calendar, Network, Palette, Check } from 'lucide-react';
+import { Search, X, LogOut, Info, Mail, Phone, LayoutDashboard, Maximize2, Minimize2, Menu, Moon, Sun, Network, Palette, Check, Map as MapIcon, Landmark } from 'lucide-react';
 import { formatPersianDate, formatPersianDateTime } from '../../utils/persianDate';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 export function Topbar() {
   const { user, logout } = useAuthStore();
-  const { toggleSidebar, periods, activePeriod, setActivePeriod, systemName, darkMode, toggleDarkMode, themeId, setTheme } = useUIStore();
+  const {
+    toggleSidebar, periods, activePeriod, setActivePeriod, systemName, darkMode,
+    toggleDarkMode, themeId, setTheme, bases, units, dataScopePeriodId, dataScopeBaseId, setDataScope,
+  } = useUIStore();
   const [time, setTime] = useState(new Date());
   const [showDevInfo, setShowDevInfo] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
@@ -18,6 +21,11 @@ export function Topbar() {
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const assignedUnit = units.find((unit: any) => String(unit.id) === String(user?.unitId));
+  const defaultBaseId = user?.baseId || assignedUnit?.baseId;
+  const isGlobalOrgAdmin = user?.role === 'superadmin'
+    || (user?.role === 'admin' && !user.baseId && !user.unitId)
+    || ['AJA', 'آجا', 'ستاد کل'].includes(String(user?.organizationLevel || '').trim().toUpperCase());
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -127,10 +135,10 @@ export function Topbar() {
         </div>
 
         {/* انتخاب دوره زمانی */}
-        {periods && periods.length > 0 && (
+        {periods.length > 0 && (
           <div className="flex items-center gap-1 sm:gap-2 mr-1 sm:mr-3 min-w-0 flex-1 sm:flex-none">
-            <Calendar size={16} className="hidden sm:block text-gray-400 shrink-0" />
-            {activePeriod && <Check size={15} className="text-emerald-500 shrink-0" aria-label="دوره انتخاب‌شده" />}
+            {/* <Calendar size={16} className="hidden sm:block text-gray-400 shrink-0" /> */}
+            {/* {activePeriod && <Check size={15} className="text-emerald-500 shrink-0" aria-label="دوره انتخاب‌شده" />} */}
             <div className="w-[clamp(4.5rem,24vw,9rem)] sm:w-36 lg:w-56 min-w-0">
               <SearchableSelect
                 options={periods.map((p: any) => ({ 
@@ -140,10 +148,35 @@ export function Topbar() {
                 value={activePeriod?.id || ""}
                 onChange={(val) => {
                   const p = periods.find((p: any) => String(p.id) === String(val));
-                  if (p) setActivePeriod(p);
+                  if (p) {
+                    setActivePeriod(p);
+                    setDataScope(String(p.id), dataScopeBaseId || null);
+                  }
                 }}
                 theme="dark"
                 className="min-w-0"
+              />
+            </div>
+          </div>
+        )}
+
+        {periods.length > 0 && bases.length > 0 && (
+          <div className="flex min-w-0 items-center gap-1 sm:gap-2" title="ساختار فعال">
+            <Landmark size={15} className="hidden sm:block shrink-0 text-gray-400" />
+            <div className="w-[clamp(5rem,22vw,8rem)] sm:w-32 lg:w-44 min-w-0">
+              <SearchableSelect
+                options={[
+                  ...(isGlobalOrgAdmin ? [{ value: '*', label: 'همهٔ ساختارها' }] : []),
+                  ...bases.map((base: any) => ({ value: String(base.id), label: base.name })),
+                ]}
+                value={dataScopeBaseId || (defaultBaseId ? String(defaultBaseId) : '')}
+                onChange={value => setDataScope(
+                  dataScopePeriodId || (activePeriod?.id ? String(activePeriod.id) : null),
+                  value ? String(value) : null
+                )}
+                theme="dark"
+                className="min-w-0"
+                placeholder="انتخاب ساختار"
               />
             </div>
           </div>
@@ -159,15 +192,17 @@ export function Topbar() {
           <LayoutDashboard size={18} />
         </button>
 
-        {/* دکمه تم */}
-        <button
-          onClick={toggleDarkMode}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-all duration-200"
-          style={{ color: 'var(--text-muted)' }}
-          title={darkMode ? 'حالت روز' : 'حالت شب'}
-        >
-          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
+        {user?.role === 'superadmin' && (
+          <button
+            onClick={() => navigate('/program-map')}
+            className="flex items-center gap-1.5 px-2 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-all duration-200 text-xs font-medium whitespace-nowrap"
+            style={{ color: 'var(--text-muted)' }}
+            title="نقشه فایل‌ها و راهنمای فنی ارتقاء نرم‌افزار"
+          >
+            <MapIcon size={18} />
+            {/* <span className="hidden xl:inline">نقشه برنامه</span> */}
+          </button>
+        )}
 
         {/* سوئیچر تم (پالت رنگی) */}
         <div className="relative" ref={themeMenuRef}>
@@ -185,6 +220,15 @@ export function Topbar() {
               <p className="text-xs font-bold px-3 py-2" style={{ color: 'var(--text-faint)' }}>
                 انتخاب تم ظاهری
               </p>
+              <button
+                onClick={() => { toggleDarkMode(); setShowThemeMenu(false); }}
+                className="w-full flex items-center gap-3 rounded-xl px-3 py-2 text-right text-sm transition-colors menu-item-idle hover:bg-gray-100 dark:hover:bg-white/5"
+              >
+                {darkMode ? <Sun size={17} /> : <Moon size={17} />}
+                <span className="flex-1">{darkMode ? 'حالت روشن' : 'حالت شب'}</span>
+                {darkMode && <Check size={16} style={{ color: 'var(--brand-600)' }} />}
+              </button>
+              <div className="border-t divider-main my-1" />
               {THEMES.map((theme) => {
                 const isActive = themeId === theme.id;
                 return (
@@ -236,7 +280,7 @@ export function Topbar() {
         {/* تاریخ و ساعت */}
         <div className="hidden md:flex flex-col items-center justify-center text-xs font-medium font-mono leading-tight min-w-[70px]" style={{ color: 'var(--text-muted)' }}>
           <span>{formatPersianDate(time)}</span>
-          <span>{formatPersianDateTime(time, 'HH:mm:ss')}</span>
+          <span>{formatPersianDateTime(time, 'HH:mm')}</span>
         </div>
 
         {/* اطلاعات توسعه‌دهنده */}

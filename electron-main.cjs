@@ -178,6 +178,7 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    autoHideMenuBar: true,
     webPreferences: { nodeIntegration: false, contextIsolation: true },
     icon: path.join(__dirname, "public", "favicon.ico"),
     show: false,
@@ -196,8 +197,6 @@ async function createWindow() {
     console.error("Failed to load URL:", err);
   }
 
-  Menu.setApplicationMenu(null);
-  
   if (splashWindow) {
     splashWindow.webContents.executeJavaScript(`updateProgress('برنامه بارگذاری شد...', 100);`);
     setTimeout(() => {
@@ -223,7 +222,10 @@ async function createWindow() {
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
-app.whenReady().then(() => createWindow().catch(console.error));
+app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
+  return createWindow();
+}).catch(console.error);
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

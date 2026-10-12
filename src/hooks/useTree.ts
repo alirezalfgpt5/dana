@@ -1,7 +1,7 @@
 // src/hooks/useTree.ts
 // هوک مدیریت درختواره‌ها - با کش و به‌روزرسانی خودکار
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { apiClient } from '../lib/apiClient';
 
@@ -53,6 +53,16 @@ export function useTree() {
   const [nodes, setNodes] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const latestTreeListRequest = useRef(0);
+  const latestTreeDetailRequest = useRef(0);
+  const lastTreeFilters = useRef<{
+    type?: string;
+    periodId?: number;
+    baseId?: number;
+    unitId?: number;
+    isActive?: number;
+    mode?: string;
+  }>({});
 
   // ============================================
   // دریافت لیست قالب‌ها (برای سیستم مسائل)
@@ -100,27 +110,39 @@ export function useTree() {
     isActive?: number;
     mode?: string;
   }) => {
+    const requestId = ++latestTreeListRequest.current;
+    const effectiveFilters = filters || lastTreeFilters.current;
+    if (filters) lastTreeFilters.current = filters;
+    setTrees([]);
+    if (
+      ['required', 'produced', 'research'].includes(effectiveFilters.type || '')
+      && (!effectiveFilters.periodId || !effectiveFilters.baseId)
+    ) {
+      setLoading(false);
+      setError(null);
+      return [];
+    }
     setLoading(true);
     setError(null);
 
     try {
       const params = new URLSearchParams();
-      if (filters?.type) params.append('type', filters.type);
-      if (filters?.periodId) params.append('periodId', String(filters.periodId));
-      if (filters?.baseId) params.append('baseId', String(filters.baseId));
-      if (filters?.unitId) params.append('unitId', String(filters.unitId));
-      if (filters?.isActive !== undefined) params.append('isActive', String(filters.isActive));
-      if (filters?.mode) params.append('mode', filters.mode);
+      if (effectiveFilters.type) params.append('type', effectiveFilters.type);
+      if (effectiveFilters.periodId) params.append('periodId', String(effectiveFilters.periodId));
+      if (effectiveFilters.baseId) params.append('baseId', String(effectiveFilters.baseId));
+      if (effectiveFilters.unitId) params.append('unitId', String(effectiveFilters.unitId));
+      if (effectiveFilters.isActive !== undefined) params.append('isActive', String(effectiveFilters.isActive));
+      if (effectiveFilters.mode) params.append('mode', effectiveFilters.mode);
 
       const url = `/api/trees${params.toString() ? '?' + params.toString() : ''}`;
       const data = await apiClient(url);
-      setTrees(Array.isArray(data) ? data : []);
+      if (requestId === latestTreeListRequest.current) setTrees(Array.isArray(data) ? data : []);
       return data;
     } catch (err: any) {
-      setError(err.message || 'خطا در دریافت درختواره‌ها');
+      if (requestId === latestTreeListRequest.current) setError(err.message || 'خطا در دریافت درختواره‌ها');
       return [];
     } finally {
-      setLoading(false);
+      if (requestId === latestTreeListRequest.current) setLoading(false);
     }
   }, []);
 
@@ -129,11 +151,13 @@ export function useTree() {
   // ============================================
 
   const fetchTree = useCallback(async (treeId: number) => {
+    const requestId = ++latestTreeDetailRequest.current;
     setLoading(true);
     setError(null);
 
     try {
       const data = await apiClient(`/api/trees/${treeId}`);
+      if (requestId !== latestTreeDetailRequest.current) return null;
       
       // console.log('Raw tree data from server:', data);
       // console.log('tree keys:', Object.keys(data));
@@ -159,10 +183,11 @@ export function useTree() {
         return null;
       }
     } catch (err: any) {
+      if (requestId !== latestTreeDetailRequest.current) return null;
       setError(err.message || 'خطا در دریافت درختواره');
       return null;
     } finally {
-      setLoading(false);
+      if (requestId === latestTreeDetailRequest.current) setLoading(false);
     }
   }, []);
 

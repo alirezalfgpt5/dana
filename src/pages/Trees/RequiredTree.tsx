@@ -65,6 +65,7 @@ export function RequiredTree() {
   const [showTreeModal, setShowTreeModal] = useState(false);
   const [editingTreeId, setEditingTreeId] = useState<number | null>(null);
   const { user } = useAuthStore();
+  const { dataScopePeriodId, dataScopeBaseId, setDataScope } = useUIStore();
   const [isCloning, setIsCloning] = useState(false);
 
   const handleCloneTree = async (treeToClone?: any) => {
@@ -134,7 +135,6 @@ export function RequiredTree() {
     const loadData = async () => {
       try {
         await Promise.all([
-          fetchTrees({ type: 'required' }),
           fetchTemplates(),
           fetchPeriods(),
           fetchOrgData(),
@@ -145,6 +145,18 @@ export function RequiredTree() {
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (dataScopePeriodId && dataScopeBaseId) {
+      void fetchTrees({
+        type: 'required',
+        periodId: Number(dataScopePeriodId),
+        baseId: Number(dataScopeBaseId),
+      });
+    } else {
+      void fetchTrees({ type: 'required' });
+    }
+  }, [dataScopePeriodId, dataScopeBaseId, fetchTrees]);
 
   // بارگذاری درختواره انتخاب شده
   useEffect(() => {
@@ -202,7 +214,7 @@ export function RequiredTree() {
         setEditingTreeId(null);
         setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' });
         toast.success('درختواره با موفقیت ویرایش شد');
-        await fetchTrees({ type: 'required' });
+        await fetchTrees();
       } else {
         const newTree = await createTree({
           name: treeFormData.name,
@@ -215,7 +227,7 @@ export function RequiredTree() {
         setShowTreeModal(false);
         setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' });
         toast.success('درختواره با موفقیت ایجاد شد');
-        await fetchTrees({ type: 'required' });
+        await fetchTrees();
         if (newTree && newTree.id) {
           setSearchParams({ treeId: String(newTree.id) });
         }
@@ -425,12 +437,22 @@ export function RequiredTree() {
           trees={trees.filter(t => t.type === 'required')}
           periods={periods}
           bases={bases}
+          selectedPeriodId={dataScopePeriodId}
+          selectedBaseId={dataScopeBaseId}
+          onScopeChange={(periodId, baseId) => {
+            setDataScope(periodId, baseId);
+            setSearchParams({});
+          }}
           loading={loading}
           onRefresh={async () => {
-            await fetchTrees({ type: 'required' });
+            await fetchTrees();
           }}
           onSelectTree={(id) => setSearchParams({ treeId: String(id) })}
           onAddNewTree={() => {
+            if (!dataScopePeriodId || !dataScopeBaseId) {
+              toast.error('ابتدا دورهٔ زمانی و ساختار سازمانی را انتخاب کنید');
+              return;
+            }
             if (periods.length === 0) {
               toast.error('ابتدا باید حداقل یک دوره زمانی تعریف کنید');
               return;
@@ -439,7 +461,7 @@ export function RequiredTree() {
               toast.error('ابتدا باید ساختار سازمانی (یگان اصلی) تعریف کنید');
               return;
             }
-            setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' });
+            setTreeFormData({ name: '', description: '', periodId: dataScopePeriodId, organizationLevel: '', baseId: dataScopeBaseId, unitId: '' });
             setIsEditingTree(false);
             setEditingTreeId(null);
             setShowTreeModal(true);

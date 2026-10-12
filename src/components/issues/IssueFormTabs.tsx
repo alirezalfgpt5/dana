@@ -6,7 +6,7 @@ import {
   Save, X, FileText, 
   Users, Coins, Clock, CheckCircle, 
   UserCog, File as FileIcon, Settings, 
-  ClipboardList, RefreshCw 
+  ClipboardList, RefreshCw, CalendarDays, Landmark
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
@@ -22,6 +22,7 @@ import { ExecutiveContractTab } from './tabs/ExecutiveContractTab';
 import { ContractTab } from './tabs/ContractTab';
 import { StagesTab } from './tabs/StagesTab';
 import { ApplicationTab } from './tabs/ApplicationTab';
+import { SearchableSelect } from '../ui/SearchableSelect';
 
 interface IssueFormTabsProps {
   initialData?: any;
@@ -39,6 +40,10 @@ interface IssueFormTabsProps {
   confidentialityLevels?: string[];
   statuses?: string[];
   loading?: boolean;
+  periods?: any[];
+  bases?: any[];
+  defaultPeriodId?: string;
+  defaultBaseId?: string;
 }
 
 export function IssueFormTabs({
@@ -57,9 +62,15 @@ export function IssueFormTabs({
   confidentialityLevels = ['عمومی', 'محرمانه', 'سری', 'بسیار سری'],
   statuses = ['pending', 'in_progress', 'completed', 'canceled', 'on_hold'],
   loading = false,
+  periods = [],
+  bases = [],
+  defaultPeriodId = '',
+  defaultBaseId = '',
 }: IssueFormTabsProps) {
   const [activeTab, setActiveTab] = useState('general');
   const [formData, setFormData] = useState<any>({
+    periodId: defaultPeriodId,
+    baseId: defaultBaseId,
     domainNodeId: '',
     title: '',
     category: '',
@@ -178,6 +189,17 @@ export function IssueFormTabs({
 
   const [domainNodes, setDomainNodes] = useState<any[]>([]);
   const [researchItems, setResearchItems] = useState<any[]>([]);
+  const [lookupsLoading, setLookupsLoading] = useState(true);
+  const [showLookupLoader, setShowLookupLoader] = useState(false);
+
+  useEffect(() => {
+    if (!lookupsLoading) {
+      setShowLookupLoader(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowLookupLoader(true), 300);
+    return () => window.clearTimeout(timer);
+  }, [lookupsLoading]);
   
   const [dynamicKnowledgeTypes, setDynamicKnowledgeTypes] = useState<string[]>(knowledgeTypes);
   const [dynamicResearchProjectTypes, setDynamicResearchProjectTypes] = useState<string[]>(researchProjectTypes);
@@ -201,6 +223,7 @@ export function IssueFormTabs({
 
   useEffect(() => {
     const fetchData = async () => {
+      setLookupsLoading(true);
       try {
         const [nodesRes, researchRes] = await Promise.all([
           api.get('/api/trees/nodes/leaves') as Promise<any>,
@@ -249,6 +272,8 @@ export function IssueFormTabs({
         ]);
       } catch (err: any) {
         console.error('Error fetching issue form metadata:', err);
+      } finally {
+        setLookupsLoading(false);
       }
     };
 
@@ -263,6 +288,10 @@ export function IssueFormTabs({
       })
     : templates;
 
+  const scopedDomainNodes = domainNodes.filter((node: any) => (
+    (!formData.periodId || String(node.periodId) === String(formData.periodId))
+    && (!formData.baseId || String(node.baseId) === String(formData.baseId))
+  ));
   const rootTemplates = availableTemplates.filter(t => t.parentId === null);
   const concreteTemplates = availableTemplates.filter(t => t.parentId !== null);
   const groupedTemplates = rootTemplates.reduce((acc: any, root) => {
@@ -281,6 +310,8 @@ export function IssueFormTabs({
 
       setFormData({
         ...initialData,
+        periodId: initialData.periodId ?? defaultPeriodId,
+        baseId: initialData.baseId ?? defaultBaseId,
         category: initialData.category || '',
         templateIds: initialTemplateIds,
       });
@@ -374,6 +405,8 @@ export function IssueFormTabs({
       });
     } else {
       setFormData({
+        periodId: defaultPeriodId,
+        baseId: defaultBaseId,
         domainNodeId: '',
         title: '',
         category: '',
@@ -429,6 +462,7 @@ export function IssueFormTabs({
   }, [initialData]);
 
   const tabs = [
+    { id: 'scope', label: 'دوره و ساختار', icon: CalendarDays },
     { id: 'need', label: ' بیانیه نیاز', icon: FileText },
     { id: 'general', label: ' اطلاعات کلی', icon: Settings },
     { id: 'projects', label: ' پروژه‌ها', icon: ClipboardList },
@@ -444,6 +478,15 @@ export function IssueFormTabs({
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [field]: value }));
+  };
+
+  const handleScopeChange = (field: 'periodId' | 'baseId', value: string) => {
+    setFormData((previous: any) => ({
+      ...previous,
+      [field]: value,
+      domainNodeId: '',
+      researchItemId: '',
+    }));
   };
 
   const handleTemplateToggle = (templateId: string) => {
@@ -485,8 +528,14 @@ export function IssueFormTabs({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!formData.periodId || !formData.baseId) {
+      toast.error('انتخاب دوره زمانی و ساختار سازمانی برای ثبت مسئله الزامی است');
+      setActiveTab('scope');
+      return;
+    }
     if (!formData.domainNodeId || !formData.title) {
       toast.error('❌ حوزه و عنوان مسئله الزامی است');
+      setActiveTab('general');
       return;
     }
 
@@ -501,6 +550,8 @@ export function IssueFormTabs({
 
     const submitData = {
       ...formData,
+      periodId: Number(formData.periodId),
+      baseId: Number(formData.baseId),
       category: formData.category || 'عمومی',
       domainNodeId: parseInt(formData.domainNodeId),
       researchItemId: formData.researchItemId ? parseInt(formData.researchItemId) : null,
@@ -612,13 +663,61 @@ export function IssueFormTabs({
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'scope': {
+        const selectedPeriod = periods.find((period: any) => String(period.id) === String(formData.periodId));
+        return (
+          <div className="space-y-5">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
+              دوره و ساختار را برای این مسئله مشخص کنید. حوزه‌های دانشی در تب اطلاعات کلی، بر اساس همین انتخاب محدود می‌شوند.
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  <span className="inline-flex items-center gap-1.5"><CalendarDays size={15} /> دوره زمانی <span className="text-red-500">*</span></span>
+                </label>
+                <SearchableSelect
+                  options={periods.map((period: any) => ({
+                    value: String(period.id),
+                    label: `${period.name}${Number(period.isComplete ?? period.is_complete) === 1 ? ' (خاتمه‌یافته)' : ''}`,
+                  }))}
+                  value={formData.periodId ? String(formData.periodId) : ''}
+                  onChange={value => handleScopeChange('periodId', value ? String(value) : '')}
+                  disabled={Boolean(initialData?.id)}
+                  placeholder="انتخاب دوره زمانی..."
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  <span className="inline-flex items-center gap-1.5"><Landmark size={15} /> ساختار سازمانی <span className="text-red-500">*</span></span>
+                </label>
+                <SearchableSelect
+                  options={bases.map((base: any) => ({ value: String(base.id), label: base.name }))}
+                  value={formData.baseId ? String(formData.baseId) : ''}
+                  onChange={value => handleScopeChange('baseId', value ? String(value) : '')}
+                  disabled={Boolean(initialData?.id)}
+                  placeholder="انتخاب ساختار سازمانی..."
+                />
+              </div>
+            </div>
+            {initialData?.id && (
+              <p className="text-xs text-gray-500">دوره و ساختار مسئله ثبت‌شده در حالت ویرایش تغییر نمی‌کند.</p>
+            )}
+            {Number(selectedPeriod?.isComplete ?? selectedPeriod?.is_complete) === 1 && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                دوره انتخاب‌شده خاتمه یافته است و ثبت مسئله جدید در آن مجاز نیست.
+              </p>
+            )}
+          </div>
+        );
+      }
       case 'general':
         return (
           <GeneralTab
             formData={formData}
             handleChange={handleChange}
             researchItems={researchItems}
-            domainNodes={domainNodes}
+            domainNodes={scopedDomainNodes}
+            loadingLookups={showLookupLoader}
             issueCategories={dynamicCategories}
             dynamicConfidentialityLevels={dynamicConfidentialityLevels}
             dynamicActionPriorities={dynamicActionPriorities}
@@ -752,14 +851,14 @@ export function IssueFormTabs({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              className={`min-w-[4.75rem] flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-lg text-[10px] font-medium leading-tight text-center transition-all duration-200 whitespace-nowrap cursor-pointer ${
                 isActive
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-200/50'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
-              <Icon size={14} />
-              {tab.label}
+              <Icon size={16} />
+              <span>{tab.label.trim()}</span>
             </button>
           );
         })}

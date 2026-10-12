@@ -66,6 +66,7 @@ export function ProducedTree() {
   const [showTreeModal, setShowTreeModal] = useState(false);
   const [editingTreeId, setEditingTreeId] = useState<number | null>(null);
   const { user } = useAuthStore();
+  const { dataScopePeriodId, dataScopeBaseId, setDataScope } = useUIStore();
   const [isCloning, setIsCloning] = useState(false);
 
   const handleCloneTree = async (treeToClone?: any) => {
@@ -137,7 +138,6 @@ export function ProducedTree() {
     const loadData = async () => {
       try {
         await Promise.all([
-          fetchTrees({ type: 'produced' }),
           fetchTemplates(),
           fetchPeriods(),
           fetchOrgData(),
@@ -148,6 +148,18 @@ export function ProducedTree() {
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (dataScopePeriodId && dataScopeBaseId) {
+      void fetchTrees({
+        type: 'produced',
+        periodId: Number(dataScopePeriodId),
+        baseId: Number(dataScopeBaseId),
+      });
+    } else {
+      void fetchTrees({ type: 'produced' });
+    }
+  }, [dataScopePeriodId, dataScopeBaseId, fetchTrees]);
 
   useEffect(() => {
     if (selectedTreeId) {
@@ -204,7 +216,7 @@ export function ProducedTree() {
         setEditingTreeId(null);
         setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' });
         toast.success('درختواره با موفقیت ویرایش شد');
-        await fetchTrees({ type: 'produced' });
+        await fetchTrees();
       } else {
         const newTree = await createTree({
           name: treeFormData.name,
@@ -217,7 +229,7 @@ export function ProducedTree() {
         setShowTreeModal(false);
         setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' });
         toast.success('درختواره با موفقیت ایجاد شد');
-        await fetchTrees({ type: 'produced' });
+        await fetchTrees();
         if (newTree && newTree.id) {
           setSearchParams({ treeId: String(newTree.id) });
         }
@@ -453,12 +465,22 @@ export function ProducedTree() {
           trees={trees.filter(t => t.type === 'produced')}
           periods={periods}
           bases={bases}
+          selectedPeriodId={dataScopePeriodId}
+          selectedBaseId={dataScopeBaseId}
+          onScopeChange={(periodId, baseId) => {
+            setDataScope(periodId, baseId);
+            setSearchParams({});
+          }}
           loading={loading}
           onRefresh={async () => {
-            await fetchTrees({ type: 'produced' });
+            await fetchTrees();
           }}
           onSelectTree={(id) => setSearchParams({ treeId: String(id) })}
           onAddNewTree={() => {
+            if (!dataScopePeriodId || !dataScopeBaseId) {
+              toast.error('ابتدا دورهٔ زمانی و ساختار سازمانی را انتخاب کنید');
+              return;
+            }
             if (periods.length === 0) {
               toast.error('ابتدا باید حداقل یک دوره زمانی تعریف کنید');
               return;
@@ -467,7 +489,7 @@ export function ProducedTree() {
               toast.error('ابتدا باید ساختار سازمانی (یگان اصلی) تعریف کنید');
               return;
             }
-            setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' });
+            setTreeFormData({ name: '', description: '', periodId: dataScopePeriodId, organizationLevel: '', baseId: dataScopeBaseId, unitId: '' });
             setIsEditingTree(false);
             setEditingTreeId(null);
             setShowTreeModal(true);

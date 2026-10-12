@@ -8,6 +8,24 @@ export function runComprehensiveSeed(sqlite: BetterSqlite3Compat) {
   console.log('🌱 Starting comprehensive database seed for DANA system...');
   const now = new Date().toISOString();
 
+  const organizationalLevelSeeds = [
+    { name: 'آجا', description: 'سطح کلان سازمانی', parentName: null, sortOrder: 1 },
+    { name: 'نیرو', description: 'سطح میانی سازمانی', parentName: 'آجا', sortOrder: 2 },
+    { name: 'رده', description: 'سطح اجرایی سازمانی و یگان‌های تابعه', parentName: 'نیرو', sortOrder: 3 },
+  ];
+  for (const level of organizationalLevelSeeds) {
+    const exists = sqlite.prepare('SELECT id FROM organizational_levels WHERE name = ?').get(level.name);
+    if (!exists) {
+      const parent = level.parentName
+        ? sqlite.prepare('SELECT id FROM organizational_levels WHERE name = ?').get(level.parentName) as { id: number } | undefined
+        : undefined;
+      sqlite.prepare(`
+        INSERT INTO organizational_levels (name, description, parent_id, sort_order, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 1, ?, ?)
+      `).run(level.name, level.description, parent?.id || null, level.sortOrder, now, now);
+    }
+  }
+
   // ====================================================================
   // ۱. ساختار سازمانی کامل (Bases & Units)
   // ====================================================================

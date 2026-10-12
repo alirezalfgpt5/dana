@@ -237,12 +237,12 @@ export function TreeGraphView({
 
   const handleZoomIn = () => {
     if (!svgRef.current || !zoomBehavior.current) return;
-    d3.select(svgRef.current).transition().duration(300).call(zoomBehavior.current.scaleBy, 1.3);
+    d3.select(svgRef.current).transition().duration(300).call(zoomBehavior.current.scaleBy, 1.1);
   };
 
   const handleZoomOut = () => {
     if (!svgRef.current || !zoomBehavior.current) return;
-    d3.select(svgRef.current).transition().duration(300).call(zoomBehavior.current.scaleBy, 0.7);
+    d3.select(svgRef.current).transition().duration(300).call(zoomBehavior.current.scaleBy, 0.9);
   };
 
   const handleFitToView = () => {

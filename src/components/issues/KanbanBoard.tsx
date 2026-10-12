@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Edit, Trash2, Building2, Folder, Coins, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Edit, Trash2, Landmark, Folder, Coins, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import { formatCurrency, formatNumber } from '../../utils/numberFormat';
 import toast from 'react-hot-toast';
@@ -189,7 +189,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                 )}
                                 {issue.responsibleUnit && (
                                   <div className="flex items-center gap-1.5 text-slate-500 truncate">
-                                    <Building2 size={13} className="text-blue-500 shrink-0" />
+                                    <Landmark size={13} className="text-blue-500 shrink-0" />
                                     <span className="truncate">{issue.responsibleUnit}</span>
                                   </div>
                                 )}

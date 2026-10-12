@@ -10,7 +10,7 @@ import {
   Filter, HelpCircle, Zap, Edit2, Upload,
   FileText, Info, Layers, Sparkles, TrendingUp, ChevronDown, RotateCcw, ListChecks,
   Database, UserCheck, Ban, ShieldCheck, History, GitBranch as PathIcon, XCircle,
-  Building2, ExternalLink
+  Landmark, ExternalLink
 } from 'lucide-react';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RelationalView } from '../../components/gaps/RelationalView';
@@ -284,10 +284,18 @@ export function GapAnalysis() {
 
     const cfg = getGapConfig();
     const configuredStructureWeight = Number(cfg?.structuralWeight ?? 20);
+    const configuredTemplateWeight = Number(cfg?.templateWeight ?? 20);
+    const configuredPartialMatchThreshold = Number(cfg?.partialMatchThreshold ?? 30);
     const configuredFuzzyThreshold = Number(cfg?.fuzzyThreshold ?? 45);
     const structureWeight = Number.isFinite(configuredStructureWeight)
       ? Math.max(0, Math.min(0.5, configuredStructureWeight / 100))
       : 0.2;
+    const templateWeight = Number.isFinite(configuredTemplateWeight)
+      ? Math.max(0, Math.min(0.5, configuredTemplateWeight / 100))
+      : 0.2;
+    const partialMatchThreshold = Number.isFinite(configuredPartialMatchThreshold)
+      ? Math.max(0.1, Math.min(1, configuredPartialMatchThreshold / 100))
+      : 0.3;
     const fuzzyThreshold = Number.isFinite(configuredFuzzyThreshold)
       ? Math.max(0.1, Math.min(0.8, configuredFuzzyThreshold / 100))
       : 0.45;
@@ -295,7 +303,7 @@ export function GapAnalysis() {
     clearAnalysisResults();
     setMethodologyEvents([]);
     setAnalysisActivity('running');
-    setShowMethodology(true);
+    setShowMethodology(cfg?.showMethodology ?? true);
 
     const runId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
@@ -348,7 +356,9 @@ export function GapAnalysis() {
       const result = await analyzeGaps(requiredTreeId, producedTreeId, {
         fuzzyThreshold,
         structureWeight,
-        titleWeight: 0.8 - structureWeight,
+        templateWeight,
+        partialMatchThreshold,
+        titleWeight: 1 - structureWeight - templateWeight,
         defaultPriority: cfg?.defaultPriority || 'زیاد',
       }, runId);
       await pollProgress();
@@ -470,6 +480,8 @@ export function GapAnalysis() {
         createFromGap: gap?.issue ? undefined : gap,
         createFromResearch: gap?.issue ? true : undefined,
         initialData: gap?.issue,
+        periodId: requiredTreeData?.periodId,
+        baseId: requiredTreeData?.baseId,
         nodeFallback: nodeData,
         // اطلاعات تکمیلی از تحلیل شکاف
         gapContext: {
@@ -789,7 +801,7 @@ export function GapAnalysis() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 pt-3 border-t border-slate-100 text-xs">
             {requiredTreeId ? (
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50/70 border border-blue-100/90 text-slate-700">
-                <Building2 size={16} className="text-blue-600 shrink-0" />
+                <Landmark size={16} className="text-blue-600 shrink-0" />
                 <div className="min-w-0">
                   <span className="text-[11px] text-blue-700 font-bold block">مالک درختواره دانشی مورد نیاز:</span>
                   <span className="font-semibold text-slate-800 truncate block mt-0.5">
@@ -800,7 +812,7 @@ export function GapAnalysis() {
             ) : <div />}
             {producedTreeId !== null && producedTreeId !== 0 ? (
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100/90 text-slate-700">
-                <Building2 size={16} className="text-emerald-600 shrink-0" />
+                <Landmark size={16} className="text-emerald-600 shrink-0" />
                 <div className="min-w-0">
                   <span className="text-[11px] text-emerald-700 font-bold block">مالک درختواره دانشی تولید شده:</span>
                   <span className="font-semibold text-slate-800 truncate block mt-0.5">
@@ -1211,7 +1223,7 @@ export function GapAnalysis() {
                           {/* 🟢 نمایش برجسته و خوانای ساختار سازمانی مالک گره دانشی */}
                           <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
                             <span className="inline-flex items-center gap-1">
-                              <Building2 size={12} className="text-gray-400 shrink-0" />
+                              <Landmark size={12} className="text-gray-400 shrink-0" />
                               <span>ساختار سازمانی:</span>
                               <span className="font-medium text-slate-600">
                                 {getGapOrgText(gap) || (requiredTreeId ? getTreeOrgText(requiredTrees.find(t => t.id === requiredTreeId)) : 'ستاد کل آجا')}

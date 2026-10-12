@@ -462,6 +462,9 @@ export function compareRequiredLeaf(ctx: CompareContext): MatchResult {
       continue;
     }
 
+    // عنوان مشابه نباید الزام قالب‌های تعریف‌شده را نادیده بگیرد.
+    if (requiredTemplateIds.length > 0) continue;
+
     // ---------- مرحله ۵: شباهت فازی ترکیبی (عنوان + ساختار) ----------
     const titleSim = combinedSimilarity(requiredNode.title, producedLeaf.title, onSimilarityMetrics);
     const requiredPath: StructurePath = { pathTitles: requiredAncestors.map(a => a.title), level: requiredNode.level };
@@ -523,7 +526,7 @@ export function compareRequiredLeaf(ctx: CompareContext): MatchResult {
   // ---------- مرحله ۶: هیچ تطابقی یافت نشد ----------
   if (!best) {
     const reason = requiredTemplateIds.length > 0
-      ? `هیچ گره تولیدشده‌ای با عنوان «${requiredNode.title}» یا قالب‌های دانشی مورد نیاز آن (${requiredTemplateIds.length} قالب) مطابقت نداشت.`
+      ? `قالب‌های دانشی الزامی برای «${requiredNode.title}» در هیچ گره تولیدشده‌ای به حداقل پوشش لازم نرسیدند؛ بهترین پوشش ${bestTemplateDetails?.found.length || 0} از ${requiredTemplateIds.length} قالب بود.`
       : `هیچ گره تولیدشده‌ای با عنوان «${requiredNode.title}» هم‌خوانی نداشت.`;
     return {
       matched: false,
@@ -595,22 +598,36 @@ export function buildAnalysisReport(input: EngineReportInput): EngineReport {
   const coveragePercent = totalLeaves > 0 ? Math.round((filledGaps / totalLeaves) * 100) : 0;
   const weightedCoveragePercent = totalLeaves > 0
     ? Math.round((results.reduce((sum, result) => (
-      sum + (result.status === 'filled' ? 1 : result.status === 'partially_filled' ? 0.5 : 0)
+      sum + (result.status === 'filled'
+        ? 1
+        : result.status === 'partially_filled' && Number.isFinite(result.matchScore)
+          ? Math.max(0, Math.min(1, result.matchScore))
+          : 0)
     ), 0) / totalLeaves) * 100)
     : 0;
 
   // گروه‌بندی بر اساس سطح
   const byLevel: EngineReport['byLevel'] = {};
+  const weightedCoverageByLevel: Record<string, number> = {};
   for (const r of results) {
     if (!byLevel[r.level]) byLevel[r.level] = { total: 0, filled: 0, partial: 0, open: 0, coveragePercent: 0 };
     byLevel[r.level].total++;
-    if (r.status === 'filled') byLevel[r.level].filled++;
-    else if (r.status === 'partially_filled') byLevel[r.level].partial++;
-    else byLevel[r.level].open++;
+    if (r.status === 'filled') {
+      byLevel[r.level].filled++;
+      weightedCoverageByLevel[r.level] = (weightedCoverageByLevel[r.level] || 0) + 1;
+    } else if (r.status === 'partially_filled') {
+      byLevel[r.level].partial++;
+      const score = Number.isFinite(r.matchScore) ? Math.max(0, Math.min(1, r.matchScore)) : 0;
+      weightedCoverageByLevel[r.level] = (weightedCoverageByLevel[r.level] || 0) + score;
+    } else {
+      byLevel[r.level].open++;
+    }
   }
   Object.keys(byLevel).forEach(lvl => {
     const s = byLevel[lvl];
-    s.coveragePercent = s.total > 0 ? Math.round(((s.filled + 0.5 * s.partial) / s.total) * 100) : 0;
+    s.coveragePercent = s.total > 0
+      ? Math.round(((weightedCoverageByLevel[lvl] || 0) / s.total) * 100)
+      : 0;
   });
 
   const byGapType: Record<string, number> = {};
@@ -651,7 +668,7 @@ export function buildAnalysisReport(input: EngineReportInput): EngineReport {
       ? `برای موارد باقی‌مانده، شباهت عنوان و مسیر والدها محاسبه شد (ترکیب واژگان، توکن فازی، بای‌گرام و فاصلهٔ ویرایشی)؛ آستانهٔ پذیرش ${Math.round(options.fuzzyThreshold * 100)}٪ بود.`
       : 'بررسی شباهت عنوان و ساختار انجام نشد، چون درختوارهٔ تولیدشده‌ای وجود نداشت.',
     input.producedTreeName
-      ? `نتیجهٔ هر نیاز به «پوشش کامل»، «پوشش جزئی» یا «گپ باز» تبدیل شد؛ وزن عنوان ${Math.round(options.titleWeight * 100)}٪، ساختار ${Math.round(options.structureWeight * 100)}٪ و قالب ${Math.round(options.templateWeight * 100)}٪ بود.`
+      ? `نتیجهٔ هر نیاز به «پوشش کامل»، «پوشش جزئی» یا «گپ باز» تبدیل شد؛ وزن عنوان ${Math.round(options.titleWeight * 100)}٪، ساختار ${Math.round(options.structureWeight * 100)}٪ و قالب ${Math.round(options.templateWeight * 100)}٪ بود. پوشش وزن‌دار برای موارد جزئی از امتیاز واقعی تطابق (بین صفر تا یک) استفاده می‌کند.`
       : 'نتیجهٔ هر نیاز به‌عنوان «گپ باز» ثبت شد.',
     'بازنگری‌های دستی ذخیره‌شده پس از نتیجهٔ خودکار اعمال شدند تا نظر کاربر حفظ شود.',
     'نتیجه و پیوند گرهٔ متناظر ثبت شد؛ سپس آمار پوشش و خلاصهٔ گزارش محاسبه شد. سوابق پژوهشی موجود حذف نشدند.',

@@ -16,7 +16,7 @@ import {
   KeyRound,
   User,
   AlertCircle,
-  Building2,
+  Landmark,
   Users
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -199,7 +199,7 @@ export function Profile() {
             </div>
             {user.organizationLevel && (
               <div className="flex items-center gap-2 text-xs text-white/60 mt-0.5">
-                <Building2 size={12} />
+                <Landmark size={12} />
                 <span>{getLevelLabel(user.organizationLevel)}</span>
               </div>
             )}

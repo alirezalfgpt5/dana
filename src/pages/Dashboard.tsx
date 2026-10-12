@@ -1,11 +1,8 @@
 // src/pages/Dashboard.tsx
 // داشبورد مدیریت دانش — با پشتیبانی کامل از سیستم تم
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore, useUIStore } from '../store';
-import { useTree } from '../hooks/useTree';
-import { useGapAnalysis } from '../hooks/useGapAnalysis';
-import { useIssues } from '../hooks/useIssues';
 import { useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -26,61 +23,185 @@ import { formatPersianDate, formatPersianDateTime } from '../utils/persianDate';
 import toast from 'react-hot-toast';
 import { createPdfReportSnapshot, exportCurrentPageToExcel, hasCurrentPagePdfData, type PdfReportSnapshot } from '../utils/reportExport';
 import { PdfPreview } from '../components/shared/PdfPreview';
+import { apiClient } from '../lib/apiClient';
 
 export function Dashboard() {
   const { user } = useAuthStore();
-  const { activePeriod } = useUIStore();
+  const { activePeriod, bases, units, dataScopeBaseId, fetchOrgData } = useUIStore();
   const navigate = useNavigate();
 
-  const { trees, fetchTrees } = useTree();
-  const { gaps, fetchGaps, getGapStats } = useGapAnalysis();
-  const { issues, fetchIssues, getIssueStats } = useIssues();
-
+  const [trees, setTrees] = useState<any[]>([]);
+  const [gaps, setGaps] = useState<any[]>([]);
+  const [issues, setIssues] = useState<any[]>([]);
+  const [gapStats, setGapStats] = useState({ total: 0, open: 0, filled: 0, partial: 0 });
+  const [issueStats, setIssueStats] = useState({ total: 0, completed: 0, inProgress: 0, avgCompletion: 0, totalBudget: 0 });
   const [activities, setActivities] = useState<any[]>([]);
   const [orgStats, setOrgStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [pdfPreview, setPdfPreview] = useState<PdfReportSnapshot | null>(null);
+  const [selectedUnitId, setSelectedUnitId] = useState('');
+  const [scopeOptionsReady, setScopeOptionsReady] = useState(false);
+  const requestIdRef = useRef(0);
+  const assignedUnit = units.find(item => String(item.id) === String(user?.unitId));
+  const assignedBaseId = user?.baseId ?? assignedUnit?.baseId;
+
+  const hasGlobalOrgAccess = user?.role === 'superadmin'
+    || (user?.role === 'admin' && !user.baseId && !user.unitId)
+    || ['AJA', 'آجا', 'ستاد کل'].includes(String(user?.organizationLevel || '').trim().toUpperCase());
+  const normalizedLevel = String(user?.organizationLevel || '').trim().toUpperCase();
+  const selectedBaseId = dataScopeBaseId || (hasGlobalOrgAccess ? '' : assignedBaseId ? String(assignedBaseId) : '');
+  const scopeReady = scopeOptionsReady && Boolean(selectedBaseId);
+  const previousBaseIdRef = useRef(selectedBaseId);
+
+  useEffect(() => {
+    if (previousBaseIdRef.current !== selectedBaseId) {
+      setSelectedUnitId('');
+      previousBaseIdRef.current = selectedBaseId;
+    }
+  }, [selectedBaseId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const initializeScope = async () => {
+      if (bases.length === 0 && units.length === 0) {
+        const loaded = await fetchOrgData();
+        if (!loaded) {
+          if (!cancelled) toast.error('ساختارهای سازمانی برای داشبورد بارگذاری نشدند.');
+          return;
+        }
+      }
+      if (cancelled) return;
+
+      if (!hasGlobalOrgAccess) setSelectedUnitId(user?.unitId ? String(user.unitId) : '');
+      setScopeOptionsReady(true);
+    };
+
+    if (user) void initializeScope();
+    return () => { cancelled = true; };
+  }, [user, bases, units, fetchOrgData, hasGlobalOrgAccess]);
+
+  const selectedBase = bases.find(base => String(base.id) === selectedBaseId);
+  const availableUnits = units.filter(unit => {
+    if (!selectedBaseId || selectedBaseId === '*') return false;
+    if (String(unit.baseId) !== selectedBaseId) return false;
+    if (hasGlobalOrgAccess || normalizedLevel.includes('NIROO') || normalizedLevel.includes('نیرو')) return true;
+    return Boolean(user?.unitId && String(unit.id) === String(user.unitId));
+  });
+  const effectiveSelectedUnitId = availableUnits.some(unit => String(unit.id) === selectedUnitId)
+    ? selectedUnitId
+    : '';
+  const selectedUnit = units.find(unit => String(unit.id) === effectiveSelectedUnitId);
+  const selectedScopeLabel = selectedUnit?.name
+    || selectedBase?.name
+    || (scopeReady ? 'همه ساختارهای مجاز' : 'ساختار انتخاب نشده');
 
   const loadData = async () => {
+    const requestId = ++requestIdRef.current;
+    if (!scopeReady) {
+      setTrees([]);
+      setGaps([]);
+      setIssues([]);
+      setGapStats({ total: 0, open: 0, filled: 0, partial: 0 });
+      setIssueStats({ total: 0, completed: 0, inProgress: 0, avgCompletion: 0, totalBudget: 0 });
+      setOrgStats([]);
+      setActivities([]);
+      setLoading(false);
+      return;
+    }
+
+    setTrees([]);
+    setGaps([]);
+    setIssues([]);
+    setGapStats({ total: 0, open: 0, filled: 0, partial: 0 });
+    setIssueStats({ total: 0, completed: 0, inProgress: 0, avgCompletion: 0, totalBudget: 0 });
+    setOrgStats([]);
+    setActivities([]);
     setLoading(true);
     try {
       const pId = activePeriod?.id ? Number(activePeriod.id) : undefined;
-      await Promise.all([
-        fetchTrees({ isActive: 1, ...(pId ? { periodId: pId } : {}) }),
-        fetchGaps({ page: 1, limit: 100, ...(pId ? { periodId: pId } : {}) }),
-        fetchIssues({ page: 1, limit: 100, ...(pId ? { periodId: pId } : {}) }),
-       (window.customFetch || window.fetch)(`/api/reports/org-stats${pId ? `?periodId=${pId}` : ''}`).then(res => res.json()).then(data => setOrgStats(Array.isArray(data) ? data : [])).catch(console.error),
-        (window.customFetch || window.fetch)('/api/audit').then(res => {
-          if (!res.ok) return [];
-          const contentType = res.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            return res.json();
-          }
-          return res.text().then(() => []);
-        }).then(data => setActivities(Array.isArray(data) ? data.slice(0, 8) : [])).catch(console.error)
+      const filters = new URLSearchParams();
+      if (pId) filters.set('periodId', String(pId));
+      if (selectedBaseId && selectedBaseId !== '*') filters.set('baseId', selectedBaseId);
+      if (effectiveSelectedUnitId) filters.set('unitId', effectiveSelectedUnitId);
+      if (!effectiveSelectedUnitId) filters.set('mode', 'aggregate');
+      const query = filters.toString();
+      const suffix = query ? `?${query}` : '';
+      const treeQuery = new URLSearchParams(filters);
+      treeQuery.set('isActive', '1');
+      const auditRequest = hasGlobalOrgAccess && ['admin', 'superadmin'].includes(user?.role || '')
+        ? apiClient<any[]>('/api/audit', { showErrorToast: false })
+        : Promise.resolve([]);
+
+      const results = await Promise.allSettled([
+        apiClient<any[]>(`/api/trees?${treeQuery.toString()}`, { showErrorToast: false }),
+        apiClient<any>(`/api/gaps?page=1&limit=100${suffix ? `&${query}` : ''}`, { showErrorToast: false }),
+        apiClient<any>(`/api/gaps/stats${suffix}`, { showErrorToast: false }),
+        apiClient<any>(`/api/issues?page=1&limit=100${suffix ? `&${query}` : ''}`, { showErrorToast: false }),
+        apiClient<any>(`/api/issues/stats${suffix}`, { showErrorToast: false }),
+        apiClient<any[]>(`/api/reports/org-stats${suffix}`, { showErrorToast: false }),
+        auditRequest,
       ]);
-      setLastUpdated(new Date());
-    } catch (e) {
-      console.error(e);
+      if (requestId !== requestIdRef.current) return;
+
+      const failures: string[] = [];
+      const valueAt = <T,>(index: number, label: string, fallback: T): T => {
+        const result = results[index];
+        if (result.status === 'fulfilled') return result.value as T;
+        console.error(`Dashboard ${label} request failed:`, result.reason);
+        failures.push(label);
+        return fallback;
+      };
+      const treeData = valueAt<any[]>(0, 'trees', []);
+      const gapData = valueAt<any>(1, 'gaps', { data: [] });
+      const gapStatistics = valueAt<any>(2, 'gap statistics', { total: 0, open: 0, filled: 0, partial: 0 });
+      const issueData = valueAt<any>(3, 'issues', { data: [] });
+      const issueStatistics = valueAt<any>(4, 'issue statistics', { total: 0, completed: 0, inProgress: 0, avgCompletion: 0, totalBudget: 0 });
+      const orgStatistics = valueAt<any[]>(5, 'organization statistics', []);
+      const activityData = valueAt<any[]>(6, 'audit activity', []);
+      setTrees(Array.isArray(treeData) ? treeData : []);
+      setGaps(Array.isArray(gapData?.data) ? gapData.data : []);
+      setGapStats({
+        total: Number(gapStatistics?.total) || 0,
+        open: Number(gapStatistics?.open) || 0,
+        filled: Number(gapStatistics?.filled) || 0,
+        partial: Number(gapStatistics?.partial) || 0,
+      });
+      setIssues(Array.isArray(issueData?.data) ? issueData.data : []);
+      setIssueStats({
+        total: Number(issueStatistics?.total) || 0,
+        completed: Number(issueStatistics?.completed) || 0,
+        inProgress: Number(issueStatistics?.inProgress) || 0,
+        avgCompletion: Number(issueStatistics?.avgCompletion) || 0,
+        totalBudget: Number(issueStatistics?.totalBudget) || 0,
+      });
+      setOrgStats(Array.isArray(orgStatistics) ? orgStatistics : []);
+      setActivities(Array.isArray(activityData) ? activityData.slice(0, 8) : []);
+      if (failures.length > 0) {
+        toast.error(`بخشی از داده‌های داشبورد بارگذاری نشد: ${failures.join('، ')}`);
+      } else {
+        setLastUpdated(new Date());
+      }
+    } catch (error) {
+      if (requestId === requestIdRef.current) {
+        console.error('Dashboard data load failed:', error);
+        toast.error('بارگذاری اطلاعات داشبورد با خطا مواجه شد.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
-  }, [activePeriod?.id]);
+    // Data is deliberately fetched only after a permitted organization scope has been selected.
+  }, [activePeriod?.id, scopeReady, selectedBaseId, effectiveSelectedUnitId]);
 
   const handleRefresh = () => {
-    loadData();
-    toast.success('داشبورد بروزرسانی شد');
+    void loadData();
   };
 
   // Stats calculation
-  const gapStats = getGapStats(gaps);
-  const issueStats = getIssueStats(issues);
-
   const stats = {
     trees: trees.length,
     required: trees.filter(t => t.type === 'required').length,
@@ -98,6 +219,11 @@ export function Dashboard() {
   const gapProgress = stats.gaps > 0 ? Math.round((stats.filledGaps / stats.gaps) * 100) : 0;
 
   const handleExport = () => {
+    if (!scopeReady) {
+      toast.error('برای تهیهٔ گزارش، ساختار را از نوار بالای برنامه انتخاب کنید.');
+      return;
+    }
+
     const esc = (val: any): string => {
       if (val === null || val === undefined) return '""';
       const str = String(val).replace(/"/g, '""');
@@ -119,6 +245,8 @@ export function Dashboard() {
     lines.push(row('کاربر گزارش‌گیرنده', userName));
     lines.push(row('رده سازمانی', orgLevel));
     lines.push(row('دوره زمانی فعال', periodName));
+    lines.push(row('محدوده ساختار گزارش', selectedScopeLabel));
+    lines.push(row('توضیح فهرست‌های تفصیلی', 'حداکثر ۱۰۰ مسئله و ۱۰۰ شکافِ بارگذاری‌شده در داشبورد'));
     lines.push(row(''));
 
     // بخش ۲: خلاصه شاخص‌های کلیدی (KPIs)
@@ -244,11 +372,30 @@ export function Dashboard() {
               <span>{user?.fullName || 'کاربر'}</span>
               <span className="w-1 h-1 rounded-full" style={{ backgroundColor: 'var(--text-faint)' }} />
               <span>{activePeriod ? `دوره فعال: ${activePeriod.name}` : 'همه دوره‌ها'}</span>
+              <span className="w-1 h-1 rounded-full" style={{ backgroundColor: 'var(--text-faint)' }} />
+              <span>{selectedScopeLabel}</span>
             </p>
           </div>
         </div>
         <div className="relative flex items-center gap-3">
-          <span 
+          {scopeReady && selectedBaseId !== '*' && availableUnits.length > 0 && (
+            <label className="hidden min-w-36 text-xs font-medium text-strong sm:block">
+              یگان
+              <select
+                value={effectiveSelectedUnitId}
+                disabled={!scopeOptionsReady}
+                onChange={event => setSelectedUnitId(event.target.value)}
+                className="mt-1 w-full rounded-lg border px-2.5 py-2 text-xs text-strong disabled:cursor-not-allowed disabled:opacity-70"
+                style={{ backgroundColor: 'var(--surface-main)', borderColor: 'var(--border-soft)' }}
+              >
+                <option value="">همهٔ یگان‌های ساختار</option>
+                {availableUnits.map(unit => (
+                  <option key={unit.id} value={String(unit.id)}>{unit.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <span
             className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg border"
             style={{ color: 'var(--text-faint)', backgroundColor: 'var(--surface-soft)', borderColor: 'var(--border-soft)' }}
           >
@@ -259,6 +406,7 @@ export function Dashboard() {
             onClick={() => {
               void exportCurrentPageToExcel('داشبورد');
             }}
+            disabled={!scopeReady || loading}
             className="p-2.5 rounded-xl transition-colors border flex items-center gap-2 text-sm"
             style={{ color: '#047857', backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
             title="دریافت اطلاعات داشبورد در قالب اکسل"
@@ -268,7 +416,7 @@ export function Dashboard() {
           </button>
           <button
             onClick={() => setPdfPreview(createPdfReportSnapshot('داشبورد'))}
-            disabled={!hasCurrentPagePdfData()}
+            disabled={!scopeReady || loading || !hasCurrentPagePdfData()}
             className="p-2.5 rounded-xl transition-colors border flex items-center gap-2 text-sm"
             style={{ color: '#4338ca', backgroundColor: '#eef2ff', borderColor: '#c7d2fe' }}
             title="چاپ یا ذخیره گزارش داشبورد به‌صورت PDF"
@@ -278,6 +426,7 @@ export function Dashboard() {
           </button>
           <button 
             onClick={handleExport}
+            disabled={!scopeReady || loading}
             className="p-2.5 rounded-xl transition-colors border flex items-center gap-2 text-sm"
             style={{ color: '#059669', backgroundColor: '#ecfdf5', borderColor: '#d1fae5' }}
             title="دانلود گزارش CSV"
@@ -295,6 +444,12 @@ export function Dashboard() {
           </button>
         </div>
       </div>
+
+      {!scopeReady && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+          برای نمایش اطلاعات داشبورد، ساختار سازمانی را از نوار بالای برنامه انتخاب کنید.
+        </div>
+      )}
 
       {/* Quick Actions (Shortcuts) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -434,7 +589,7 @@ export function Dashboard() {
             <div className="p-5 border-b divider-soft flex justify-between items-center" style={{ backgroundColor: 'var(--surface-soft)' }}>
               <h3 className="font-bold text-strong flex items-center gap-2">
                 <Activity size={18} style={{ color: 'var(--brand-600)' }} />
-                آمار یکپارچه سازمانی (نیروها)
+                آمار سازمانی در محدودهٔ انتخاب‌شده
               </h3>
             </div>
             <div className="p-5">

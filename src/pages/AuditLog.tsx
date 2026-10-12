@@ -1,7 +1,7 @@
 // src/pages/AuditLog.tsx
 // صفحه نمایش لاگ‌های حسابرسی
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   History, Search, Filter, X, ChevronDown, ChevronUp,
   User, Calendar, Activity, FileText, Trash2, Edit, Plus,
@@ -24,40 +24,73 @@ interface AuditLogEntry {
 
 export function AuditLog() {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAction, setFilterAction] = useState<string>('all');
-  const [filterEntity, setFilterEntity] = useState<string>('all');
+  const [filterEntity, setFilterEntity] = useState('');
+  const [availableEntities, setAvailableEntities] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(15);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [stats, setStats] = useState({ total: 0, creates: 0, updates: 0, deletes: 0 });
   const [showHelp, setShowHelp] = useState(false);
+  const latestLogsRequest = useRef(0);
+  const latestStatsRequest = useRef(0);
 
   useEffect(() => {
-    fetchLogs();
-    fetchStats();
+    fetchEntities();
   }, []);
 
-  const fetchLogs = async () => {
-    setLoading(true);
+  const fetchEntities = async () => {
     try {
-      const res = await(window.customFetch || window.fetch)('/api/audit');
+      const res = await (window.customFetch || window.fetch)('/api/audit/entities');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setLogs(Array.isArray(data) ? data : []);
+      setAvailableEntities(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Error fetching logs:', error);
-      toast.error('خطا در دریافت لاگ‌ها');
-    } finally {
-      setLoading(false);
+      console.error('Error fetching audit entities:', error);
+      toast.error('خطا در دریافت فهرست بخش‌های تاریخچه');
     }
   };
 
-  const fetchStats = async () => {
+  const fetchLogs = async (entity = filterEntity) => {
+    const requestId = ++latestLogsRequest.current;
+    if (!entity) {
+      setLogs([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
-      const res = await(window.customFetch || window.fetch)('/api/audit/stats');
+      const params = new URLSearchParams();
+      if (entity !== 'all') params.set('entity', entity);
+      const res = await (window.customFetch || window.fetch)(`/api/audit/filter?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setStats(data);
+      if (requestId === latestLogsRequest.current) {
+        setLogs(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+      if (requestId === latestLogsRequest.current) toast.error('خطا در دریافت لاگ‌ها');
+    } finally {
+      if (requestId === latestLogsRequest.current) setLoading(false);
+    }
+  };
+
+  const fetchStats = async (entity = filterEntity) => {
+    const requestId = ++latestStatsRequest.current;
+    if (!entity) {
+      setStats({ total: 0, creates: 0, updates: 0, deletes: 0 });
+      return;
+    }
+    try {
+      const params = new URLSearchParams();
+      if (entity !== 'all') params.set('entity', entity);
+      const res = await (window.customFetch || window.fetch)(`/api/audit/stats?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (requestId === latestStatsRequest.current) setStats(data);
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
@@ -113,8 +146,6 @@ export function AuditLog() {
     } catch { return dateStr; }
   };
 
-  const uniqueEntities = [...new Set(logs.map(log => log.entityName))];
-
   const filteredLogs = logs.filter(log => {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return true;
@@ -138,10 +169,12 @@ export function AuditLog() {
       icon: RefreshCw,
       variant: 'primary',
       onClick: () => {
-        fetchLogs();
-        fetchStats();
+        if (filterEntity) {
+          fetchLogs(filterEntity);
+          fetchStats(filterEntity);
+        }
       },
-      disabled: loading,
+      disabled: loading || !filterEntity,
     },
     {
       id: 'help',
@@ -159,7 +192,7 @@ export function AuditLog() {
         subtitle="ردگیری تمامی عملیات‌های انجام‌شده توسط کاربران"
         icon={History}
         iconColor="from-indigo-500 to-purple-600"
-        pdfEnabled={!loading && logs.length > 0}
+        pdfEnabled={!!filterEntity && !loading && logs.length > 0}
         actions={toolbarActions}
       />
 
@@ -171,7 +204,7 @@ export function AuditLog() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {filterEntity && <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 flex items-center gap-4">
           <div className="p-3 bg-indigo-50 rounded-lg"><Activity size={20} className="text-indigo-600" /></div>
           <div><p className="text-xs text-gray-400">کل عملیات‌ها</p><p className="text-2xl font-bold text-gray-800">{stats.total}</p></div>
@@ -188,7 +221,7 @@ export function AuditLog() {
           <div className="p-3 bg-rose-50 rounded-lg"><Trash2 size={20} className="text-rose-600" /></div>
           <div><p className="text-xs text-gray-400">حذف</p><p className="text-2xl font-bold text-rose-600">{stats.deletes}</p></div>
         </div>
-      </div>
+      </div>}
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4">
@@ -204,11 +237,38 @@ export function AuditLog() {
             <option value="UPDATE">✏️ ویرایش</option>
             <option value="DELETE">🗑️ حذف</option>
           </select>
-          <select className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500 min-w-[160px]" value={filterEntity} onChange={e => setFilterEntity(e.target.value)}>
+          <select className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500 min-w-[190px]" value={filterEntity} onChange={e => {
+            const entity = e.target.value;
+            setFilterEntity(entity);
+            setCurrentPage(1);
+            setExpandedRows(new Set());
+            if (entity) {
+              fetchLogs(entity);
+              fetchStats(entity);
+            } else {
+              latestLogsRequest.current += 1;
+              latestStatsRequest.current += 1;
+              setLoading(false);
+              setLogs([]);
+              setStats({ total: 0, creates: 0, updates: 0, deletes: 0 });
+            }
+          }}>
+            <option value="">انتخاب بخش برای مشاهده</option>
             <option value="all">همه ماژول‌ها</option>
-            {uniqueEntities.map(entity => <option key={entity} value={entity}>{entity}</option>)}
+            {availableEntities.map(entity => <option key={entity} value={entity}>{entity}</option>)}
           </select>
-          <button onClick={() => { setSearchTerm(''); setFilterAction('all'); setFilterEntity('all'); setCurrentPage(1); }} className="px-4 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm flex items-center gap-2 whitespace-nowrap">
+          <button onClick={() => {
+            setSearchTerm('');
+            setFilterAction('all');
+            setFilterEntity('');
+            latestLogsRequest.current += 1;
+            latestStatsRequest.current += 1;
+            setLoading(false);
+            setLogs([]);
+            setStats({ total: 0, creates: 0, updates: 0, deletes: 0 });
+            setCurrentPage(1);
+            setExpandedRows(new Set());
+          }} className="px-4 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm flex items-center gap-2 whitespace-nowrap">
             <Filter size={16} /> پاک کردن فیلترها
           </button>
         </div>
@@ -231,7 +291,9 @@ export function AuditLog() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {loading ? (
+              {!filterEntity ? (
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-gray-400">برای مشاهدهٔ تاریخچه، ابتدا یک بخش یا «همه ماژول‌ها» را انتخاب کنید.</td></tr>
+              ) : loading ? (
                 <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400"><RefreshCw size={28} className="animate-spin mx-auto mb-3 text-gray-300" /><p className="text-sm">در حال دریافت اطلاعات...</p></td></tr>
               ) : paginatedLogs.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400"><History size={40} className="mx-auto mb-3 text-gray-300" /><p className="text-sm font-medium text-gray-500">تاریخچه‌ای یافت نشد</p></td></tr>
@@ -268,7 +330,7 @@ export function AuditLog() {
           </table>
         </div>
 
-        {!loading && filteredLogs.length > 0 && (
+        {filterEntity && !loading && filteredLogs.length > 0 && (
           <div className="p-4 border-t bg-gray-50/50 flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-gray-400 flex items-center gap-4"><span>تعداد: {filteredLogs.length} رکورد</span><span className="w-px h-4 bg-gray-300"></span><span>صفحه {currentPage} از {totalPages || 1}</span></div>
             <div className="flex items-center gap-1">

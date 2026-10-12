@@ -11,7 +11,7 @@ import {
   treeNodes,
   knowledgeTrees,
 } from '../../../src/db/schema.js';
-import { eq, and, or, like, inArray, gte, lte } from 'drizzle-orm';
+import { eq, and, or, like, inArray, gte, lte, sql } from 'drizzle-orm';
 import { logAudit } from '../../utils/audit.js';
 import { AuthRequest } from '../../types/AuthRequest.js';
 import { buildIssueOrgConditions, canUserAccessNode, hasIssueAccess } from './issueAccess.js';
@@ -107,28 +107,37 @@ operationsRouter.get('/stats', async (req, res) => {
       conditions.push(lte(issues.approvalDate, toDate as string));
     }
 
-    const allIssues = await db.select().from(issues).where(conditions.length > 0 ? and(...conditions) : undefined);
-    const total = allIssues.length;
-
-    const pending = allIssues.filter(i => i.status === 'pending').length;
-    const inProgress = allIssues.filter(i => i.status === 'in_progress').length;
-    const completed = allIssues.filter(i => i.status === 'completed').length;
-    const canceled = allIssues.filter(i => i.status === 'canceled').length;
-    const onHold = allIssues.filter(i => i.status === 'on_hold').length;
-
-    const byPriority = allIssues.reduce((acc: any, issue) => {
-      const p = issue.actionPriority || 'متوسط';
-      acc[p] = (acc[p] || 0) + 1;
-      return acc;
-    }, {});
-
-    const totalRequiredBudget = allIssues.reduce((sum, issue) => sum + (Number(issue.requiredBudget) || 0), 0);
-    const totalApprovedBudget = allIssues.reduce((sum, issue) => sum + (Number(issue.approvedBudget) || 0), 0);
-    const totalAssignedBudget = allIssues.reduce((sum, issue) => sum + (Number(issue.assignedBudget) || 0), 0);
-
-    const avgCompletion = total > 0
-      ? Math.round(allIssues.reduce((sum, issue) => sum + (Number(issue.completionPercent) || 0), 0) / total)
-      : 0;
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const [summaryRows, priorities] = await Promise.all([
+      db.select({
+        total: sql<number>`COUNT(*)`,
+        pending: sql<number>`SUM(CASE WHEN ${issues.status} = 'pending' THEN 1 ELSE 0 END)`,
+        inProgress: sql<number>`SUM(CASE WHEN ${issues.status} = 'in_progress' THEN 1 ELSE 0 END)`,
+        completed: sql<number>`SUM(CASE WHEN ${issues.status} = 'completed' THEN 1 ELSE 0 END)`,
+        canceled: sql<number>`SUM(CASE WHEN ${issues.status} = 'canceled' THEN 1 ELSE 0 END)`,
+        onHold: sql<number>`SUM(CASE WHEN ${issues.status} = 'on_hold' THEN 1 ELSE 0 END)`,
+        totalRequiredBudget: sql<number>`SUM(COALESCE(${issues.requiredBudget}, 0))`,
+        totalApprovedBudget: sql<number>`SUM(COALESCE(${issues.approvedBudget}, 0))`,
+        totalAssignedBudget: sql<number>`SUM(COALESCE(${issues.assignedBudget}, 0))`,
+        avgCompletion: sql<number>`AVG(COALESCE(${issues.completionPercent}, 0))`,
+      }).from(issues).where(where),
+      db.select({
+        priority: issues.actionPriority,
+        count: sql<number>`COUNT(*)`,
+      }).from(issues).where(where).groupBy(issues.actionPriority),
+    ]);
+    const summary = summaryRows[0];
+    const total = Number(summary?.total) || 0;
+    const pending = Number(summary?.pending) || 0;
+    const inProgress = Number(summary?.inProgress) || 0;
+    const completed = Number(summary?.completed) || 0;
+    const canceled = Number(summary?.canceled) || 0;
+    const onHold = Number(summary?.onHold) || 0;
+    const byPriority = Object.fromEntries(priorities.map(row => [row.priority || 'متوسط', Number(row.count) || 0]));
+    const totalRequiredBudget = Number(summary?.totalRequiredBudget) || 0;
+    const totalApprovedBudget = Number(summary?.totalApprovedBudget) || 0;
+    const totalAssignedBudget = Number(summary?.totalAssignedBudget) || 0;
+    const avgCompletion = total > 0 ? Math.round(Number(summary?.avgCompletion) || 0) : 0;
 
     res.json({
       total,

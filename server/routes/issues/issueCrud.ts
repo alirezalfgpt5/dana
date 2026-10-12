@@ -227,6 +227,13 @@ crudRouter.get('/', async (req, res) => {
       allNodes = await db.select().from(treeNodes).where(inArray(treeNodes.id, Array.from(new Set(domainNodeIds))));
     }
 
+    const treeIds = Array.from(new Set(allNodes.map(node => node.treeId)));
+    const allTrees = treeIds.length > 0
+      ? await db.select({ id: knowledgeTrees.id, baseId: knowledgeTrees.baseId })
+          .from(knowledgeTrees)
+          .where(inArray(knowledgeTrees.id, treeIds))
+      : [];
+
     const periodIds = issuesList.map(i => i.periodId).filter(Boolean) as number[];
     let allPeriods: any[] = [];
     if (periodIds.length > 0) {
@@ -235,6 +242,7 @@ crudRouter.get('/', async (req, res) => {
 
     const enrichedIssues = issuesList.map(issue => {
       const dNode = allNodes.find(n => n.id === issue.domainNodeId);
+      const dTree = dNode ? allTrees.find(tree => tree.id === dNode.treeId) : null;
       const prd = allPeriods.find(p => p.id === issue.periodId);
       const issueTemps = allIssueTemplates.filter(t => t.issueId === issue.id).map(t => ({
         id: t.templateId,
@@ -245,6 +253,7 @@ crudRouter.get('/', async (req, res) => {
       return {
         ...issue,
         domain: dNode?.title || 'نامشخص',
+        baseId: dTree?.baseId ?? null,
         period: prd || null,
         templates: issueTemps,
         attachmentsCount: attInfo ? Number(attInfo.count) : 0,
@@ -313,6 +322,11 @@ crudRouter.get('/:id', async (req, res) => {
               where: eq(treeNodes.id, researchItem.nodeId),
             })
           : null);
+    const nodeTree = node
+      ? await db.query.knowledgeTrees.findFirst({
+          where: eq(knowledgeTrees.id, node.treeId),
+        })
+      : null;
 
     // دریافت قالب‌ها
     const issueTemplatesList = await db.select()
@@ -348,6 +362,7 @@ crudRouter.get('/:id', async (req, res) => {
     res.json({
       ...issue,
       domain: node?.title || 'نامشخص',
+      baseId: nodeTree?.baseId ?? null,
       researchItem,
       node,
       templates: templatesList,
@@ -383,6 +398,19 @@ crudRouter.post('/', async (req, res) => {
     const canAccessDomain = await canUserAccessNode(user, data.domainNodeId);
     if (!canAccessDomain) {
       return res.status(403).json({ error: 'شما دسترسی لازم برای ثبت مسئله در این حوزه دانشی را ندارید.' });
+    }
+
+    const selectedDomainNode = await db.query.treeNodes.findFirst({
+      where: eq(treeNodes.id, data.domainNodeId),
+    });
+    const selectedDomainTree = selectedDomainNode
+      ? await db.query.knowledgeTrees.findFirst({ where: eq(knowledgeTrees.id, selectedDomainNode.treeId) })
+      : null;
+    if (data.baseId && Number(selectedDomainTree?.baseId) !== Number(data.baseId)) {
+      return res.status(400).json({ error: 'ساختار انتخاب‌شده با حوزه دانشی مسئله هم‌خوانی ندارد؛ حوزه را از درختواره همان ساختار انتخاب کنید.' });
+    }
+    if (data.periodId && Number(selectedDomainTree?.periodId) !== Number(data.periodId)) {
+      return res.status(400).json({ error: 'دوره زمانی انتخاب‌شده با حوزه دانشی مسئله هم‌خوانی ندارد؛ حوزه را از درختواره همان دوره انتخاب کنید.' });
     }
 
     // تبدیل گپ به آیتم پژوهشی در صورت ارسال gapId

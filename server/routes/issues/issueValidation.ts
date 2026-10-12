@@ -22,6 +22,7 @@ export const issueInputSchema = z.object({
   title: z.string().min(1, 'عنوان مسئله نمی‌تواند خالی باشد').max(500),
   domainNodeId: z.union([z.number(), z.string()]).transform(v => parseInt(String(v))).refine(n => !isNaN(n) && n > 0, 'شناسه حوزه (گره دانشی) نامعتبر است'),
   periodId: z.union([z.number(), z.string(), z.null()]).optional().transform(v => v ? parseInt(String(v)) : null),
+  baseId: z.union([z.number(), z.string(), z.null()]).optional().transform(v => v ? parseInt(String(v)) : null),
   researchItemId: z.union([z.number(), z.string(), z.null()]).optional().transform(v => v ? parseInt(String(v)) : null),
   sourceIssueId: z.union([z.number(), z.string(), z.null()]).optional().transform(v => v ? parseInt(String(v)) : null),
   gapId: z.union([z.number(), z.string(), z.null()]).optional().transform(v => v ? parseInt(String(v)) : null),

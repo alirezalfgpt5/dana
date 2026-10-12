@@ -2,7 +2,7 @@
 // تب اطلاعات کلی مسئله
 
 import React from 'react';
-import { Calendar, AlertCircle } from 'lucide-react';
+import { Calendar, AlertCircle, RefreshCw } from 'lucide-react';
 import { SearchableSelect } from '../../ui/SearchableSelect';
 import { 
   DatePicker, 
@@ -18,6 +18,7 @@ interface GeneralTabProps {
   handleChange: (field: string, value: any) => void;
   researchItems: any[];
   domainNodes: any[];
+  loadingLookups?: boolean;
   issueCategories: string[];
   dynamicConfidentialityLevels: string[];
   dynamicActionPriorities: string[];
@@ -34,6 +35,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
   handleChange,
   researchItems,
   domainNodes,
+  loadingLookups = false,
   issueCategories,
   dynamicConfidentialityLevels,
   dynamicActionPriorities,
@@ -46,6 +48,12 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
 }) => {
   return (
     <div className="space-y-4">
+      {loadingLookups && (
+        <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700" role="status" aria-live="polite">
+          <RefreshCw size={14} className="animate-spin" />
+          در حال بارگذاری حوزه‌ها و آیتم‌های پژوهشی...
+        </div>
+      )}
       {formData.gapId && !formData.researchItemId && (
         <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl flex gap-3 items-start">
           <AlertCircle className="text-blue-500 shrink-0 mt-0.5" size={18} />

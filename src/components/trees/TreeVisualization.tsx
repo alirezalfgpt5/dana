@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import { 
   ZoomIn, ZoomOut, RotateCcw, Settings, Eye, EyeOff, 
   LayoutGrid, Square, GitBranch as GitBranchIcon, 
-  Maximize2, Download, X, Plus, HelpCircle, Minimize2, Activity, Move, Building2 
+  Maximize2, Download, X, Plus, HelpCircle, Minimize2, Activity, Move, Landmark
 } from 'lucide-react';
 import { createPortal, flushSync } from 'react-dom';
 import toast from 'react-hot-toast';
@@ -685,7 +685,7 @@ export function TreeVisualization({
     d3.select(svgRef.current)
       .transition()
       .duration(300)
-      .call(zoomBehaviorRef.current.scaleBy, 1.25);
+      .call(zoomBehaviorRef.current.scaleBy, 1.1);
   };
 
   const handleZoomOut = () => {
@@ -693,7 +693,7 @@ export function TreeVisualization({
     d3.select(svgRef.current)
       .transition()
       .duration(300)
-      .call(zoomBehaviorRef.current.scaleBy, 0.8);
+      .call(zoomBehaviorRef.current.scaleBy, 0.9);
   };
 
   const handleResetZoom = () => {
@@ -718,7 +718,7 @@ export function TreeVisualization({
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5 flex-wrap">
             <span className="flex items-center gap-1 text-gray-400">
-              <Building2 size={12} className="text-gray-400 shrink-0" />
+              <Landmark size={12} className="text-gray-400 shrink-0" />
               <span>ساختار سازمانی:</span>
               <span className="font-medium text-slate-600">{orgStructure || data?.tree?.orgStructure || 'ستاد کل آجا'}</span>
             </span>

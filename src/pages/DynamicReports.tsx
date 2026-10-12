@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -8,30 +8,39 @@ import { saveAs } from 'file-saver';
 import { createPdfReportSnapshot, hasCurrentPagePdfData, type PdfReportSnapshot } from '../utils/reportExport';
 import { PdfPreview } from '../components/shared/PdfPreview';
 import { formatPersianDate } from '../utils/persianDate';
+import { useUIStore } from '../store';
 
 export const DynamicReports: React.FC = () => {
+  const { activePeriod } = useUIStore();
   const [data, setData] = useState<{ issues: any[]; gaps: any[]; nodes: any[] } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [dataSource, setDataSource] = useState<'issues' | 'gaps' | 'nodes'>('issues');
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
   const [groupByField, setGroupByField] = useState('status');
   const [pdfPreview, setPdfPreview] = useState<PdfReportSnapshot | null>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    void fetchData(dataSource);
+  }, [dataSource, activePeriod?.id]);
 
-  const fetchData = async () => {
+  const fetchData = async (source: 'issues' | 'gaps' | 'nodes') => {
+    const requestId = ++requestIdRef.current;
     try {
       setLoading(true);
-      const res = await api.get('/api/reports/data') as any;
-      const responseData = res?.issues ? res : res?.data ? res.data : null;
-      setData(responseData);
+      setData(null);
+      const params = new URLSearchParams({ source });
+      if (activePeriod?.id) params.set('periodId', String(activePeriod.id));
+      const responseData = await api.get(`/api/reports/data?${params.toString()}`) as any;
+      if (requestId === requestIdRef.current) setData(responseData);
     } catch (error) {
-      console.error('Error fetching reports data:', error);
-      toast.error('خطا در دریافت اطلاعات گزارش‌ساز');
+      if (requestId === requestIdRef.current) {
+        console.error('Error fetching reports data:', error);
+        setData(null);
+        toast.error('خطا در دریافت اطلاعات گزارش‌ساز');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   };
 
@@ -522,6 +531,7 @@ export const DynamicReports: React.FC = () => {
             <select
               value={dataSource}
               onChange={(e) => {
+                setData(null);
                 setDataSource(e.target.value as any);
                 setGroupByField(e.target.value === 'issues' ? 'status' : e.target.value === 'nodes' ? 'level' : 'status');
               }}

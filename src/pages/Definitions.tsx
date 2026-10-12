@@ -6,7 +6,7 @@ import {
   Save, Settings as SettingsIcon, Shield,
   Image, RefreshCw, CheckCircle,
   Plus, Trash2, Edit, X,
-  Layers, Tag, Building2, 
+  Layers, Tag, Landmark,
 } from 'lucide-react';
 import { useSecurityStore, useUIStore } from '../store';
 import { DynamicMetadataManager } from '../components/DynamicMetadataManager';
@@ -465,7 +465,7 @@ export function Definitions() {
 
       {orgLevels.length === 0 ? (
         <div className="text-center py-8 text-gray-400 text-sm border border-dashed border-gray-200 dark:border-[#2d2d44] rounded-xl">
-          <Building2 size={32} className="mx-auto mb-2 text-gray-300" />
+          <Landmark size={32} className="mx-auto mb-2 text-gray-300" />
           <p>هیچ سطح سازمانی تعریف نشده است</p>
         </div>
       ) : (
@@ -558,7 +558,7 @@ export function Definitions() {
     {
       id: 'add-org-level',
       label: 'سطح سازمانی',
-      icon: Building2,
+      icon: Landmark,
       variant: activeTab === 'org-levels' ? 'primary' : 'secondary',
       onClick: () => {
         setActiveTab('org-levels');
@@ -610,7 +610,7 @@ export function Definitions() {
               <Tag size={16} /> انواع دانش
             </button>
             <button onClick={() => setActiveTab('org-levels')} className={`px-5 py-3 text-sm font-medium transition-all duration-200 border-b-2 flex items-center gap-2 ${activeTab === 'org-levels' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:border-[#2d2d44]'}`}>
-              <Building2 size={16} /> سطوح سازمانی
+              <Landmark size={16} /> سطوح سازمانی
             </button>
             
             <button onClick={() => setActiveTab('dynamic-meta')} className={`px-5 py-3 text-sm font-medium transition-all duration-200 border-b-2 flex items-center gap-2 ${activeTab === 'dynamic-meta' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:border-[#2d2d44]'}`}>

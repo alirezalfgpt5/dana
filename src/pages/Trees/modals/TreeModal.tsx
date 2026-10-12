@@ -2,7 +2,7 @@
 // مودال ایجاد/ویرایش درختواره - با ساختار صحیح سه سطحی و نام فیلدهای snake_case
 
 import React, { useState, useEffect } from 'react';
-import { X, Save, FolderTree, Building2, Users, Layers } from 'lucide-react';
+import { X, Save, FolderTree, Landmark, Users, Layers } from 'lucide-react';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import toast from 'react-hot-toast';
 
@@ -345,7 +345,7 @@ export function TreeModal({
               {/* ========================================== */}
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1.5">
-                  <Building2 size={14} className={selectedLevel1 ? 'text-blue-600' : 'text-gray-400'} />
+                  <Landmark size={14} className={selectedLevel1 ? 'text-blue-600' : 'text-gray-400'} />
                   یگان اصلی (آجا) <span className="text-red-500">*</span>
                 </label>
                 <SearchableSelect

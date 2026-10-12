@@ -9,7 +9,7 @@ import {
   Edit,
   ChevronLeft,
   ChevronDown,
-  Building2,
+  Landmark,
   Users,
   Shield,
   Search,
@@ -601,7 +601,7 @@ export function OrgStructure() {
     {
       id: 'add-base',
       label: 'یگان اصلی جدید',
-      icon: Building2,
+      icon: Landmark,
       variant: 'primary',
       onClick: () => {
         setIsAddingBase(true);
@@ -659,7 +659,7 @@ export function OrgStructure() {
       {/* Stats */}
       <div data-pdf-content data-pdf-has-data={bases.length + units.length + orgLevels.length > 0} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 flex items-center gap-4">
-          <div className="p-3 bg-blue-50 rounded-lg"><Building2 size={20} className="text-blue-600" /></div>
+          <div className="p-3 bg-blue-50 rounded-lg"><Landmark size={20} className="text-blue-600" /></div>
           <div><p className="text-xs text-gray-400">یگان‌های اصلی</p><p className="text-2xl font-bold text-gray-800">{bases.length}</p></div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-purple-200 p-4 flex items-center gap-4">
@@ -700,7 +700,7 @@ export function OrgStructure() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
           <div className="p-4 border-b bg-gradient-to-r from-gray-50 to-white flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Building2 size={18} className="text-blue-600" />
+              <Landmark size={18} className="text-blue-600" />
               <h3 className="font-bold text-gray-800">یگان‌های اصلی</h3>
               <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{bases.length}</span>
             </div>
@@ -811,14 +811,14 @@ export function OrgStructure() {
             {loading ? (
               <div className="text-center py-8 text-gray-400"><RefreshCw size={24} className="animate-spin mx-auto mb-2" /><p className="text-sm">در حال بارگذاری...</p></div>
             ) : filteredBases.length === 0 ? (
-              <div className="text-center py-8 text-gray-400"><Building2 size={32} className="mx-auto mb-2 text-gray-300" /><p className="text-sm">هیچ یگانی ثبت نشده است</p></div>
+              <div className="text-center py-8 text-gray-400"><Landmark size={32} className="mx-auto mb-2 text-gray-300" /><p className="text-sm">هیچ یگانی ثبت نشده است</p></div>
             ) : (
               filteredBases.map((base) => {
                 const isSelected = selectedBaseId === base.id;
                 return (
                   <div key={base.id} onClick={() => setSelectedBaseId(base.id)} className={`flex items-center justify-between p-3 rounded-lg transition-all cursor-pointer ${isSelected ? "bg-blue-50 border border-blue-200 shadow-sm" : "border border-gray-100 hover:border-blue-200 hover:shadow-sm"}`}>
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className={`p-1.5 rounded-lg ${isSelected ? "bg-blue-100" : "bg-gray-100"}`}><Building2 size={16} className={isSelected ? "text-blue-600" : "text-gray-400"} /></div>
+                      <div className={`p-1.5 rounded-lg ${isSelected ? "bg-blue-100" : "bg-gray-100"}`}><Landmark size={16} className={isSelected ? "text-blue-600" : "text-gray-400"} /></div>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-medium truncate ${isSelected ? "text-blue-800" : "text-gray-800"}`}>{base.name}</p>
                         <div className="flex items-center gap-2 mt-0.5">

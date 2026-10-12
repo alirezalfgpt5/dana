@@ -6,14 +6,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useIssues } from '../../hooks/useIssues';
 import { useTree } from '../../hooks/useTree';
-import { useUIStore } from '../../store';
+import { useAuthStore, useUIStore } from '../../store';
 import { PeriodRolloverModal } from '../../components/issues/PeriodRolloverModal';
 import { IssueFormTabs } from '../../components/issues/IssueFormTabs';
 import { 
   FileText, Plus, RefreshCw, Search, X,
   CheckCircle, AlertCircle, Clock,
   Filter, Edit, Trash2, ChevronDown,
-  ChevronUp, Coins, Eye, Building2,
+  ChevronUp, ChevronLeft, ChevronRight, Coins, Eye, Landmark,
   HelpCircle, TrendingUp, Calendar, ArrowLeftRight, Download, RotateCcw
 } from 'lucide-react';
 import api from '../../services/api';
@@ -31,7 +31,11 @@ import { formatPersianDate } from '../../utils/persianDate';
 export function IssueSystem() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { activePeriod, periods } = useUIStore();
+  const { periods, bases, activePeriod: topbarPeriod, dataScopePeriodId, dataScopeBaseId, setDataScope } = useUIStore();
+  const user = useAuthStore(state => state.user);
+  const activePeriod = periods.find(period => String(period.id) === dataScopePeriodId) || topbarPeriod || null;
+  const defaultPeriodId = dataScopePeriodId || (activePeriod?.id ? String(activePeriod.id) : '');
+  const defaultBaseId = dataScopeBaseId || (user?.baseId ? String(user.baseId) : '');
   
   const {
     issues,
@@ -41,6 +45,7 @@ export function IssueSystem() {
     stats: serverStats,
     pagination,
     fetchIssues,
+    clearIssues,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     fetchIssue,
     createIssue,
@@ -66,7 +71,6 @@ export function IssueSystem() {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [timeFrameFilter, setTimeFrameFilter] = useState('all');
-  const [filterByPeriod, setFilterByPeriod] = useState<boolean>(true);
   const [showRolloverModal, setShowRolloverModal] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [advancedFilter, setAdvancedFilter] = useState<FilterGroup | null>(null);
@@ -79,10 +83,15 @@ export function IssueSystem() {
   ]);
 
   const loadIssuesData = (page = 1) => {
+    if (!dataScopePeriodId || !dataScopeBaseId) {
+      clearIssues();
+      return;
+    }
     fetchIssues({
       page,
       limit: pagination.limit || 20,
-      periodId: filterByPeriod && activePeriod ? activePeriod.id : undefined,
+      periodId: Number(dataScopePeriodId),
+      baseId: Number(dataScopeBaseId),
       status: statusFilter !== 'all' ? statusFilter : undefined,
       priority: priorityFilter !== 'all' ? priorityFilter : undefined,
       category: categoryFilter !== 'all' ? categoryFilter : undefined,
@@ -99,11 +108,26 @@ export function IssueSystem() {
     }
   };
 
+  const clearIssueFilters = () => {
+    clearIssueSearch();
+    setStatusFilter('all');
+    setPriorityFilter('all');
+    setCategoryFilter('all');
+    setTimeFrameFilter('all');
+    setAdvancedFilter(null);
+    setShowAdvancedQuery(false);
+  };
+
   const handleExportExcel = async () => {
     try {
+      if (!dataScopePeriodId || !dataScopeBaseId) {
+        toast.error('برای دریافت گزارش، ابتدا دورهٔ زمانی و ساختار سازمانی را انتخاب کنید.');
+        return;
+      }
       toast.loading('در حال آماده‌سازی گزارش جامع اکسل...', { id: 'excel-toast' });
       const params = new URLSearchParams();
-      if (filterByPeriod && activePeriod?.id) params.append('periodId', String(activePeriod.id));
+      params.append('periodId', dataScopePeriodId);
+      params.append('baseId', dataScopeBaseId);
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (priorityFilter !== 'all') params.append('priority', priorityFilter);
       if (categoryFilter !== 'all') params.append('category', categoryFilter);
@@ -135,8 +159,9 @@ export function IssueSystem() {
   }, [location.search]);
 
   useEffect(() => {
-    loadIssuesData(1);
-  }, [activePeriod?.id, filterByPeriod, timeFrameFilter, statusFilter, priorityFilter, categoryFilter, searchTerm]);
+    if (dataScopePeriodId && dataScopeBaseId) loadIssuesData(1);
+    else clearIssues();
+  }, [dataScopePeriodId, dataScopeBaseId, timeFrameFilter, statusFilter, priorityFilter, categoryFilter, searchTerm, advancedFilter, clearIssues]);
 
   useEffect(() => {
     fetchTemplates().catch(console.error);
@@ -158,23 +183,34 @@ export function IssueSystem() {
     if (location.state && location.state.createFromGap) {
       const gap = location.state.createFromGap;
       const fallback = location.state.nodeFallback;
-      setEditingIssue(location.state.initialData || {
-        domainNodeId: gap?.requiredNodeId || gap?.requiredNode?.id || fallback?.id || '',
-        domain: gap?.requiredNode?.title || gap?.requiredNode?.name || fallback?.title || fallback?.name || '',
-        title: gap?.requiredNode?.title || gap?.requiredNode?.name || fallback?.title || fallback?.name || '',
-        actionPriority: gap?.priority === 'critical' ? 'بالا' : 'متوسط',
-        knowledgeType: 'نظریه',
-        gapId: gap?.id || null
-      });
+      const sourceScope = {
+        periodId: location.state.periodId || defaultPeriodId,
+        baseId: location.state.baseId || defaultBaseId,
+      };
+      setEditingIssue(location.state.initialData
+        ? { ...location.state.initialData, ...sourceScope }
+        : {
+          ...sourceScope,
+          domainNodeId: gap?.requiredNodeId || gap?.requiredNode?.id || fallback?.id || '',
+          domain: gap?.requiredNode?.title || gap?.requiredNode?.name || fallback?.title || fallback?.name || '',
+          title: gap?.requiredNode?.title || gap?.requiredNode?.name || fallback?.title || fallback?.name || '',
+          actionPriority: gap?.priority === 'critical' ? 'بالا' : 'متوسط',
+          knowledgeType: 'نظریه',
+          gapId: gap?.id || null,
+        });
       setShowForm(true);
       // Clean up the state so it doesn't re-trigger on reload
       navigate(location.pathname, { replace: true, state: {} });
     } else if (location.state && location.state.createFromResearch) {
-      setEditingIssue(location.state.initialData);
+      setEditingIssue({
+        ...(location.state.initialData || {}),
+        periodId: location.state.periodId || location.state.initialData?.periodId || defaultPeriodId,
+        baseId: location.state.baseId || location.state.initialData?.baseId || defaultBaseId,
+      });
       setShowForm(true);
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location, navigate]);
+  }, [location, navigate, defaultBaseId, defaultPeriodId]);
 
   const pageStats = getIssueStats(issues);
   const stats = serverStats && (serverStats.total > 0 || (pagination && pagination.total === 0)) ? serverStats : pageStats;
@@ -207,7 +243,8 @@ export function IssueSystem() {
     try {
       const issuePayload = {
         ...data,
-        periodId: data.periodId || (editingIssue?.periodId) || (activePeriod?.id) || null,
+        periodId: data.periodId || editingIssue?.periodId || activePeriod?.id || null,
+        baseId: data.baseId ? Number(data.baseId) : null,
       };
       let saved;
       if (editingIssue && editingIssue.id) {
@@ -323,6 +360,10 @@ export function IssueSystem() {
           }}
           templates={templates}
           loading={loading}
+          periods={periods}
+          bases={bases}
+          defaultPeriodId={defaultPeriodId}
+          defaultBaseId={defaultBaseId}
         />
       </div>
     );
@@ -339,20 +380,12 @@ export function IssueSystem() {
         pdfEnabled={!loading && filteredIssues.length > 0}
         extra={
           <div className="flex items-center gap-2 flex-wrap">
-            {activePeriod && (
+            {activePeriod && dataScopeBaseId && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                 <Calendar size={14} />
                 <span>دوره: {activePeriod.name}</span>
-                <button
-                  onClick={() => setFilterByPeriod(!filterByPeriod)}
-                  className={`mr-1 px-2 py-0.5 rounded-md text-[11px] font-bold transition-all ${
-                    filterByPeriod
-                      ? 'bg-purple-600 text-white shadow-xs'
-                      : 'bg-white dark:bg-gray-800 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700'
-                  }`}
-                >
-                  {filterByPeriod ? 'فقط این دوره' : 'همه دوره‌ها'}
-                </button>
+                <Landmark size={14} />
+                <span>{bases.find(base => String(base.id) === dataScopeBaseId)?.name || 'ساختار سازمانی'}</span>
               </div>
             )}
             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
@@ -406,7 +439,13 @@ export function IssueSystem() {
             label: 'عملیات دوره‌ای',
             icon: ArrowLeftRight,
             variant: 'indigo',
-            onClick: () => setShowRolloverModal(true),
+            onClick: () => {
+              if (!dataScopePeriodId || !dataScopeBaseId) {
+                toast.error('برای عملیات دوره‌ای ابتدا دوره و ساختار سازمانی را انتخاب کنید');
+                return;
+              }
+              setShowRolloverModal(true);
+            },
             title: 'انتقال مسائل بین‌دوره‌ای و ورود اطلاعات',
           },
           {
@@ -556,9 +595,9 @@ export function IssueSystem() {
 
       {/* Filters Toolbar - کامپکت، منعطف و بدون سرریز در تمام ابعاد نمایشگر */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-3.5 sm:p-4">
-        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+        <div className="flex min-w-0 flex-col gap-3">
           {/* بخش جستجو با ابعاد منعطف و جلوگیری از سرریز */}
-          <div className="relative flex-1 min-w-[220px] max-w-full">
+          <div className="relative min-w-0 w-full">
             <Search size={17} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="text"
@@ -580,7 +619,33 @@ export function IssueSystem() {
           </div>
 
           {/* فیلترها و دکمه پاک‌سازی با چیدمان منعطف grid/flex */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 items-center w-full lg:w-auto shrink-0">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 items-center w-full min-w-0">
+            <div className="min-w-0">
+              <select
+                value={dataScopePeriodId}
+                onChange={event => setDataScope(event.target.value, dataScopeBaseId || null)}
+                className="w-full min-w-0 px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 truncate"
+                aria-label="انتخاب دورهٔ زمانی"
+              >
+                <option value="">انتخاب دوره</option>
+                {periods.map(period => (
+                  <option key={period.id} value={String(period.id)}>{period.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <select
+                value={dataScopeBaseId}
+                onChange={event => setDataScope(dataScopePeriodId || null, event.target.value)}
+                className="w-full min-w-0 px-2.5 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 truncate"
+                aria-label="انتخاب ساختار سازمانی"
+              >
+                <option value="">انتخاب ساختار</option>
+                {bases.map(base => (
+                  <option key={base.id} value={String(base.id)}>{base.name}</option>
+                ))}
+              </select>
+            </div>
             {/* وضعیت */}
             <div className="min-w-0">
               <select
@@ -664,14 +729,8 @@ export function IssueSystem() {
             {/* پاک‌سازی فیلترها */}
             <div className="min-w-0">
               <button
-                onClick={() => {
-                  clearIssueSearch();
-                  setStatusFilter('all');
-                  setPriorityFilter('all');
-                  setCategoryFilter('all');
-                  setTimeFrameFilter('all');
-                  setAdvancedFilter(null);
-                }}
+                type="button"
+                onClick={clearIssueFilters}
                 className="w-full px-2.5 py-2 text-gray-500 hover:text-red-600 hover:bg-red-50 border border-gray-200 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
                 title="پاک کردن تمام فیلترها"
               >
@@ -698,7 +757,8 @@ export function IssueSystem() {
                     fetchIssues({
                       page: 1,
                       limit: pagination.limit || 20,
-                      periodId: filterByPeriod && activePeriod ? activePeriod.id : undefined,
+                      periodId: dataScopePeriodId ? Number(dataScopePeriodId) : undefined,
+                      baseId: dataScopeBaseId ? Number(dataScopeBaseId) : undefined,
                       status: statusFilter !== 'all' ? statusFilter : undefined,
                       priority: priorityFilter !== 'all' ? priorityFilter : undefined,
                       category: categoryFilter !== 'all' ? categoryFilter : undefined,
@@ -736,7 +796,7 @@ export function IssueSystem() {
         )}
 
         {/* فیلترهای فعال */}
-        {(searchTerm || statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all' || (advancedFilter && advancedFilter.rules && advancedFilter.rules.length > 0)) && (
+        {(searchTerm || statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all' || timeFrameFilter !== 'all' || (advancedFilter && advancedFilter.rules && advancedFilter.rules.length > 0)) && (
           <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
             <span className="text-xs text-gray-400 ml-2">🔍 فیلترهای فعال:</span>
             {advancedFilter && advancedFilter.rules && advancedFilter.rules.length > 0 && (
@@ -748,7 +808,8 @@ export function IssueSystem() {
                     fetchIssues({
                       page: 1,
                       limit: pagination.limit || 20,
-                      periodId: filterByPeriod && activePeriod ? activePeriod.id : undefined,
+                      periodId: dataScopePeriodId ? Number(dataScopePeriodId) : undefined,
+                      baseId: dataScopeBaseId ? Number(dataScopeBaseId) : undefined,
                       status: statusFilter !== 'all' ? statusFilter : undefined,
                       priority: priorityFilter !== 'all' ? priorityFilter : undefined,
                       category: categoryFilter !== 'all' ? categoryFilter : undefined,
@@ -795,13 +856,25 @@ export function IssueSystem() {
                 </button>
               </span>
             )}
+            {timeFrameFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full text-[10px]">
+                زمان‌بندی: {timeFrameFilter}
+                <button onClick={() => setTimeFrameFilter('all')} className="hover:text-red-500">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
           </div>
         )}
       </div>
 
       {/* Issues List */}
       <div data-pdf-content data-pdf-has-data={!loading && filteredIssues.length > 0}>
-      {loading ? (
+      {!dataScopePeriodId || !dataScopeBaseId ? (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-8 text-center text-sm leading-7 text-blue-800">
+          برای مشاهدهٔ نظام مسائل، ابتدا دورهٔ زمانی و ساختار سازمانی را از فیلترهای بالا انتخاب کنید.
+        </div>
+      ) : loading ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-12 text-center">
           <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-500 text-sm">⏳ در حال بارگذاری مسائل...</p>
@@ -897,7 +970,7 @@ export function IssueSystem() {
                     </div>
                     <h4 className="font-bold text-gray-800 text-sm mt-1.5">{issue.title}</h4>
                     <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-1 flex-wrap">
-                      <Building2 size={12} className="text-gray-400 shrink-0" />
+                      <Landmark size={12} className="text-gray-400 shrink-0" />
                       <span>ساختار سازمانی / مالک:</span>
                       <span className="font-medium text-slate-600">{getIssueOrgText(issue)}</span>
                     </div>
@@ -1112,7 +1185,7 @@ export function IssueSystem() {
                     {issue.title}
                   </h4>
                   <div className="flex items-center gap-1 text-[11px] text-gray-400 mb-2 truncate">
-                    <Building2 size={12} className="shrink-0 text-gray-400" />
+                    <Landmark size={12} className="shrink-0 text-gray-400" />
                     <span>ساختار سازمانی:</span>
                     <span className="text-slate-600 font-medium truncate">{getIssueOrgText(issue)}</span>
                   </div>
@@ -1124,7 +1197,7 @@ export function IssueSystem() {
                     </div>
                     {issue.responsibleUnit && (
                       <div className="flex items-center gap-1 text-blue-700 truncate">
-                        <Building2 size={13} className="shrink-0" />
+                        <Landmark size={13} className="shrink-0" />
                         <span className="truncate">{issue.responsibleUnit}</span>
                       </div>
                     )}
@@ -1206,14 +1279,37 @@ export function IssueSystem() {
       </div>
 
       {/* Pagination */}
-      {!loading && filteredIssues.length > 0 && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white rounded-xl shadow-sm border border-gray-200/80 p-4">
+      {!loading && dataScopePeriodId && dataScopeBaseId && pagination.total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl shadow-sm border border-gray-200/80 p-4">
           <span className="text-xs text-gray-400">
-            📊 نمایش {filteredIssues.length} از {pagination.total} مسئله
+            📊 نمایش {((pagination.page - 1) * pagination.limit + 1).toLocaleString('fa-IR')} تا {Math.min(pagination.page * pagination.limit, pagination.total).toLocaleString('fa-IR')} از {pagination.total.toLocaleString('fa-IR')} مسئله
           </span>
           <div className="flex items-center gap-1">
-            {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-              const page = i + 1;
+            <label className="ml-2 flex items-center gap-2 text-xs text-gray-500">
+              تعداد در صفحه
+              <select
+                value={pagination.limit}
+                onChange={event => fetchIssues({ page: 1, limit: Number(event.target.value) })}
+                className="rounded-lg border border-gray-200 bg-white px-2 py-1.5"
+                aria-label="تعداد مسائل در هر صفحه"
+              >
+                {[10, 20, 50, 100].map(size => <option key={size} value={size}>{size.toLocaleString('fa-IR')}</option>)}
+              </select>
+            </label>
+            <button
+              type="button"
+              aria-label="صفحهٔ قبل"
+              disabled={pagination.page <= 1}
+              onClick={() => fetchIssues({ page: pagination.page - 1, limit: pagination.limit })}
+              className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronRight size={16} />
+            </button>
+            {Array.from({
+              length: Math.min(5, pagination.totalPages),
+            }, (_, i) => {
+              const firstPage = Math.max(1, Math.min(pagination.page - 2, pagination.totalPages - 4));
+              const page = firstPage + i;
               return (
                 <button
                   key={page}
@@ -1228,6 +1324,15 @@ export function IssueSystem() {
                 </button>
               );
             })}
+            <button
+              type="button"
+              aria-label="صفحهٔ بعد"
+              disabled={pagination.page >= pagination.totalPages}
+              onClick={() => fetchIssues({ page: pagination.page + 1, limit: pagination.limit })}
+              className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft size={16} />
+            </button>
           </div>
         </div>
       )}

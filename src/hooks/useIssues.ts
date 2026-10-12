@@ -131,11 +131,14 @@ export function useIssues() {
   });
 
   const lastFiltersRef = useRef<IssueFilters>({});
+  const latestRequestRef = useRef(0);
+  const latestStatsRequestRef = useRef(0);
 
   // ============================================
   // دریافت آمار تجمیعی واقعی برای کل نتایج فیلتر جاری (حل اولویت ۱۰)
   // ============================================
   const fetchStats = useCallback(async (filters?: IssueFilters) => {
+    const requestId = ++latestStatsRequestRef.current;
     try {
       const params = new URLSearchParams();
       const eff = filters || lastFiltersRef.current || {};
@@ -154,7 +157,7 @@ export function useIssues() {
 
       const url = `/api/issues/stats${params.toString() ? '?' + params.toString() : ''}`;
       const data: IssueStats = await apiClient(url);
-      if (data && typeof data.total === 'number') {
+      if (requestId === latestStatsRequestRef.current && data && typeof data.total === 'number') {
         setStats(data);
       }
       return data;
@@ -168,6 +171,7 @@ export function useIssues() {
   // دریافت لیست مسائل با فیلتر و همگام‌سازی آمار کل
   // ============================================
   const fetchIssues = useCallback(async (filters?: IssueFilters) => {
+    const requestId = ++latestRequestRef.current;
     setLoading(true);
 
     try {
@@ -180,6 +184,14 @@ export function useIssues() {
         : { ...lastFiltersRef.current, ...filters };
 
       lastFiltersRef.current = effectiveFilters;
+      setIssues([]);
+      setStats(defaultStats);
+      setPagination({
+        total: 0,
+        page: effectiveFilters.page || 1,
+        limit: effectiveFilters.limit || 20,
+        totalPages: 0,
+      });
 
       const params = new URLSearchParams();
       if (effectiveFilters.periodId !== undefined && effectiveFilters.periodId !== 'all') {
@@ -209,18 +221,30 @@ export function useIssues() {
         fetchStats(effectiveFilters),
       ]);
 
-      setIssues(response.data || []);
-      setPagination(response.pagination || { total: 0, page: 1, limit: 20, totalPages: 0 });
+      if (requestId === latestRequestRef.current) {
+        setIssues(response.data || []);
+        setPagination(response.pagination || { total: 0, page: 1, limit: 20, totalPages: 0 });
+      }
       return response;
     } catch (err: any) {
-      if (!err._toastShown) {
+      if (requestId === latestRequestRef.current && !err._toastShown) {
         toast.error(err.message || 'خطا در دریافت لیست مسائل', { id: 'issues-fetch-error' });
       }
       return null;
     } finally {
-      setLoading(false);
+      if (requestId === latestRequestRef.current) setLoading(false);
     }
   }, [fetchStats]);
+
+  const clearIssues = useCallback(() => {
+    latestRequestRef.current += 1;
+    latestStatsRequestRef.current += 1;
+    lastFiltersRef.current = {};
+    setIssues([]);
+    setStats(defaultStats);
+    setPagination({ total: 0, page: 1, limit: 20, totalPages: 0 });
+    setLoading(false);
+  }, []);
 
   // ============================================
   // دریافت یک مسئله با تمام جزئیات
@@ -497,6 +521,7 @@ export function useIssues() {
     stats,
     pagination,
     fetchIssues,
+    clearIssues,
     fetchStats,
     fetchIssue,
     createIssue,

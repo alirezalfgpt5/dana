@@ -38,14 +38,14 @@ export function ProcessWizard() {
   return (
     <div className="space-y-6">
       {/* هدر ویزارد */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-6 sticky top-0 z-30">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-black text-gray-800 flex items-center gap-3">
-              <Waypoints className="text-purple-600" size={28} />
+      <div className="sticky top-0 z-30 rounded-2xl border border-gray-200/80 bg-white/95 p-4 shadow-sm backdrop-blur">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="flex items-center gap-2 text-lg font-bold text-gray-800">
+              <Waypoints className="text-purple-600" size={21} />
               مسیریاب یکپارچه دانش
             </h1>
-            <p className="text-gray-500 text-sm mt-2 font-medium">
+            <p className="mt-1 text-xs text-gray-500">
               اجرای گام‌به‌گام فرآیند حکمرانی دانشی حوزه علوم و فناوری های نرم و شناختی آجا
             </p>
           </div>
@@ -53,39 +53,39 @@ export function ProcessWizard() {
             <button
               onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
               disabled={currentStep === 0}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                 currentStep === 0 
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-purple-600 hover:text-purple-700'
+                ? 'cursor-not-allowed bg-gray-100 text-gray-400'
+                : 'border border-gray-200 text-gray-600 hover:border-purple-300 hover:text-purple-700'
               }`}
             >
-              <ChevronRight size={18} />
+              <ChevronRight size={15} />
               مرحله قبل
             </button>
             <button
               onClick={() => setCurrentStep(Math.min(STEPS.length - 1, currentStep + 1))}
               disabled={currentStep === STEPS.length - 1}
-              className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                 currentStep === STEPS.length - 1
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-purple-600 text-white hover:bg-purple-700 shadow-md hover:shadow-lg'
+                ? 'cursor-not-allowed bg-gray-100 text-gray-400'
+                : 'bg-purple-600 text-white hover:bg-purple-700'
               }`}
             >
               مرحله بعد
-              <ChevronLeft size={18} />
+              <ChevronLeft size={15} />
             </button>
           </div>
         </div>
 
         {/* نوار پیشرفت مراحل */}
-        <div className="relative">
-          <div className="absolute top-1/2 left-0 right-0 h-1 bg-gray-100 -translate-y-1/2 rounded-full z-0"></div>
+        <div className="relative overflow-x-auto px-1 pb-1">
+          <div className="absolute top-4 right-5 left-5 z-0 h-0.5 -translate-y-1/2 rounded-full bg-gray-100"></div>
           <div 
-            className="absolute top-1/2 right-0 h-1 bg-purple-500 -translate-y-1/2 rounded-full z-0 transition-all duration-500"
-            style={{ width: `${(currentStep / (STEPS.length - 1)) * 100}%` }}
+            className="absolute top-4 right-5 z-0 h-0.5 -translate-y-1/2 rounded-full bg-purple-500 transition-all duration-500"
+            style={{ width: `calc((100% - 2.5rem) * ${currentStep / (STEPS.length - 1)})` }}
           ></div>
           
-          <div className="relative z-10 flex justify-between">
+          <div className="relative z-10 flex min-w-[38rem] justify-between">
             {STEPS.map((step, idx) => {
               const Icon = step.icon;
               const isActive = idx === currentStep;
@@ -95,26 +95,26 @@ export function ProcessWizard() {
                 <button
                   key={step.id}
                   onClick={() => setCurrentStep(idx)}
-                  className="flex flex-col items-center group focus:outline-none w-24"
+                  aria-current={isActive ? 'step' : undefined}
+                  aria-label={`مرحله ${idx + 1}: ${step.label}`}
+                  className="group flex w-24 flex-col items-center rounded-lg text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
                 >
                   <div 
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm border-2 ${
+                    className={`flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-200 ${
                       isActive 
-                      ? 'bg-purple-600 border-purple-600 text-white shadow-purple-200 scale-110' 
+                      ? 'scale-110 border-purple-600 bg-purple-600 text-white shadow-sm shadow-purple-200'
                       : isCompleted
-                        ? 'bg-purple-50 border-purple-200 text-purple-600 hover:bg-purple-100'
-                        : 'bg-white border-gray-200 text-gray-400 hover:border-purple-300 hover:text-purple-500'
+                        ? 'border-purple-200 bg-purple-50 text-purple-600 group-hover:bg-purple-100'
+                        : 'border-gray-200 bg-white text-gray-400 group-hover:border-purple-300 group-hover:text-purple-500'
                     }`}
                   >
-                    {isCompleted ? <Check size={24} className="animate-in zoom-in" /> : <Icon size={22} />}
+                    {isCompleted ? <Check size={15} /> : <Icon size={15} />}
                   </div>
-                  <div className="mt-3 text-center">
-                    <div className={`text-xs font-bold transition-colors ${isActive ? 'text-purple-700' : isCompleted ? 'text-gray-700' : 'text-gray-400'}`}>
+                  <div className="mt-1.5 min-h-8">
+                    <div className={`text-[10px] font-semibold leading-4 transition-colors ${isActive ? 'text-purple-700' : isCompleted ? 'text-gray-600' : 'text-gray-400'}`}>
                       {step.label}
                     </div>
-                    <div className={`text-[10px] mt-1 transition-colors ${isActive ? 'text-purple-500' : 'text-gray-400'}`}>
-                      {step.desc}
-                    </div>
+                    {isActive && <div className="mt-0.5 text-[9px] leading-3 text-purple-500">{step.desc}</div>}
                   </div>
                 </button>
               );

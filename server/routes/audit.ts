@@ -11,6 +11,19 @@ export const auditRoutes = Router();
 
 auditRoutes.use(requireRole(['admin', 'superadmin']));
 
+auditRoutes.get('/entities', async (_req, res) => {
+  try {
+    const entities = await db.select({ entityName: auditLogs.entityName })
+      .from(auditLogs)
+      .groupBy(auditLogs.entityName)
+      .orderBy(auditLogs.entityName);
+    res.json(entities.map(entry => entry.entityName));
+  } catch (error) {
+    console.error('Audit entity list error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 auditRoutes.get('/', async (req, res) => {
   try {
     const logs = await db.select({
@@ -72,10 +85,18 @@ auditRoutes.get('/filter', async (req, res) => {
 
 auditRoutes.get('/stats', async (req, res) => {
   try {
-    const total = await db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs);
-    const creates = await db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs).where(eq(auditLogs.action, 'CREATE'));
-    const updates = await db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs).where(eq(auditLogs.action, 'UPDATE'));
-    const deletes = await db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs).where(eq(auditLogs.action, 'DELETE'));
+    const entity = typeof req.query.entity === 'string' ? req.query.entity : '';
+    const countLogs = async (action?: string) => {
+      const conditions = [];
+      if (entity && entity !== 'all') conditions.push(eq(auditLogs.entityName, entity));
+      if (action) conditions.push(eq(auditLogs.action, action));
+      const query = db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs);
+      return conditions.length ? query.where(and(...conditions)) : query;
+    };
+    const total = await countLogs();
+    const creates = await countLogs('CREATE');
+    const updates = await countLogs('UPDATE');
+    const deletes = await countLogs('DELETE');
 
     res.json({
       total: total[0]?.count || 0,

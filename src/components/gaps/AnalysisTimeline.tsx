@@ -15,6 +15,7 @@ interface AnalysisTimelineProps {
 export function AnalysisTimeline({ events, running }: AnalysisTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const eventsRef = useRef(events);
+  const lastScrolledEventId = useRef<number | null>(null);
   const revealedRef = useRef(new Map<number, { title: string; wordsShown: number }>());
   const [renderVersion, setRenderVersion] = useState(0);
   eventsRef.current = events;
@@ -61,8 +62,11 @@ export function AnalysisTimeline({ events, running }: AnalysisTimelineProps) {
 
   useEffect(() => {
     const element = scrollRef.current;
-    if (element) element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
-  }, [renderVersion]);
+    const latestEvent = events[events.length - 1];
+    if (!element || !latestEvent || lastScrolledEventId.current === latestEvent.id) return;
+    lastScrolledEventId.current = latestEvent.id;
+    element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
+  }, [events]);
 
   const visibleEvents = events.map(event => {
     const words = event.title.trim().split(/\s+/).filter(Boolean);

@@ -18,7 +18,7 @@ import {
   Crown,
   User as UserIcon2,
   ChevronDown,
-  Building2,
+  Landmark,
   Filter,
   AlertTriangle
 } from 'lucide-react';
@@ -316,7 +316,7 @@ export function UsersManagement() {
     if (role === 'knowledge_manager') {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
-          <Building2 size={12} className="text-emerald-500" />
+          <Landmark size={12} className="text-emerald-500" />
           {label}
         </span>
       );
@@ -403,7 +403,7 @@ export function UsersManagement() {
           <div><p className="text-xs text-gray-400">کاربران فعال</p><p className="text-2xl font-bold text-green-600">{usersList.filter(u => u.isActive !== 0).length}</p></div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-indigo-200 p-4 flex items-center gap-4">
-          <div className="p-3 bg-indigo-50 rounded-lg"><Building2 size={20} className="text-indigo-600" /></div>
+          <div className="p-3 bg-indigo-50 rounded-lg"><Landmark size={20} className="text-indigo-600" /></div>
           <div><p className="text-xs text-gray-400">سطوح سازمانی</p><p className="text-2xl font-bold text-indigo-600">{orgLevels.length}</p></div>
         </div>
       </div>

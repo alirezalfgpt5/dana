@@ -10,7 +10,7 @@ import {
   LogOut,
   Search,
   X,
-  Building2,
+  Landmark,
   LayoutDashboard,
   Settings,
   Layers,
@@ -54,7 +54,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'wizard',
-    label: 'دستیار یکپارچه',
+    label: 'راهنمای گام‌به‌گام',
     icon: Waypoints,
     path: '/wizard',
   },
@@ -167,6 +167,13 @@ const MENU_ITEMS: MenuItem[] = [
         label: 'تنظیمات عمومی',
         icon: Settings,
         path: '/settings',
+      },
+      {
+        id: 'ui-text-settings',
+        label: 'تنظیم ادبیات برنامه',
+        icon: FileText,
+        path: '/settings/text',
+        roles: ['superadmin'],
       },
       {
         id: 'audit',
@@ -440,7 +447,8 @@ export function Sidebar() {
             <img src={siteLogo} alt="Logo" className="w-10 h-10 rounded-xl object-cover bg-white/20 backdrop-blur-sm shadow-sm" />
           ) : (
             <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/10">
-              <Building2 className="text-white" size={22} />
+              <Network size={22} className="text-white" />
+
             </div>
           )}
           <div>

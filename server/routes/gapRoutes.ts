@@ -187,7 +187,6 @@ gapRoutes.get('/', async (req, res) => {
       limit = 20
     } = req.query;
 
-    let query = db.select().from(gaps);
     const conditions: any[] = [];
 
     // کنترل دسترسی سازمانی
@@ -359,6 +358,7 @@ gapRoutes.get('/', async (req, res) => {
       }
     }
 
+    let query = db.select().from(gaps);
     let countQuery = db.select({ count: sql<number>`count(*)` }).from(gaps);
 
     if (conditions.length > 0) {
@@ -597,6 +597,27 @@ gapRoutes.get('/stats', async (req, res) => {
         } else {
           conditions.push(eq(gaps.id, -1));
         }
+      } else if (effective.baseIds && effective.baseIds.length > 0) {
+        const userTrees = await db.select({ id: knowledgeTrees.id })
+          .from(knowledgeTrees)
+          .where(inArray(knowledgeTrees.baseId, effective.baseIds));
+        const treeIds = userTrees.map(tree => tree.id);
+        if (treeIds.length > 0) {
+          const baseNodes = await db.select({ id: treeNodes.id })
+            .from(treeNodes)
+            .where(inArray(treeNodes.treeId, treeIds));
+          const nodeIds = baseNodes.map(node => node.id);
+          conditions.push(nodeIds.length > 0
+            ? or(
+                inArray(gaps.requiredNodeId, nodeIds),
+                inArray(gaps.producedNodeId, nodeIds)
+              )
+            : eq(gaps.id, -1));
+        } else {
+          conditions.push(eq(gaps.id, -1));
+        }
+      } else if (effective.unitIds !== null || effective.baseIds !== null) {
+        conditions.push(eq(gaps.id, -1));
       }
     }
 
@@ -668,32 +689,32 @@ gapRoutes.get('/stats', async (req, res) => {
       }
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions)) as any;
-    }
-
-    const allGaps = await query;
-    const total = allGaps.length;
-
-    const open = allGaps.filter(g => g.status === 'open').length;
-    const filled = allGaps.filter(g => g.status === 'filled').length;
-    const partial = allGaps.filter(g => g.status === 'partially_filled').length;
-
-    const byPriority = allGaps.reduce((acc: any, gap) => {
-      const priority = gap.priority || 'medium';
-      acc[priority] = (acc[priority] || 0) + 1;
-      return acc;
-    }, {});
-
-    const byType = allGaps.reduce((acc: any, gap) => {
-      const type = gap.gapType || 'unknown';
-      acc[type] = (acc[type] || 0) + 1;
-      return acc;
-    }, {});
-
-    const avgMatchScore = total > 0
-      ? allGaps.reduce((sum, g) => sum + (g.matchScore || 0), 0) / total
-      : 0;
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const [summaryRows, priorities, types] = await Promise.all([
+      db.select({
+        total: sql<number>`COUNT(*)`,
+        open: sql<number>`SUM(CASE WHEN ${gaps.status} = 'open' THEN 1 ELSE 0 END)`,
+        filled: sql<number>`SUM(CASE WHEN ${gaps.status} = 'filled' THEN 1 ELSE 0 END)`,
+        partial: sql<number>`SUM(CASE WHEN ${gaps.status} = 'partially_filled' THEN 1 ELSE 0 END)`,
+        avgMatchScore: sql<number>`AVG(COALESCE(${gaps.matchScore}, 0))`,
+      }).from(gaps).where(where),
+      db.select({
+        priority: gaps.priority,
+        count: sql<number>`COUNT(*)`,
+      }).from(gaps).where(where).groupBy(gaps.priority),
+      db.select({
+        gapType: gaps.gapType,
+        count: sql<number>`COUNT(*)`,
+      }).from(gaps).where(where).groupBy(gaps.gapType),
+    ]);
+    const summary = summaryRows[0];
+    const total = Number(summary?.total) || 0;
+    const open = Number(summary?.open) || 0;
+    const filled = Number(summary?.filled) || 0;
+    const partial = Number(summary?.partial) || 0;
+    const byPriority = Object.fromEntries(priorities.map(row => [row.priority || 'medium', Number(row.count) || 0]));
+    const byType = Object.fromEntries(types.map(row => [row.gapType || 'unknown', Number(row.count) || 0]));
+    const avgMatchScore = Number(summary?.avgMatchScore) || 0;
 
     res.json({
       total,
@@ -1008,7 +1029,7 @@ gapRoutes.post('/analyze', async (req, res) => {
       progressRunId,
       progressUserId,
       3,
-      `در حال مقایسهٔ ${requiredLeaves.length} نیاز با قواعد دستی، قالبی و شباهت عنوان`,
+      `در حال بررسی پوشش نیازها با قالب‌های تعریف‌شده، تطابق‌های دستی و شباهت عنوان`,
       'active',
     );
 
@@ -1207,7 +1228,7 @@ gapRoutes.post('/analyze', async (req, res) => {
       progressRunId,
       progressUserId,
       105,
-      `نتیجهٔ قواعد: دستی ${manualMatchCount}، قالبی کامل ${completeTemplateCount}، قالبی جزئی ${partialTemplateCount}؛ ${carriedReviews} بازنگری دستی بازیابی شد`,
+      `بررسی قالب‌ها کامل شد: تطابق کامل ${completeTemplateCount}، جزئی ${partialTemplateCount}؛ تطابق دستی ${manualMatchCount} و ${carriedReviews} بازنگری بازیابی شد`,
       'completed',
     );
 

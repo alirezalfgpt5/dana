@@ -6,6 +6,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import packageInfo from '../package.json';
 import { useAuthStore, dispatchAuthError } from './store';
 import { initToastDeduplication } from './lib/toastInterceptor';
 import { initClientErrorHandling } from './lib/clientLogger';
@@ -114,7 +115,7 @@ createRoot(rootElement).render(
 
 if (import.meta.env.DEV) {
   console.log('🚀 DANA - سیستم مدیریت دانش و نظام مسائل');
-  console.log('📚 نسخه: 3.0.0');
+  console.log(`📚 نسخه: ${packageInfo.version}`);
   console.log('🌐 محیط: توسعه');
   console.log('📅 تاریخ: ' + new Date().toLocaleDateString('fa-IR'));
 }

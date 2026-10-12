@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, FileText, LayoutTemplate, Layers, AlertCircle, File as FileIcon, Building2 } from 'lucide-react';
+import { Search, FileText, LayoutTemplate, Layers, AlertCircle, File as FileIcon, Landmark } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { getTreeOrgText } from '../utils/orgHelper';
@@ -150,7 +150,7 @@ export const DeepSearch: React.FC = () => {
                       </span>
                     </div>
                     <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1">
-                      <Building2 size={12} className="text-gray-400 shrink-0" />
+                      <Landmark size={12} className="text-gray-400 shrink-0" />
                       <span>ساختار سازمانی:</span>
                       <span className="text-slate-600 font-medium">{getTreeOrgText(tree)}</span>
                     </div>

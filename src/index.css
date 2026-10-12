@@ -25,9 +25,11 @@
   --brand-700: #1d4ed8;
   --brand-800: #1e40af;
   --brand-900: #1e3a8a;
+  --brand-action: #1d4ed8;
+  --brand-text: #1d4ed8;
   --accent-500: #6366f1;
   --accent-600: #4f46e5;
-  --brand-gradient: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  --brand-gradient: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%);
 
   /* --- سطوح (Light Mode پیش‌فرض) --- */
   --surface-page: #f4f6fb;
@@ -77,8 +79,9 @@
   --brand-300: #93c5fd;  --brand-400: #60a5fa;  --brand-500: #3b82f6;
   --brand-600: #2563eb;  --brand-700: #1d4ed8;  --brand-800: #1e40af;
   --brand-900: #1e3a8a;
+  --brand-action: #1d4ed8; --brand-text: #1d4ed8;
   --accent-500: #6366f1; --accent-600: #4f46e5;
-  --brand-gradient: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  --brand-gradient: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%);
 }
 
 /* ۲) زمرد سبز (Emerald) */
@@ -87,8 +90,9 @@
   --brand-300: #6ee7b7;  --brand-400: #34d399;  --brand-500: #10b981;
   --brand-600: #059669;  --brand-700: #047857;  --brand-800: #065f46;
   --brand-900: #064e3b;
+  --brand-action: #047857; --brand-text: #047857;
   --accent-500: #14b8a6; --accent-600: #0d9488;
-  --brand-gradient: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+  --brand-gradient: linear-gradient(135deg, #047857 0%, #0f766e 100%);
 }
 
 /* ۳) بنفش سلطنتی (Royal Purple) */
@@ -97,8 +101,9 @@
   --brand-300: #c4b5fd;  --brand-400: #a78bfa;  --brand-500: #8b5cf6;
   --brand-600: #7c3aed;  --brand-700: #6d28d9;  --brand-800: #5b21b6;
   --brand-900: #4c1d95;
+  --brand-action: #6d28d9; --brand-text: #6d28d9;
   --accent-500: #d946ef; --accent-600: #c026d3;
-  --brand-gradient: linear-gradient(135deg, #7c3aed 0%, #c026d3 100%);
+  --brand-gradient: linear-gradient(135deg, #6d28d9 0%, #a21caf 100%);
 }
 
 /* ۴) غروب سرخ (Sunset Red) */
@@ -107,8 +112,9 @@
   --brand-300: #fca5a5;  --brand-400: #f87171;  --brand-500: #ef4444;
   --brand-600: #dc2626;  --brand-700: #b91c1c;  --brand-800: #991b1b;
   --brand-900: #7f1d1d;
+  --brand-action: #b91c1c; --brand-text: #b91c1c;
   --accent-500: #f97316; --accent-600: #ea580c;
-  --brand-gradient: linear-gradient(135deg, #dc2626 0%, #ea580c 100%);
+  --brand-gradient: linear-gradient(135deg, #b91c1c 0%, #c2410c 100%);
 }
 
 /* ۵) کهربای طلایی (Amber Gold) */
@@ -117,8 +123,9 @@
   --brand-300: #fcd34d;  --brand-400: #fbbf24;  --brand-500: #f59e0b;
   --brand-600: #d97706;  --brand-700: #b45309;  --brand-800: #92400e;
   --brand-900: #78350f;
+  --brand-action: #92400e; --brand-text: #92400e;
   --accent-500: #f59e0b; --accent-600: #d97706;
-  --brand-gradient: linear-gradient(135deg, #b45309 0%, #d97706 100%);
+  --brand-gradient: linear-gradient(135deg, #92400e 0%, #b45309 100%);
 }
 
 /* ۶) گرافیت مدرن (Graphite Slate) */
@@ -127,6 +134,7 @@
   --brand-300: #cbd5e1;  --brand-400: #94a3b8;  --brand-500: #64748b;
   --brand-600: #475569;  --brand-700: #334155;  --brand-800: #1e293b;
   --brand-900: #0f172a;
+  --brand-action: #334155; --brand-text: #334155;
   --accent-500: #0ea5e9; --accent-600: #0284c7;
   --brand-gradient: linear-gradient(135deg, #334155 0%, #0f172a 100%);
 }
@@ -187,8 +195,8 @@
   .text-faint  { color: var(--text-faint); }
 
   /* برند */
-  .text-brand    { color: var(--brand-600); }
-  .bg-brand      { background-color: var(--brand-600); }
+  .text-brand    { color: var(--brand-text); }
+  .bg-brand      { background-color: var(--brand-action); }
   .bg-brand-soft { background-color: var(--brand-50); }
   .border-brand  { border-color: var(--brand-200); }
   .brand-gradient { background-image: var(--brand-gradient); }
@@ -453,10 +461,10 @@
    ============================================ */
 @keyframes marquee {
   0% {
-    transform: translateX(100%);
+    transform: translateX(-100%);
   }
   100% {
-    transform: translateX(-100%);
+    transform: translateX(100%);
   }
 }
 
@@ -468,4 +476,84 @@
 
 .animate-marquee:hover {
   animation-play-state: paused;
+}
+
+/* Keep common fixed Tailwind brand colors synchronized with the selected theme. */
+[data-theme] :is(
+  [class~="bg-blue-400"], [class~="bg-blue-500"], [class~="bg-blue-600"], [class~="bg-blue-700"], [class~="bg-blue-800"], [class~="bg-blue-900"],
+  [class~="bg-indigo-400"], [class~="bg-indigo-500"], [class~="bg-indigo-600"], [class~="bg-indigo-700"], [class~="bg-indigo-800"], [class~="bg-indigo-900"],
+  [class~="bg-purple-400"], [class~="bg-purple-500"], [class~="bg-purple-600"], [class~="bg-purple-700"], [class~="bg-purple-800"], [class~="bg-purple-900"],
+  [class~="bg-violet-400"], [class~="bg-violet-500"], [class~="bg-violet-600"], [class~="bg-violet-700"], [class~="bg-violet-800"], [class~="bg-violet-900"]
+) {
+  background-color: var(--brand-action) !important;
+}
+
+[data-theme] :is(
+  [class~="hover:bg-blue-500"], [class~="hover:bg-blue-600"], [class~="hover:bg-blue-700"], [class~="hover:bg-blue-800"], [class~="hover:bg-blue-900"],
+  [class~="hover:bg-indigo-500"], [class~="hover:bg-indigo-600"], [class~="hover:bg-indigo-700"], [class~="hover:bg-indigo-800"], [class~="hover:bg-indigo-900"],
+  [class~="hover:bg-purple-500"], [class~="hover:bg-purple-600"], [class~="hover:bg-purple-700"], [class~="hover:bg-purple-800"], [class~="hover:bg-purple-900"],
+  [class~="hover:bg-violet-500"], [class~="hover:bg-violet-600"], [class~="hover:bg-violet-700"], [class~="hover:bg-violet-800"], [class~="hover:bg-violet-900"]
+):hover {
+  background-color: var(--brand-action) !important;
+}
+
+[data-theme] :is(
+  [class~="bg-blue-50"], [class~="bg-indigo-50"], [class~="bg-purple-50"], [class~="bg-violet-50"]
+) {
+  background-color: var(--brand-50) !important;
+}
+
+[data-theme] :is(
+  [class~="bg-blue-100"], [class~="bg-indigo-100"], [class~="bg-purple-100"], [class~="bg-violet-100"]
+) {
+  background-color: var(--brand-100) !important;
+}
+
+[data-theme] :is(
+  [class~="bg-blue-500/10"], [class~="bg-indigo-500/10"], [class~="bg-purple-500/10"], [class~="bg-violet-500/10"]
+) {
+  background-color: color-mix(in srgb, var(--brand-500) 10%, transparent) !important;
+}
+
+[data-theme] :is(
+  [class~="bg-blue-500/20"], [class~="bg-indigo-500/20"], [class~="bg-purple-500/20"], [class~="bg-violet-500/20"]
+) {
+  background-color: color-mix(in srgb, var(--brand-500) 20%, transparent) !important;
+}
+
+[data-theme] :is(
+  [class~="text-blue-300"], [class~="text-blue-400"], [class~="text-blue-500"], [class~="text-blue-600"], [class~="text-blue-700"], [class~="text-blue-800"], [class~="text-blue-900"],
+  [class~="text-indigo-300"], [class~="text-indigo-400"], [class~="text-indigo-500"], [class~="text-indigo-600"], [class~="text-indigo-700"], [class~="text-indigo-800"], [class~="text-indigo-900"],
+  [class~="text-purple-300"], [class~="text-purple-400"], [class~="text-purple-500"], [class~="text-purple-600"], [class~="text-purple-700"], [class~="text-purple-800"], [class~="text-purple-900"],
+  [class~="text-violet-300"], [class~="text-violet-400"], [class~="text-violet-500"], [class~="text-violet-600"], [class~="text-violet-700"], [class~="text-violet-800"], [class~="text-violet-900"]
+) {
+  color: var(--brand-text) !important;
+}
+
+[data-theme] :is(
+  [class~="border-blue-200"], [class~="border-blue-300"],
+  [class~="border-indigo-200"], [class~="border-indigo-300"],
+  [class~="border-purple-200"], [class~="border-purple-300"],
+  [class~="border-violet-200"], [class~="border-violet-300"]
+) {
+  border-color: var(--brand-200) !important;
+}
+
+[data-theme] :is(
+  [class*="from-blue-"], [class*="from-indigo-"], [class*="from-purple-"], [class*="from-violet-"]
+):is(
+  [class*="to-blue-"], [class*="to-indigo-"], [class*="to-purple-"], [class*="to-violet-"]
+) {
+  background-image: var(--brand-gradient) !important;
+}
+
+[data-theme] :is(
+  [class~="focus:ring-blue-500"], [class~="focus:ring-indigo-500"],
+  [class~="focus:ring-purple-500"], [class~="focus:ring-violet-500"]
+):focus {
+  --tw-ring-color: var(--brand-500) !important;
+}
+
+.dark {
+  --brand-text: var(--brand-300);
 }

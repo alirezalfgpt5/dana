@@ -1,19 +1,37 @@
 // src/components/layout/MainLayout.tsx
 // لایه‌بندی اصلی برنامه
 
-import React, { useEffect, useLayoutEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Topbar } from './Topbar';
 import { Sidebar } from './Sidebar';
 import { Breadcrumbs } from './Breadcrumbs';
 import { useAuthStore, useUIStore } from '../../store';
 import { Navigate } from 'react-router-dom';
 import { CommandPalette } from '../CommandPalette';
+import { AlertTriangle } from 'lucide-react';
 
 export function MainLayout() {
   const { user } = useAuthStore();
-  const { fetchPeriods, fetchTrees, fetchOrgData, fetchMetadata, periods, bases, units, themeId, sidebarOpen, toggleSidebar } = useUIStore();
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const { fetchPeriods, fetchOrgData, fetchMetadata, themeId, toggleSidebar } = useUIStore();
+  const [setupIssues, setSetupIssues] = useState<Array<'structure' | 'period'>>([]);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const previousPathRef = useRef(location.pathname);
+
+  const refreshSetupIssues = async () => {
+    const [periodsLoaded, orgDataLoaded] = await Promise.all([
+      fetchPeriods(),
+      fetchOrgData(),
+    ]);
+    if (!periodsLoaded || !orgDataLoaded) return;
+
+    const { periods, bases, units } = useUIStore.getState();
+    setSetupIssues([
+      ...(bases.length === 0 && units.length === 0 ? ['structure' as const] : []),
+      ...(periods.length === 0 ? ['period' as const] : []),
+    ]);
+  };
 
   // 🟢 ریسپانسیو: در موبایل/تبلت باریک (زیر md) سایدبار به‌صورت پیش‌فرض بسته می‌ماند تا محتوای اصلی
   // تمام عرض را داشته باشد و کارت‌ها (نوار جستجو و…) از باکس خود بیرون نزنند.
@@ -34,26 +52,44 @@ export function MainLayout() {
   }, [themeId]);
 
   useEffect(() => {
+    let cancelled = false;
     if (user) {
       // بارگذاری همزمان همه داده‌ها
       const loadAllData = async () => {
         try {
-          await Promise.all([
-            fetchPeriods(),
-            fetchTrees(),
-            fetchOrgData(),
-            fetchMetadata(),
+          const [periodsLoaded, orgDataLoaded] = await Promise.all([fetchPeriods(), fetchOrgData()]);
+          await fetchMetadata();
+          if (cancelled || !periodsLoaded || !orgDataLoaded) return;
+          const { periods, bases, units } = useUIStore.getState();
+          setSetupIssues([
+            ...(bases.length === 0 && units.length === 0 ? ['structure' as const] : []),
+            ...(periods.length === 0 ? ['period' as const] : []),
           ]);
-          setIsDataLoaded(true);
         } catch (error) {
           console.error('Error loading data:', error);
-          setIsDataLoaded(true); // حتی با خطا، صفحه را نشان بده
         }
       };
       
       loadAllData();
     }
-  }, [user, fetchPeriods, fetchTrees, fetchOrgData, fetchMetadata]);
+    return () => { cancelled = true; };
+  }, [user, fetchPeriods, fetchOrgData, fetchMetadata]);
+
+  useEffect(() => {
+    const previousPath = previousPathRef.current;
+    previousPathRef.current = location.pathname;
+    const setupPaths = ['/org-structure', '/periods'];
+    if (
+      user
+      && previousPath !== location.pathname
+      && setupPaths.includes(previousPath)
+      && !setupPaths.includes(location.pathname)
+    ) {
+      refreshSetupIssues().catch(error => {
+        console.error('Error refreshing setup prerequisites:', error);
+      });
+    }
+  }, [location.pathname, user, fetchPeriods, fetchOrgData]);
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -74,6 +110,42 @@ export function MainLayout() {
             <div className="print:hidden">
               <Breadcrumbs />
             </div>
+            {setupIssues.length > 0
+              && !['/org-structure', '/periods'].includes(location.pathname) && (
+                <aside className="mb-5 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-950 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 rounded-full bg-red-100 p-1.5 text-red-700 dark:bg-red-900 dark:text-red-200">
+                      <AlertTriangle size={16} />
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold">پیش‌نیازهای شروع کار</p>
+                      <p className="mt-1 text-xs leading-6 text-red-800 dark:text-red-200">
+                        برای ثبت و تحلیل اطلاعات، ابتدا {setupIssues.includes('structure') ? 'ساختار سازمانی' : ''}
+                        {setupIssues.includes('structure') && setupIssues.includes('period') ? ' و ' : ''}
+                        {setupIssues.includes('period') ? 'دورهٔ زمانی' : ''} را تعریف کنید.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {setupIssues.includes('structure') && (
+                      <button
+                        onClick={() => navigate('/org-structure')}
+                        className="rounded-lg bg-red-700 px-3 py-2 text-xs font-semibold text-white hover:bg-red-800"
+                      >
+                        تعریف ساختار سازمانی
+                      </button>
+                    )}
+                    {setupIssues.includes('period') && (
+                      <button
+                        onClick={() => navigate('/periods')}
+                        className="rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-100 dark:border-red-800 dark:bg-slate-900 dark:text-red-200 dark:hover:bg-red-950"
+                      >
+                        تعریف دورهٔ زمانی
+                      </button>
+                    )}
+                  </div>
+                </aside>
+              )}
             <Outlet />
           </div>
         </main>

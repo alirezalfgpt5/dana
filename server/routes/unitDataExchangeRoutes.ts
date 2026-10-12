@@ -4,6 +4,9 @@
 
 import { Router } from 'express';
 import { Readable } from 'stream';
+import fs from 'fs';
+import path from 'path';
+import { randomUUID } from 'crypto';
 import ExcelJS from 'exceljs';
 import multer from 'multer';
 import { fileTypeFromBuffer } from 'file-type';
@@ -114,6 +117,11 @@ const BG_HEADER = 'FF1D4ED8';
 const BG_LIGHT = 'FFF8FAFC';
 const BG_MUTED = 'FFF1F5F9';
 const BORDER_COLOR = 'FFE2E8F0';
+const formatExchangeTimestamp = (date: Date | string) => new Intl.DateTimeFormat('fa-IR', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+  timeZone: 'Asia/Tehran',
+}).format(new Date(date));
 
 /**
  * تابع ساخت ورک‌بوک جامع تبادل داده یگان با سازمان بالادستی
@@ -151,6 +159,13 @@ async function generateUnitExchangeWorkbook({
   if (!periodRecord) {
     throw new Error('دوره زمانی انتخاب‌شده در سامانه یافت نشد.');
   }
+  const latestImport = sqlite.prepare(`
+    SELECT created_at
+    FROM sync_versions
+    WHERE unit_id = ? AND period_id = ? AND status = 'active'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `).get(unitId, periodId) as { created_at: string } | undefined;
 
   // ۲. استخراج مقادیر پایه‌ای سیستم جهت پر کردن دراپ‌دان‌ها (Dropdown Lookups)
   const getLookupNames = (tableName: string): string[] => {
@@ -276,7 +291,8 @@ async function generateUnitExchangeWorkbook({
     ['عنوان دوره زمانی', periodRecord.name, `بازه مصوب: ${periodRecord.start_date} تا ${periodRecord.end_date}`],
     ['نوع بسته اطلاعاتی', isFinalPackage ? 'بسته نهایی و تجمیعی یگان (Final Export)' : 'قالب خام استاندارد (Raw Template)', 'وضعیت فایل جهت همگام‌سازی'],
     ['نسخه قرارداد تبادل (Contract Version)', '2.0.0', 'نسخه شِمای پایدار تبادل داده دانا'],
-    ['تاریخ صدور سند', new Date().toLocaleDateString('fa-IR'), 'تاریخ استخراج سند از سامانه دانا'],
+    ['تاریخ و زمان صدور سند', formatExchangeTimestamp(new Date()), 'زمان تولید این فایل در سامانه دانا'],
+    ['تاریخ و زمان آخرین ورود اطلاعات', latestImport ? formatExchangeTimestamp(latestImport.created_at) : 'هنوز وارد نشده', 'آخرین همگام‌سازی موفق اطلاعات این یگان و دوره'],
     ['شناسه درختواره‌های مرتبط', treeIds.length > 0 ? treeIds.join(',') : 'درخت جدید', 'شناسه‌های متناظر در پایگاه داده'],
   ];
 
@@ -1526,6 +1542,8 @@ unitDataExchangeRoutes.post('/template/preview', requireAuth, upload.single('fil
 // ۳. همگام‌سازی، ثبت نسخه و اعمال تغییرات در پایگاه داده اصلی (با تراکنش اتمی)
 // ====================================================================
 unitDataExchangeRoutes.post('/template/upload-sync', requireAuth, upload.single('file'), async (req, res) => {
+  let pendingImportWorkbookPath: string | null = null;
+  let syncCommitted = false;
   try {
     const user = (req as AuthRequest).user;
     const orgScope = getUserOrgScope(user);
@@ -1632,6 +1650,22 @@ unitDataExchangeRoutes.post('/template/upload-sync', requireAuth, upload.single(
     }
 
     const now = new Date().toISOString();
+    const importTimestamp = formatExchangeTimestamp(now);
+    const importedWorkbookName = `exchange-${randomUUID()}.xlsx`;
+    const importedWorkbookDirectory = path.join(process.env.STORAGE_DIR || path.join(process.cwd(), 'storage'), 'data-exchange-imports');
+    pendingImportWorkbookPath = path.join(importedWorkbookDirectory, importedWorkbookName);
+    const importDateRow = metaSheet.getRows(1, metaSheet.rowCount)?.find(row =>
+      String(row.getCell(1).value || '').includes('تاریخ و زمان ورود اطلاعات')
+    );
+    if (importDateRow) {
+      importDateRow.getCell(2).value = importTimestamp;
+      importDateRow.getCell(3).value = user?.username || 'کاربر سیستم';
+    } else {
+      metaSheet.addRow(['تاریخ و زمان ورود اطلاعات', importTimestamp, `ثبت‌شده توسط ${user?.username || 'کاربر سیستم'}`]);
+    }
+    await fs.promises.mkdir(importedWorkbookDirectory, { recursive: true });
+    const importedWorkbookBuffer = await workbook.xlsx.writeBuffer();
+    await fs.promises.writeFile(pendingImportWorkbookPath, new Uint8Array(importedWorkbookBuffer));
 
     // شماره نسخه جدید
     const maxVersionRow = sqlite.prepare(`
@@ -2188,6 +2222,8 @@ unitDataExchangeRoutes.post('/template/upload-sync', requireAuth, upload.single(
         researchUnchanged,
         totalChanges: nodesCreated + nodesUpdated + issuesCreated + issuesUpdated + researchCreated + researchUpdated,
         strategy,
+        importTimestamp,
+        importedWorkbookFile: importedWorkbookName,
       };
 
       sqlite.prepare('UPDATE sync_versions SET summary = ? WHERE id = ?').run(JSON.stringify(summaryData), versionId);
@@ -2195,6 +2231,8 @@ unitDataExchangeRoutes.post('/template/upload-sync', requireAuth, upload.single(
 
     // فراخوانی تراکنش اتمی
     executeSyncTransaction();
+    syncCommitted = true;
+    pendingImportWorkbookPath = null;
 
     logAudit({
       userId: user?.id || null,
@@ -2219,6 +2257,15 @@ unitDataExchangeRoutes.post('/template/upload-sync', requireAuth, upload.single(
     });
   } catch (error: any) {
     console.error('Error syncing unit template with versioning:', error);
+    if (!syncCommitted && pendingImportWorkbookPath) {
+      try {
+        await fs.promises.unlink(pendingImportWorkbookPath);
+      } catch (cleanupError) {
+        if ((cleanupError as NodeJS.ErrnoException).code !== 'ENOENT') {
+          console.error('Failed to remove an uncommitted imported workbook:', cleanupError);
+        }
+      }
+    }
     res.status(500).json({ error: error.message || 'خطا در پردازش و ذخیره اطلاعات نسخه' });
   }
 });
@@ -2291,6 +2338,53 @@ unitDataExchangeRoutes.get('/versions', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error fetching sync versions:', error);
     res.status(500).json({ error: 'خطا در دریافت لیست نسخه‌های همگام‌سازی' });
+  }
+});
+
+unitDataExchangeRoutes.get('/versions/:id/workbook', requireAuth, (req, res) => {
+  try {
+    const versionId = Number(req.params.id);
+    if (!Number.isSafeInteger(versionId) || versionId <= 0) {
+      return res.status(400).json({ error: 'شناسه نسخه معتبر نیست.' });
+    }
+    const version = sqlite.prepare(`
+      SELECT unit_id, file_name, summary
+      FROM sync_versions
+      WHERE id = ?
+    `).get(versionId) as { unit_id: number; file_name: string; summary: string | null } | undefined;
+    if (!version) return res.status(404).json({ error: 'نسخه مورد نظر یافت نشد.' });
+
+    const user = (req as AuthRequest).user;
+    if (!getUserOrgScope(user).canAccessUnit(version.unit_id)) {
+      return res.status(403).json({ error: 'شما به فایل این نسخه دسترسی ندارید.' });
+    }
+
+    let summary: any = {};
+    try {
+      summary = version.summary ? JSON.parse(version.summary) : {};
+    } catch (error) {
+      console.error('Invalid imported workbook metadata for version:', versionId, error);
+      return res.status(500).json({ error: 'اطلاعات فایل ثبت‌شده برای این نسخه معتبر نیست.' });
+    }
+    const importedWorkbookName = summary.importedWorkbookFile;
+    if (typeof importedWorkbookName !== 'string' || path.basename(importedWorkbookName) !== importedWorkbookName) {
+      return res.status(404).json({ error: 'نسخه دارای فایل اکسل ثبت‌شده نیست.' });
+    }
+
+    const importDirectory = path.resolve(
+      process.env.STORAGE_DIR || path.join(process.cwd(), 'storage'),
+      'data-exchange-imports',
+    );
+    const importedWorkbookPath = path.resolve(importDirectory, importedWorkbookName);
+    if (path.dirname(importedWorkbookPath) !== importDirectory || !fs.existsSync(importedWorkbookPath)) {
+      return res.status(404).json({ error: 'فایل اکسل این نسخه روی دستگاه یافت نشد.' });
+    }
+
+    const originalName = path.basename(version.file_name || 'بسته_یگان.xlsx', path.extname(version.file_name || ''));
+    return res.download(importedWorkbookPath, `${originalName}_با_تاریخ_ورود.xlsx`);
+  } catch (error) {
+    console.error('Error downloading imported exchange workbook:', error);
+    return res.status(500).json({ error: 'خطا در دریافت فایل اکسل ثبت‌شده' });
   }
 });
 

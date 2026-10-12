@@ -7,7 +7,7 @@ import { useTree } from '../../hooks/useTree';
 import { 
   Database, Search, X, Download, RefreshCw,
   CheckCircle, AlertCircle, Clock, 
-  Filter, Target, HelpCircle, Trash2, Edit2, Settings, Building2,
+  Filter, Target, HelpCircle, Trash2, Edit2, Settings, Landmark,
   ChevronRight, Eye, Layers, FileSpreadsheet, Plus, Table
 } from 'lucide-react';
 
@@ -59,6 +59,7 @@ export function ResearchTree() {
     updateTree 
   } = useTree();
   const { periods, bases, units, orgLevels, fetchPeriods, fetchOrgData } = useTreeData();
+  const { dataScopePeriodId, dataScopeBaseId, setDataScope } = useUIStore();
 
   const [viewMode, setViewMode] = useUserPreference<'table' | 'tree'>('research:viewMode', 'table');
   const [searchTerm, setSearchTerm] = useState('');
@@ -130,7 +131,6 @@ export function ResearchTree() {
   const [importanceOptions, setImportanceOptions] = useState<string[]>(['راهبردی', 'عملیاتی', 'تاکتیکی']);
 
   useEffect(() => {
-    fetchTrees({ type: 'research' });
     fetchPeriods();
     fetchOrgData();
     api.get('/api/metadata/program-coverages').then((res: any) => setProgramCoveragesOptions(res || [])).catch(console.error);
@@ -145,6 +145,18 @@ export function ResearchTree() {
       }
     }).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (dataScopePeriodId && dataScopeBaseId) {
+      void fetchTrees({
+        type: 'research',
+        periodId: Number(dataScopePeriodId),
+        baseId: Number(dataScopeBaseId),
+      });
+    } else {
+      void fetchTrees({ type: 'research' });
+    }
+  }, [dataScopePeriodId, dataScopeBaseId, fetchTrees]);
 
   useEffect(() => {
     if (selectedTreeId) {
@@ -169,6 +181,10 @@ export function ResearchTree() {
 
   const handleCreateResearchTree = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isEditingTree && (!dataScopePeriodId || !dataScopeBaseId)) {
+      toast.error('ابتدا دورهٔ زمانی و ساختار سازمانی را انتخاب کنید');
+      return;
+    }
     if (!treeFormData.name.trim()) {
       toast.error('نام درختواره الزامی است');
       return;
@@ -205,7 +221,7 @@ export function ResearchTree() {
       setShowTreeModal(false);
       setIsEditingTree(false);
       setEditingTreeId(null);
-      await fetchTrees({ type: 'research' });
+      await fetchTrees();
     } catch (err: any) {
       toast.error(err.message || 'خطا در ذخیره درختواره');
     }
@@ -298,7 +314,23 @@ export function ResearchTree() {
       toast.error('این گپ فاقد آیتم پژوهشی است. برای تولید آن به بخش تحلیل شکاف بروید.');
       return;
     }
-    navigate(`/issues?fromResearch=${researchItem.id}`);
+    navigate('/issues', {
+      state: {
+        createFromResearch: true,
+        periodId: selectedTree?.periodId,
+        baseId: selectedTree?.baseId,
+        initialData: {
+          domainNodeId: researchItem.nodeId || gap.requiredNodeId,
+          domain: gap.requiredNode?.title || '',
+          title: gap.requiredNode?.title || researchItem.title || '',
+          researchItemId: researchItem.id,
+          periodId: researchItem.periodId || selectedTree?.periodId,
+          baseId: selectedTree?.baseId,
+          actionPriority: researchItem.priority || 'متوسط',
+          knowledgeType: researchItem.importance || 'نظریه',
+        },
+      },
+    });
   };
 
   // ذخیره فرم آیتم پژوهشی
@@ -358,7 +390,7 @@ export function ResearchTree() {
         toast(result.message || 'گپی برای تولید موضوع پژوهشی پیدا نشد', { icon: 'ℹ️' });
       }
       await fetchTree(selectedTreeId);
-      await fetchTrees({ type: 'research' });
+      await fetchTrees();
     } catch (error) {
       console.error('Failed to repair the selected research tree:', error);
       toast.error(error instanceof Error ? error.message : 'بازیابی موضوع‌های پژوهشی ناموفق بود');
@@ -382,13 +414,23 @@ export function ResearchTree() {
           trees={researchTrees}
           periods={periods}
           bases={bases}
+          selectedPeriodId={dataScopePeriodId}
+          selectedBaseId={dataScopeBaseId}
+          onScopeChange={(periodId, baseId) => {
+            setDataScope(periodId, baseId);
+            setSearchParams({});
+          }}
           loading={loading}
           onRefresh={async () => {
-            await fetchTrees({ type: 'research' });
+            await fetchTrees();
           }}
           onSelectTree={(id) => setSearchParams({ treeId: String(id) })}
           onAddNewTree={() => {
-            setTreeFormData({ name: '', description: '', periodId: '', organizationLevel: '', baseId: '', unitId: '' });
+            if (!dataScopePeriodId || !dataScopeBaseId) {
+              toast.error('ابتدا دورهٔ زمانی و ساختار سازمانی را انتخاب کنید');
+              return;
+            }
+            setTreeFormData({ name: '', description: '', periodId: dataScopePeriodId, organizationLevel: '', baseId: dataScopeBaseId, unitId: '' });
             setIsEditingTree(false);
             setEditingTreeId(null);
             setShowTreeModal(true);

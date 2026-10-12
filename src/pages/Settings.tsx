@@ -6,7 +6,7 @@ import {
   Save, Settings as SettingsIcon, Shield,
   Image, RefreshCw, CheckCircle,
   Plus, Trash2, Edit, X,
-  Layers, Tag, Building2, Download, Palette, Target, Coins, Hash,
+  Layers, Tag, Landmark, Download, Palette, Target, Coins, Hash,
   Copy, Check, KeyRound
 } from 'lucide-react';
 import { useSecurityStore, useUIStore, useAuthStore, THEMES, ThemeId } from '../store';
@@ -24,18 +24,41 @@ export function Settings() {
   const [gapConfig, setGapConfig] = useState({
     fuzzyThreshold: 45,
     structuralWeight: 20,
+    templateWeight: 20,
+    partialMatchThreshold: 30,
     defaultPriority: 'زیاد',
-    autoResearch: false,
     showMethodology: true,
-    maxResults: 100,
-    description: ''
   });
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(GAP_CONFIG_KEY);
-      if (saved) setGapConfig(prev => ({ ...prev, ...JSON.parse(saved) }));
-    } catch {}
+      if (saved) {
+        const parsed: unknown = JSON.parse(saved);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('ساختار تنظیمات تحلیل شکاف معتبر نیست');
+        }
+        const config = parsed as Record<string, unknown>;
+        const clampPercent = (value: unknown, min: number, max: number, fallback: number) => {
+          const numeric = Number(value);
+          return Number.isFinite(numeric) ? Math.max(min, Math.min(max, numeric)) : fallback;
+        };
+        const priorities = ['خیلی زیاد', 'زیاد', 'متوسط', 'پایین'];
+        setGapConfig({
+          fuzzyThreshold: clampPercent(config.fuzzyThreshold, 10, 80, 45),
+          structuralWeight: clampPercent(config.structuralWeight, 0, 50, 20),
+          templateWeight: clampPercent(config.templateWeight, 0, 50, 20),
+          partialMatchThreshold: clampPercent(config.partialMatchThreshold, 10, 100, 30),
+          defaultPriority: typeof config.defaultPriority === 'string' && priorities.includes(config.defaultPriority)
+            ? config.defaultPriority
+            : 'زیاد',
+          showMethodology: typeof config.showMethodology === 'boolean' ? config.showMethodology : true,
+        });
+      }
+    } catch (error) {
+      console.error('Could not load saved gap analysis settings:', error);
+      toast.error('تنظیمات ذخیره‌شدهٔ تحلیل شکاف معتبر نیست؛ مقادیر پیش‌فرض استفاده می‌شود.');
+    }
   }, []);
 
   const saveGapConfig = () => {
@@ -552,10 +575,32 @@ export function Settings() {
               value={gapConfig.fuzzyThreshold}
               onChange={e => setGapConfig({...gapConfig, fuzzyThreshold: +e.target.value})}
               className="w-full h-2 rounded-full appearance-none cursor-pointer"
-              style={{ background: `linear-gradient(to left, var(--brand-500) ${gapConfig.fuzzyThreshold}%, var(--border-soft) ${gapConfig.fuzzyThreshold}%)` }}
+              style={{ background: `linear-gradient(to left, var(--brand-500) ${((gapConfig.fuzzyThreshold - 10) / 70) * 100}%, var(--border-soft) ${((gapConfig.fuzzyThreshold - 10) / 70) * 100}%)` }}
             />
             <p className="text-[10px] mt-1" style={{ color: 'var(--text-faint)' }}>
               گره‌هایی که شباهت کمتر از این مقدار باشند، به‌عنوان «گپ باز» شناسایی می‌شوند. مقدار پیش‌فرض: ۴۵٪. افزایش این مقدار، حساسیت تحلیل را بیشتر می‌کند.
+            </p>
+          </div>
+
+          {/* آستانه تطابق جزئی قالب */}
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="text-sm font-medium text-strong">
+                حداقل پوشش قالب برای تطابق جزئی
+              </label>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>
+                {gapConfig.partialMatchThreshold}٪
+              </span>
+            </div>
+            <input
+              type="range" min={10} max={100} step={5}
+              value={gapConfig.partialMatchThreshold}
+              onChange={e => setGapConfig({...gapConfig, partialMatchThreshold: +e.target.value})}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer"
+              style={{ background: `linear-gradient(to left, var(--brand-500) ${((gapConfig.partialMatchThreshold - 10) / 90) * 100}%, var(--border-soft) ${((gapConfig.partialMatchThreshold - 10) / 90) * 100}%)` }}
+            />
+            <p className="text-[10px] mt-1" style={{ color: 'var(--text-faint)' }}>
+              حداقل نسبت قالب‌های موردنیاز که باید در یک گرهٔ تولیدشده موجود باشند تا تطابق جزئی ثبت شود. مقدار پیش‌فرض موتور: ۳۰٪.
             </p>
           </div>
 
@@ -581,6 +626,31 @@ export function Settings() {
             </p>
           </div>
 
+          {/* وزن قالب */}
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="text-sm font-medium text-strong">
+                وزن قالب و نمونه‌های دانشی
+              </label>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--brand-50)', color: 'var(--brand-600)' }}>
+                {gapConfig.templateWeight}٪
+              </span>
+            </div>
+            <input
+              type="range" min={0} max={50} step={5}
+              value={gapConfig.templateWeight}
+              onChange={e => setGapConfig({...gapConfig, templateWeight: +e.target.value})}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer"
+              style={{ background: `linear-gradient(to left, var(--brand-500) ${(gapConfig.templateWeight / 50) * 100}%, var(--border-soft) ${(gapConfig.templateWeight / 50) * 100}%)` }}
+            />
+            <p className="text-[10px] mt-1" style={{ color: 'var(--text-faint)' }}>
+              سهم قالب‌ها و نمونه‌های مشترک در امتیاز تطبیق فازی؛ وزن عنوان به‌طور خودکار از مجموع ۱۰۰٪ محاسبه می‌شود.
+            </p>
+            <p className="mt-2 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              وزن مؤثر عنوان: {Math.max(0, 100 - gapConfig.structuralWeight - gapConfig.templateWeight)}٪
+            </p>
+          </div>
+
           {/* اولویت پیش‌فرض */}
           <div>
             <label className="block text-sm font-medium text-strong mb-1.5">
@@ -598,22 +668,6 @@ export function Settings() {
             </select>
             <p className="text-[10px] mt-1" style={{ color: 'var(--text-faint)' }}>
               اولویت پیش‌فرض برای گپ‌هایی که هنوز اولویت‌بندی نشده‌اند.
-            </p>
-          </div>
-
-          {/* حداکثر نتایج */}
-          <div>
-            <label className="block text-sm font-medium text-strong mb-1.5">
-              حداکثر تعداد نتایج تحلیل
-            </label>
-            <input
-              type="number" min={10} max={500}
-              value={gapConfig.maxResults}
-              onChange={e => setGapConfig({...gapConfig, maxResults: +e.target.value})}
-              className="input-theme w-32 px-3 py-2.5 text-sm text-center"
-            />
-            <p className="text-[10px] mt-1" style={{ color: 'var(--text-faint)' }}>
-              حداکثر تعداد گپ‌هایی که در هر بار تحلیل نمایش داده می‌شوند.
             </p>
           </div>
 
@@ -1222,16 +1276,14 @@ export function Settings() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="-mx-4 md:-mx-6 -mt-4 md:-mt-6 px-4 md:px-6 pt-4 md:pt-6 sticky top-0 z-20 surface-page pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b divider-main mb-6 transition-colors duration-200">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 brand-gradient rounded-xl shadow-lg">
-              <SettingsIcon size={24} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-strong">تنظیمات سیستم</h1>
-              <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>مدیریت تنظیمات عمومی، ظاهر و تم، و امنیت</p>
-            </div>
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-colors duration-200 dark:border-gray-800 dark:bg-[#1e1e2f] md:flex-row md:items-center">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 brand-gradient rounded-xl shadow-lg">
+            <SettingsIcon size={24} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-strong">تنظیمات سیستم</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>مدیریت تنظیمات عمومی، ظاهر و تم، و امنیت</p>
           </div>
         </div>
       </div>

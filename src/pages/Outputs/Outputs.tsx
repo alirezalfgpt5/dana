@@ -10,7 +10,7 @@ import {
   HelpCircle,
   Maximize,
   Minimize,
-  Building2
+  Landmark
 } from 'lucide-react';
 import { useTree } from '../../hooks/useTree';
 import { useOutputs } from '../../hooks/useOutputs';
@@ -23,7 +23,7 @@ import rawTransition from 'react-element-popper/animations/transition';
 import toast from 'react-hot-toast';
 import { TreeGraphView } from '../Trees/components/TreeGraphView';
 import { getTreeOrgText } from '../../utils/orgHelper';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, type YAxisTickContentProps } from 'recharts';
 import { formatNumber, getDatePickerDigits } from '../../utils/numberFormat';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 
@@ -77,6 +77,14 @@ export function Outputs() {
   const [isExporting, setIsExporting] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [periods, setPeriods] = useState<any[]>([]);
+  const nodesByLevel = [
+    { name: 'ریشه (R)', count: graphData?.stats?.byLevel?.['R'] || 0, fill: '#3b82f6' },
+    { name: 'تنه (T)', count: graphData?.stats?.byLevel?.['T'] || 0, fill: '#8b5cf6' },
+    { name: 'شاخه (B)', count: graphData?.stats?.byLevel?.['B'] || 0, fill: '#10b981' },
+    { name: 'زیرشاخه (SB)', count: graphData?.stats?.byLevel?.['SB'] || 0, fill: '#f59e0b' },
+    { name: 'برگ (L)', count: graphData?.stats?.byLevel?.['L'] || 0, fill: '#6366f1' },
+    { name: 'سوال (Q)', count: graphData?.stats?.byLevel?.['Q'] || 0, fill: '#ec4899' },
+  ].filter(item => item.count > 0);
 
   useEffect(() => {
     fetchTrees();
@@ -282,7 +290,7 @@ export function Outputs() {
           {/* فیلتر ساختار سازمانی / یگان متولی */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
-              <Building2 size={16} className="text-blue-600" />
+              <Landmark size={16} className="text-blue-600" />
               <span>واحد سازمانی / یگان متولی (اختیاری)</span>
             </label>
             <SearchableSelect
@@ -492,31 +500,31 @@ export function Outputs() {
                     </div>
                     <div className="flex-1 min-h-0 w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart margin={{ top: 20, right: 10, left: -20, bottom: 20 }} data={[
-                          { name: 'ریشه (R)', count: graphData.stats?.byLevel?.['R'] || 0, fill: '#3b82f6' },
-                          { name: 'تنه (T)', count: graphData.stats?.byLevel?.['T'] || 0, fill: '#8b5cf6' },
-                          { name: 'شاخه (B)', count: graphData.stats?.byLevel?.['B'] || 0, fill: '#10b981' },
-                          { name: 'زیرشاخه (SB)', count: graphData.stats?.byLevel?.['SB'] || 0, fill: '#f59e0b' },
-                          { name: 'برگ (L)', count: graphData.stats?.byLevel?.['L'] || 0, fill: '#6366f1' },
-                          { name: 'سوال (Q)', count: graphData.stats?.byLevel?.['Q'] || 0, fill: '#ec4899' },
-                        ].filter(d => d.count > 0)}>
+                        <BarChart layout="vertical" margin={{ top: 8, right: 20, left: 8, bottom: 8 }} data={nodesByLevel}>
                           <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                          <XAxis tickMargin={5} dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-55} textAnchor="end" height={50} dx={-5} />
-                          <YAxis tickMargin={15} allowDecimals={false} tick={{ fontSize: 11 }} />
+                          <XAxis type="number" tickMargin={5} allowDecimals={false} tick={{ fontSize: 11 }} />
+                          <YAxis
+                            type="category"
+                            dataKey="name"
+                            width={135}
+                            tickMargin={8}
+                            tick={({ x, y, payload }: YAxisTickContentProps) => (
+                              <text
+                                x={Number(x) - 8}
+                                y={y}
+                                textAnchor="end"
+                                dominantBaseline="central"
+                                direction="rtl"
+                                fontSize={11}
+                                fill="var(--text-muted)"
+                              >
+                                {payload?.value}
+                              </text>
+                            )}
+                          />
                           <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                            {
-                              [
-                                { name: 'ریشه (R)', count: graphData.stats?.byLevel?.['R'] || 0, fill: '#3b82f6' },
-                                { name: 'تنه (T)', count: graphData.stats?.byLevel?.['T'] || 0, fill: '#8b5cf6' },
-                                { name: 'شاخه (B)', count: graphData.stats?.byLevel?.['B'] || 0, fill: '#10b981' },
-                                { name: 'زیرشاخه (SB)', count: graphData.stats?.byLevel?.['SB'] || 0, fill: '#f59e0b' },
-                                { name: 'برگ (L)', count: graphData.stats?.byLevel?.['L'] || 0, fill: '#6366f1' },
-                                { name: 'سوال (Q)', count: graphData.stats?.byLevel?.['Q'] || 0, fill: '#ec4899' },
-                              ].filter(d => d.count > 0).map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.fill} />
-                              ))
-                            }
+                          <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                            {nodesByLevel.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>

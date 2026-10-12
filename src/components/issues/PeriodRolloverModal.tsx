@@ -12,7 +12,7 @@ import {
   FileText,
   Copy,
   Info,
-  Building2
+  Landmark
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -260,7 +260,7 @@ export function PeriodRolloverModal({
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                  <Building2 size={15} className="text-purple-600" />
+                  <Landmark size={15} className="text-purple-600" />
                   ۳. ساختار سازمانی / یگان متولی جهت انتقال (اختیاری)
                 </label>
                 <select
@@ -362,7 +362,7 @@ export function PeriodRolloverModal({
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                  <Building2 size={15} className="text-indigo-600" />
+                  <Landmark size={15} className="text-indigo-600" />
                   ساختار سازمانی / یگان متولی این سی‌دی یا فایل (اختیاری)
                 </label>
                 <select

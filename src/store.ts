@@ -62,6 +62,7 @@ export const useAuthStore = create<AuthState>()(
           useSecurityStore.getState().setLocked(false);
           (window as any)._sessionExpiredHandled = false;
         } catch { /* noop */ }
+        useUIStore.getState().setDataScope(null, null);
         set({ user, token });
       },
       logout: () => {
@@ -73,6 +74,7 @@ export const useAuthStore = create<AuthState>()(
           useSecurityStore.getState().setLocked(false);
           (window as any)._sessionExpiredHandled = false;
         } catch { /* noop */ }
+        useUIStore.getState().setDataScope(null, null);
         set({ user: null, token: null });
       },
       updateUser: (user) => set({ user }),
@@ -108,11 +110,14 @@ interface UIState {
   periods: any[];
   activePeriod: any | null;
   setActivePeriod: (period: any | null) => void;
-  fetchPeriods: () => Promise<void>;
+  fetchPeriods: () => Promise<boolean>;
+  dataScopePeriodId: string;
+  dataScopeBaseId: string;
+  setDataScope: (periodId: string | null, baseId: string | null) => void;
   
   bases: any[];
   units: any[];
-  fetchOrgData: () => Promise<void>;
+  fetchOrgData: () => Promise<boolean>;
   
   // قالب‌ها و سطوح
   templates: any[];
@@ -253,8 +258,15 @@ export const useUIStore = create<UIState>()(
       
       periods: [],
       activePeriod: null,
+      dataScopePeriodId: '',
+      dataScopeBaseId: '',
+      setDataScope: (periodId, baseId) => set({
+        dataScopePeriodId: periodId || '',
+        dataScopeBaseId: baseId || '',
+        trees: [],
+      }),
       setActivePeriod: (period) => {
-        set({ activePeriod: period });
+        set({ activePeriod: period, trees: [] });
         try {
           if (typeof localStorage !== 'undefined') {
             const auth = JSON.parse(localStorage.getItem('dana_auth_state') || '{}');
@@ -266,15 +278,13 @@ export const useUIStore = create<UIState>()(
         } catch (error) {
           console.error('ذخیرهٔ دورهٔ انتخاب‌شده انجام نشد:', error);
         }
-        get().fetchTrees();
       },
       fetchPeriods: async () => {
         try {
           const data = await safeFetchJson('/api/periods', { cache: 'no-store' });
-          if (!data) return;
+          if (!data) return false;
           const periodsList = Array.isArray(data) ? data : [];
           set({ periods: periodsList });
-          get().fetchOrgData();
           const auth = JSON.parse(localStorage.getItem('dana_auth_state') || '{}');
           const userId = auth?.state?.user?.id ?? 'guest';
           const preferences = JSON.parse(localStorage.getItem(`dana_user_preferences_${userId}`) || '{}');
@@ -293,8 +303,10 @@ export const useUIStore = create<UIState>()(
               JSON.stringify({ ...preferences, activePeriodId: defaultPeriod.id })
             );
           }
+          return Array.isArray(data);
         } catch (e) {
           console.error('Error fetching periods:', e);
+          return false;
         }
       },
       
@@ -306,13 +318,16 @@ export const useUIStore = create<UIState>()(
             safeFetchJson('/api/org/bases', { cache: 'no-store' }),
             safeFetchJson('/api/org/units', { cache: 'no-store' })
           ]);
+          const loadedSuccessfully = Array.isArray(basesData) && Array.isArray(unitsData);
           set({ 
             bases: Array.isArray(basesData) ? basesData : [],
             units: Array.isArray(unitsData) ? unitsData : []
           });
+          return loadedSuccessfully;
         } catch (e) {
           console.error('Error fetching org data:', e);
           set({ bases: [], units: [] });
+          return false;
         }
       },
       

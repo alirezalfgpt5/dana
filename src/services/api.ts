@@ -7,7 +7,7 @@ export const api = axios.create({
   timeout: 15000,
 });
 
-import { useAuthStore } from '../store';
+import { dispatchAuthError, useAuthStore } from '../store';
 
 // Interceptor برای افزودن توکن
 api.interceptors.request.use((config) => {
@@ -21,8 +21,6 @@ api.interceptors.request.use((config) => {
   }
   return config;
 }, (error) => Promise.reject(error));
-
-let isAuthRedirecting = false;
 
 // Interceptor برای مدیریت پاسخ‌ها - اینجا response.data رو برگردون
 api.interceptors.response.use(
@@ -41,16 +39,8 @@ api.interceptors.response.use(
       const onPublicRoute = currentPath.includes('/login');
       const { user, token } = useAuthStore.getState();
       const hasSession = !!(user && token);
-      if (hasSession && !onPublicRoute && !isAuthRedirecting) {
-        isAuthRedirecting = true;
-        toast.error('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.', { id: 'app-auth-expired' });
-        useAuthStore.getState().logout();
-        setTimeout(() => {
-          isAuthRedirecting = false;
-          window.location.href = '/login';
-        }, 1500);
-      } else if (!hasSession || onPublicRoute) {
-        useAuthStore.getState().logout();
+      if (hasSession && !onPublicRoute) {
+        dispatchAuthError('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
       }
       return Promise.reject(new Error('Unauthorized'));
     }

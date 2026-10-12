@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { 
   X, FileText, Settings, ClipboardList, Users, Coins, 
-  CheckCircle, Clock, RefreshCw, File, UserCog, Building2,
+  CheckCircle, Clock, RefreshCw, File, UserCog, Landmark,
   Calendar, Shield, AlertCircle, Paperclip, Download, ChevronLeft,
   FileDown, ExternalLink
 } from 'lucide-react';
@@ -108,7 +108,7 @@ export const IssueDetailsModal: React.FC<IssueDetailsModalProps> = ({
                 {issue.title}
               </h3>
               <div className="text-xs text-gray-500 flex items-center gap-1.5 mt-1">
-                <Building2 size={13} className="text-gray-400 shrink-0" />
+                <Landmark size={13} className="text-gray-400 shrink-0" />
                 <span>ساختار سازمانی / مالک:</span>
                 <span className="font-semibold text-slate-700">{getIssueOrgText(issue)}</span>
               </div>
