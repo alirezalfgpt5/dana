@@ -3,6 +3,7 @@ build/
 dist/
 coverage/
 release/
+logs/
 .DS_Store
 *.exe
 *.asar
